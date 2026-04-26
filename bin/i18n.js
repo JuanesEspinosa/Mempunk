@@ -80,6 +80,12 @@ const translations = {
     creatingProject: "Creating project {name}...",
     projectCreated: "Project created:",
 
+    warnCorruptConfig: "Warning: corrupted config file at",
+    errorWriteConfig: "Error: failed to write config:",
+    errorSelectOne: "Select at least one folder",
+    errorUnknownLang: "Unknown language:",
+    availableLangs: "Available:",
+
     structure: "Structure",
   },
 
@@ -163,6 +169,12 @@ const translations = {
     errorProjectExists: "Error: el proyecto ya existe:",
     creatingProject: "Creando proyecto {name}...",
     projectCreated: "Proyecto creado:",
+
+    warnCorruptConfig: "Advertencia: archivo de config corrupto en",
+    errorWriteConfig: "Error: no se pudo escribir la config:",
+    errorSelectOne: "Selecciona al menos una carpeta",
+    errorUnknownLang: "Idioma desconocido:",
+    availableLangs: "Disponibles:",
 
     structure: "Estructura",
   },

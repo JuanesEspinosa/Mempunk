@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import inquirer from "inquirer";
 import chalk from "chalk";
 import boxen from "boxen";
@@ -20,6 +20,66 @@ const PRESETS = {
   minimal: { folders: ["projects"] },
 };
 
+const ALL_FOLDERS = ["projects", "areas", "resources", "daily"];
+
+// ── Path helpers ─────────────────────────────────────────────────────────────
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function normalizePath(p) {
+  return path.resolve(p).replace(/\\/g, "/");
+}
+
+function getTemplatesDir() {
+  return path.join(__dirname, "..", "templates");
+}
+
+function getHomePath(...segments) {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  return path.join(home, ...segments);
+}
+
+// ── Config ───────────────────────────────────────────────────────────────────
+
+function getClaudeConfigPath() {
+  return getHomePath(".claude.json");
+}
+
+function readClaudeConfig() {
+  const configPath = getClaudeConfigPath();
+  if (!fs.existsSync(configPath)) return {};
+  const raw = fs.readFileSync(configPath, "utf-8");
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn(chalk.yellow(`  ${t.warnCorruptConfig} ${configPath}`));
+    console.warn(chalk.dim(`  ${err.message}`));
+    return {};
+  }
+}
+
+function writeClaudeConfig(config) {
+  const configPath = getClaudeConfigPath();
+  const backup = configPath + ".bak";
+
+  // Backup before writing
+  if (fs.existsSync(configPath)) {
+    fs.copyFileSync(configPath, backup);
+  }
+
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+  } catch (err) {
+    // Rollback on failure
+    if (fs.existsSync(backup)) {
+      fs.copyFileSync(backup, configPath);
+    }
+    console.error(chalk.red(`  ${t.errorWriteConfig} ${err.message}`));
+    process.exit(1);
+  }
+}
+
 // ── Banner ───────────────────────────────────────────────────────────────────
 
 function showBanner() {
@@ -33,9 +93,7 @@ function showBanner() {
 
   const mempunkGradient = gradient(["#a855f7", "#ec4899", "#f97316"]);
   console.log(mempunkGradient(banner));
-  console.log(
-    chalk.dim("  Persistent dev brain for Claude Code\n")
-  );
+  console.log(chalk.dim("  Persistent dev brain for Claude Code\n"));
 }
 
 // ── Tree display ─────────────────────────────────────────────────────────────
@@ -70,6 +128,27 @@ function showPrompt(vaultPath) {
       borderColor: "magenta",
     })
   );
+}
+
+// ── Template adjustment ─────────────────────────────────────────────────────
+
+function adjustTemplate(content, folders) {
+  const missing = ALL_FOLDERS.filter((f) => !folders.includes(f));
+  const lines = content.split("\n");
+  const filtered = lines.filter((line) => {
+    for (const folder of missing) {
+      // Match tree lines (├── folder/ or └── folder/) and comment lines (# ...folder...)
+      if (
+        line.match(new RegExp(`[├└]── ${folder}/`)) ||
+        line.match(new RegExp(`^├── ${folder}\\s+#`)) ||
+        line.match(new RegExp(`^└── ${folder}\\s+#`))
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+  return filtered.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
 // ── Setup (interactive) ──────────────────────────────────────────────────────
@@ -121,7 +200,7 @@ async function setup(lang) {
       },
     ]);
     if (shouldLink) linkVault(resolved, false);
-    showPrompt(resolved);
+    showPrompt(normalizePath(resolved));
     return;
   }
 
@@ -154,7 +233,8 @@ async function setup(lang) {
           { name: t.folderResources, value: "resources" },
           { name: t.folderDaily, value: "daily" },
         ],
-        validate: (input) => input.length > 0 || "Select at least one folder",
+        validate: (input) =>
+          input.length > 0 || t.errorSelectOne,
       },
     ]);
     folders = selected;
@@ -183,7 +263,7 @@ async function setup(lang) {
 
   console.log(chalk.green(`  ✔ ${t.done}\n`));
 
-  showPrompt(resolved);
+  showPrompt(normalizePath(resolved));
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -209,12 +289,7 @@ function initVault(vaultDir, folders) {
   }
 
   // Copy CLAUDE.md template
-  const templateFile = path.join(
-    new URL(".", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1"),
-    "..",
-    "templates",
-    "CLAUDE.md"
-  );
+  const templateFile = path.join(getTemplatesDir(), "CLAUDE.md");
   const destFile = path.join(vaultDir, "CLAUDE.md");
 
   if (fs.existsSync(templateFile)) {
@@ -226,25 +301,6 @@ function initVault(vaultDir, folders) {
   }
 
   spinner.succeed(chalk.green(`${t.vaultCreated} ${chalk.bold(vaultDir)}`));
-}
-
-function adjustTemplate(content, folders) {
-  const allFolders = ["projects", "areas", "resources", "daily"];
-  const missing = allFolders.filter((f) => !folders.includes(f));
-
-  for (const folder of missing) {
-    const patterns = [
-      new RegExp(`^.*├── ${folder}/.*$`, "gm"),
-      new RegExp(`^.*└── ${folder}/.*$`, "gm"),
-      new RegExp(`^.*${folder}.*#.*$`, "gm"),
-    ];
-    for (const pattern of patterns) {
-      content = content.replace(pattern, "");
-    }
-  }
-
-  content = content.replace(/\n{3,}/g, "\n\n");
-  return content;
 }
 
 // ── Init CLI entry ───────────────────────────────────────────────────────────
@@ -286,25 +342,6 @@ function initFromArgs(args) {
 
 // ── Link / Unlink / Status ───────────────────────────────────────────────────
 
-function getClaudeConfigPath() {
-  const home = process.env.HOME || process.env.USERPROFILE;
-  return path.join(home, ".claude.json");
-}
-
-function readClaudeConfig() {
-  const configPath = getClaudeConfigPath();
-  if (!fs.existsSync(configPath)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(configPath, "utf-8"));
-  } catch {
-    return {};
-  }
-}
-
-function writeClaudeConfig(config) {
-  fs.writeFileSync(getClaudeConfigPath(), JSON.stringify(config, null, 2) + "\n");
-}
-
 function linkVault(vaultPath, showPromptAfter = true) {
   if (!vaultPath) {
     console.error(chalk.red(`  ${t.errorPathRequired}`));
@@ -312,6 +349,7 @@ function linkVault(vaultPath, showPromptAfter = true) {
   }
 
   const resolved = path.resolve(vaultPath);
+  const normalized = normalizePath(resolved);
 
   if (!fs.existsSync(resolved)) {
     console.error(chalk.red(`  ${t.errorPathNotExist} ${resolved}`));
@@ -325,12 +363,11 @@ function linkVault(vaultPath, showPromptAfter = true) {
   }
 
   const config = readClaudeConfig();
-  const normalizedPath = resolved.replace(/\\/g, "/");
   const dirs = config.additionalDirectories || [];
 
-  if (dirs.includes(normalizedPath)) {
-    console.log(chalk.yellow(`  ${t.alreadyLinked} ${normalizedPath}\n`));
-    if (showPromptAfter) showPrompt(normalizedPath);
+  if (dirs.includes(normalized)) {
+    console.log(chalk.yellow(`  ${t.alreadyLinked} ${normalized}\n`));
+    if (showPromptAfter) showPrompt(normalized);
     return;
   }
 
@@ -339,20 +376,22 @@ function linkVault(vaultPath, showPromptAfter = true) {
     spinner: "dots",
   }).start();
 
-  config.additionalDirectories = [...dirs, normalizedPath];
+  config.additionalDirectories = [...dirs, normalized];
   writeClaudeConfig(config);
 
-  spinner.succeed(chalk.green(`${t.vaultLinked} ${chalk.bold(normalizedPath)}`));
+  spinner.succeed(chalk.green(`${t.vaultLinked} ${chalk.bold(normalized)}`));
 
   // Install /mempunk slash command
   const spinnerSkill = ora({
     text: t.installingSkill,
     spinner: "dots",
   }).start();
-  installSlashCommand(normalizedPath);
+  installSlashCommand(normalized);
   spinnerSkill.succeed(chalk.green(t.skillInstalled));
 
   console.log(chalk.dim(`  ${t.linkSuccess}\n`));
+
+  if (showPromptAfter) showPrompt(normalized);
 }
 
 function unlink() {
@@ -389,24 +428,14 @@ function status() {
 
 // ── Project scaffolding ─────────────────────────────────────────────────────
 
-function getTemplatesDir() {
-  return path.join(
-    new URL(".", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1"),
-    "..",
-    "templates"
-  );
-}
-
 function findVaultPath() {
   const config = readClaudeConfig();
   const dirs = config.additionalDirectories || [];
-  // Find first linked vault that has CLAUDE.md
   for (const dir of dirs) {
     if (fs.existsSync(path.join(dir, "CLAUDE.md"))) {
       return dir;
     }
   }
-  // Check current directory
   if (fs.existsSync(path.join(process.cwd(), "CLAUDE.md"))) {
     return process.cwd();
   }
@@ -441,8 +470,7 @@ function createProject(projectName) {
   fs.mkdirSync(path.join(projectDir, "decisions"), { recursive: true });
 
   // Copy and process templates
-  const templatesDir = getTemplatesDir();
-  const projectTemplateDir = path.join(templatesDir, "project");
+  const projectTemplateDir = path.join(getTemplatesDir(), "project");
   const displayName = projectName
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -485,15 +513,12 @@ function registerProjectInClaude(vaultPath, projectName, displayName) {
   const endMarker = "<!-- MEMPUNK:PROJECTS:END -->";
 
   if (content.includes(startMarker)) {
-    // Extract current project list
     const startIdx = content.indexOf(startMarker) + startMarker.length;
     const endIdx = content.indexOf(endMarker);
     const currentSection = content.substring(startIdx, endIdx).trim();
 
-    // Check if project already registered
     if (currentSection.includes(projectName)) return;
 
-    // Build new section
     let projects;
     if (currentSection.includes("Ninguno registrado") || currentSection.includes("No projects")) {
       projects = projectLink;
@@ -508,7 +533,6 @@ function registerProjectInClaude(vaultPath, projectName, displayName) {
       "\n" +
       content.substring(endIdx);
   } else {
-    // No markers found — append section
     const section = `\n## Proyectos activos\n\n${startMarker}\n${projectLink}\n${endMarker}\n`;
     content += section;
   }
@@ -519,11 +543,8 @@ function registerProjectInClaude(vaultPath, projectName, displayName) {
 // ── Slash command install ────────────────────────────────────────────────────
 
 function installSlashCommand(vaultPath) {
-  const home = process.env.HOME || process.env.USERPROFILE;
-  const skillDir = path.join(home, ".claude", "skills", "mempunk");
+  const skillDir = getHomePath(".claude", "skills", "mempunk");
   const skillFile = path.join(skillDir, "SKILL.md");
-
-  const normalizedPath = vaultPath.replace(/\\/g, "/");
 
   const content = `---
 name: mempunk
@@ -532,7 +553,7 @@ disable-model-invocation: false
 allowed-tools: Read Glob Grep
 ---
 
-Read the CLAUDE.md file at "${normalizedPath}" and follow the session start protocol defined there.
+Read the CLAUDE.md file at "${vaultPath}" and follow the session start protocol defined there.
 
 This is the user's Mempunk vault — a persistent dev brain across sessions. It contains:
 - Project overviews, architecture docs, and backlogs
@@ -550,8 +571,6 @@ After reading CLAUDE.md, follow the session start protocol:
 
   fs.mkdirSync(skillDir, { recursive: true });
   fs.writeFileSync(skillFile, content);
-
-  return skillFile;
 }
 
 // ── Parse global flags ──────────────────────────────────────────────────────
@@ -565,7 +584,7 @@ function parseGlobalFlags(args) {
       lang = args[++i];
       if (!getAvailableLanguages().includes(lang)) {
         console.error(
-          chalk.red(`  Unknown language: ${lang}. Available: ${getAvailableLanguages().join(", ")}`)
+          chalk.red(`  ${t.errorUnknownLang} ${lang}. ${t.availableLangs} ${getAvailableLanguages().join(", ")}`)
         );
         process.exit(1);
       }
