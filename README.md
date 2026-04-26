@@ -1,90 +1,85 @@
 # Mempunk
 
-Dev Brain vault — memoria persistente para Claude Code entre sesiones.
+Persistent dev brain for Claude Code — memory vault across sessions.
 
-Claude Code olvida todo entre sesiones. Este vault es la continuidad: al inicio de cada sesion lee el contexto, al final escribe lo que hizo.
+Claude Code forgets everything between sessions. Mempunk is the continuity: it reads context at the start, writes what it did at the end.
 
 ## Quick Start
 
-### 1. Clonar
+```bash
+npx mempunk
+```
+
+That's it. The interactive setup will ask where to create the vault, which folders to include, and link it to Claude Code automatically.
+
+After setup, every `claude` session in any project has access to your vault.
+
+## CLI
+
+```
+mempunk setup                  Interactive full setup (recommended)
+mempunk init [path] [options]  Create a new vault
+mempunk link <path>            Link vault to Claude Code
+mempunk unlink                 Remove vault from Claude Code config
+mempunk status                 Show current linked vault
+```
+
+### Init options
 
 ```bash
-git clone https://github.com/tu-usuario/mempunk.git
-cd mempunk
+# Presets
+mempunk init ./vault --preset full       # projects, areas, resources, daily
+mempunk init ./vault --preset standard   # projects, resources, daily
+mempunk init ./vault --preset minimal    # projects only
+
+# Pick specific folders
+mempunk init ./vault --projects --resources --daily
 ```
 
-### 2. Usar directamente
-
-Ejecutar Claude Code desde el directorio del vault:
-
-```bash
-claude
-```
-
-Claude leera el `CLAUDE.md` automaticamente y seguira los protocolos definidos.
-
-### 3. Acceso cruzado desde otros proyectos
-
-Para que Claude Code acceda al vault mientras trabajas en otro proyecto, agrega el vault como directorio adicional:
-
-**Opcion A — Por sesion (temporal):**
-
-```bash
-claude --add-dir "/ruta/a/mempunk"
-```
-
-**Opcion B — Permanente (config global):**
-
-Agrega esto a tu `~/.claude.json`:
-
-```json
-{
-  "additionalDirectories": ["/ruta/a/mempunk"]
-}
-```
-
-> Reemplaza `/ruta/a/mempunk` con la ruta absoluta donde clonaste el repo.
-
-## Estructura
+## Vault Structure
 
 ```
-mempunk/
-├── CLAUDE.md              # Punto de entrada — Claude lee esto primero
-├── projects/              # Un directorio por proyecto activo
-├── areas/                 # Responsabilidades continuas (universidad, infra...)
-├── resources/             # Conocimiento tecnico reutilizable
-└── daily/                 # Session logs diarios
+vault/
+├── CLAUDE.md              # Entry point — Claude reads this first
+├── projects/              # One directory per active project
+├── areas/                 # Ongoing responsibilities
+├── resources/             # Reusable technical knowledge
+└── daily/                 # Daily session logs
 ```
 
-### Estructura de cada proyecto
+### Per-project structure
 
 ```
-projects/nombre-proyecto/
-├── overview.md            # Contexto general (leer primero)
-├── architecture.md        # Stack y decisiones tecnicas
-├── backlog.md             # Tareas pendientes priorizadas
+projects/my-project/
+├── overview.md            # General context (read first)
+├── architecture.md        # Stack and technical decisions
+├── backlog.md             # Prioritized pending tasks
 ├── decisions/             # Architecture Decision Records
-└── session-log.md         # Log de cada sesion de Claude
+└── session-log.md         # Log of each Claude session
 ```
 
-## Como funciona
+## How It Works
 
-1. **Inicio de sesion:** Claude lee `CLAUDE.md` > identifica el proyecto > lee overview + session-log + backlog > confirma contexto con el usuario
-2. **Durante la sesion:** Claude trabaja con contexto completo de decisiones pasadas
-3. **Cierre de sesion:** Claude escribe en el session-log que hizo, que decidio, y que falta
+1. **Session start:** Claude reads `CLAUDE.md` → identifies the project → reads overview + session-log + backlog → confirms context with the user
+2. **During session:** Claude works with full context of past decisions
+3. **Session end:** Claude writes to the session-log what it did, decided, and what's next
 
-## Compatible con Obsidian
+## What Does `link` Do?
 
-Este vault funciona como boveda de Obsidian. Los archivos son markdown estandar — puedes navegar, buscar y vincular notas visualmente.
+It adds the vault path to Claude Code's global config (`~/.claude.json` → `additionalDirectories`). After linking, every `claude` session — in any project — can read and write to the vault automatically.
 
-## Personalizar
+## Obsidian Compatible
 
-Edita `CLAUDE.md` para ajustar:
-- Preferencias de stack y estilo de codigo
-- Reglas de comunicacion
-- Protocolos de inicio/cierre de sesion
-- Plantillas de proyectos nuevos
+This vault works as an Obsidian vault. All files are standard markdown — browse, search, and link notes visually.
 
-## Licencia
+## Customize
+
+Edit `CLAUDE.md` to adjust:
+- Stack and code style preferences
+- Communication rules
+- Session start/end protocols
+- New project templates
+
+## License
 
 MIT
