@@ -47,6 +47,8 @@ const translations = {
     choose: "Choose (number)",
     select: "Select",
     done: "Done. Run 'claude' in any project to start using your vault.",
+    promptTitle: "Copy this prompt and paste it at the start of any Claude Code session:",
+    promptText: 'Read the CLAUDE.md file at "{path}" and follow the session start protocol defined there. This is my Mempunk vault — my persistent dev brain across sessions.',
 
     // ── Folders ──
     folderProjects: "One directory per active project with overview, backlog, and session logs",
@@ -128,6 +130,8 @@ const translations = {
     choose: "Elige (numero)",
     select: "Selecciona",
     done: "Listo. Ejecuta 'claude' en cualquier proyecto para usar tu vault.",
+    promptTitle: "Copia este prompt y pegalo al inicio de cualquier sesion de Claude Code:",
+    promptText: 'Lee el archivo CLAUDE.md en "{path}" y sigue el protocolo de inicio de sesion definido ahi. Este es mi vault Mempunk — mi cerebro persistente entre sesiones.',
 
     // ── Folders ──
     folderProjects: "Un directorio por proyecto activo con overview, backlog y session logs",

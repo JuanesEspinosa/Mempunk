@@ -153,6 +153,7 @@ async function setup(lang) {
   }
 
   console.log(`  ${t.done}\n`);
+  showPrompt(resolved);
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -303,7 +304,8 @@ function link(vaultPath) {
   const dirs = config.additionalDirectories || [];
 
   if (dirs.includes(normalizedPath)) {
-    console.log(`  ${t.alreadyLinked} ${normalizedPath}`);
+    console.log(`  ${t.alreadyLinked} ${normalizedPath}\n`);
+    showPrompt(normalizedPath);
     return;
   }
 
@@ -312,6 +314,7 @@ function link(vaultPath) {
 
   console.log(`  ${t.vaultLinked} ${normalizedPath}`);
   console.log(`  ${t.linkSuccess}\n`);
+  showPrompt(normalizedPath);
 }
 
 function unlink() {
@@ -339,6 +342,17 @@ function status() {
     const exists = fs.existsSync(dir);
     console.log(`    ${exists ? "+" : "!"} ${dir}${exists ? "" : ` ${t.notFound}`}`);
   }
+}
+
+// ── Prompt display ──────────────────────────────────────────────────────────
+
+function showPrompt(vaultPath) {
+  const prompt = t.promptText.replace("{path}", vaultPath);
+  console.log(`  ┌─────────────────────────────────────────────────────────────`);
+  console.log(`  │ ${t.promptTitle}`);
+  console.log(`  │`);
+  console.log(`  │  "${prompt}"`);
+  console.log(`  └─────────────────────────────────────────────────────────────\n`);
 }
 
 // ── Parse global flags ──────────────────────────────────────────────────────
