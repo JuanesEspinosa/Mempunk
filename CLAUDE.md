@@ -102,7 +102,9 @@ Este log es critico. Sin el, la proxima sesion empieza desde cero.
 
 ## Proyectos activos
 
-*Ninguno registrado aun. Usar el protocolo de nuevo proyecto para agregar.*
+<!-- MEMPUNK:PROJECTS:START -->
+*Ninguno registrado aun. Usa `mempunk project <nombre>` para agregar.*
+<!-- MEMPUNK:PROJECTS:END -->
 
 ---
 

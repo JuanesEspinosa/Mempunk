@@ -6,6 +6,7 @@ const translations = {
   Usage:
     mempunk setup                  Interactive full setup (recommended)
     mempunk init [path] [options]  Create a new vault
+    mempunk project <name>         Add a new project to the vault
     mempunk link <path>            Link vault to Claude Code (global config)
     mempunk unlink                 Remove vault from Claude Code config
     mempunk status                 Show current linked vault
@@ -73,6 +74,12 @@ const translations = {
     installingSkill: "Installing /mempunk slash command...",
     skillInstalled: "/mempunk command installed globally",
 
+    errorProjectName: "Error: project name required. Usage: mempunk project <name>",
+    errorNoVault: "Error: no vault found. Run 'mempunk setup' first.",
+    errorProjectExists: "Error: project already exists:",
+    creatingProject: "Creating project {name}...",
+    projectCreated: "Project created:",
+
     structure: "Structure",
   },
 
@@ -83,6 +90,7 @@ const translations = {
   Uso:
     mempunk setup                  Setup interactivo completo (recomendado)
     mempunk init [ruta] [opciones] Crear un nuevo vault
+    mempunk project <nombre>       Agregar un nuevo proyecto al vault
     mempunk link <ruta>            Vincular vault a Claude Code (config global)
     mempunk unlink                 Desvincular vault de Claude Code
     mempunk status                 Mostrar vault vinculado actual
@@ -149,6 +157,12 @@ const translations = {
 
     installingSkill: "Instalando comando /mempunk...",
     skillInstalled: "Comando /mempunk instalado globalmente",
+
+    errorProjectName: "Error: nombre de proyecto requerido. Uso: mempunk project <nombre>",
+    errorNoVault: "Error: no se encontro un vault. Ejecuta 'mempunk setup' primero.",
+    errorProjectExists: "Error: el proyecto ya existe:",
+    creatingProject: "Creando proyecto {name}...",
+    projectCreated: "Proyecto creado:",
 
     structure: "Estructura",
   },

@@ -46,15 +46,23 @@ projects/[nombre-proyecto]/
 
 ---
 
+## Proyectos activos
+
+<!-- MEMPUNK:PROJECTS:START -->
+*Ninguno registrado aun. Usa `mempunk project <nombre>` para agregar.*
+<!-- MEMPUNK:PROJECTS:END -->
+
+---
+
 ## Protocolo de inicio de sesion
 
 **Al comenzar cualquier sesion, Claude DEBE:**
 
 1. Leer este archivo (`CLAUDE.md`) completo
-2. Identificar en que proyecto(s) se va a trabajar
-3. Leer el `overview.md` del proyecto relevante
-4. Leer las ultimas **3 entradas** del `session-log.md` de ese proyecto
-5. Leer el `backlog.md` para entender prioridades actuales
+2. Identificar en que proyecto(s) se va a trabajar — ver la seccion **Proyectos activos** arriba
+3. Leer el [[overview]] del proyecto relevante (seguir el link directo)
+4. Leer las ultimas **3 entradas** del [[session-log]] de ese proyecto
+5. Leer el [[backlog]] para entender prioridades actuales
 6. Confirmar al usuario: *"Lei el contexto de [proyecto]. Ultimo trabajo fue [resumen]. Continuamos con [X] o hay algo nuevo?"*
 
 **Nunca empezar a escribir codigo sin haber hecho estos pasos.**
@@ -64,7 +72,7 @@ projects/[nombre-proyecto]/
 ## Protocolo de cierre de sesion
 
 **Al terminar cualquier sesion de trabajo, Claude DEBE escribir en
-`projects/[proyecto]/session-log.md`:**
+el [[session-log]] del proyecto:**
 
 ```markdown
 ## Sesion YYYY-MM-DD HH:MM
@@ -84,12 +92,6 @@ projects/[nombre-proyecto]/
 ### Archivos modificados
 - [lista de archivos tocados]
 ```
-
----
-
-## Proyectos activos
-
-*Ninguno registrado aun. Usar el protocolo de nuevo proyecto para agregar.*
 
 ---
 

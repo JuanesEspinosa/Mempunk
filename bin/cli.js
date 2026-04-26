@@ -387,6 +387,135 @@ function status() {
   console.log();
 }
 
+// ── Project scaffolding ─────────────────────────────────────────────────────
+
+function getTemplatesDir() {
+  return path.join(
+    new URL(".", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1"),
+    "..",
+    "templates"
+  );
+}
+
+function findVaultPath() {
+  const config = readClaudeConfig();
+  const dirs = config.additionalDirectories || [];
+  // Find first linked vault that has CLAUDE.md
+  for (const dir of dirs) {
+    if (fs.existsSync(path.join(dir, "CLAUDE.md"))) {
+      return dir;
+    }
+  }
+  // Check current directory
+  if (fs.existsSync(path.join(process.cwd(), "CLAUDE.md"))) {
+    return process.cwd();
+  }
+  return null;
+}
+
+function createProject(projectName) {
+  if (!projectName) {
+    console.error(chalk.red(`  ${t.errorProjectName}`));
+    process.exit(1);
+  }
+
+  const vaultPath = findVaultPath();
+  if (!vaultPath) {
+    console.error(chalk.red(`  ${t.errorNoVault}`));
+    process.exit(1);
+  }
+
+  const projectDir = path.join(vaultPath, "projects", projectName);
+
+  if (fs.existsSync(projectDir)) {
+    console.error(chalk.red(`  ${t.errorProjectExists} ${projectName}`));
+    process.exit(1);
+  }
+
+  const spinner = ora({
+    text: t.creatingProject.replace("{name}", projectName),
+    spinner: "dots",
+  }).start();
+
+  // Create project directory and decisions subdirectory
+  fs.mkdirSync(path.join(projectDir, "decisions"), { recursive: true });
+
+  // Copy and process templates
+  const templatesDir = getTemplatesDir();
+  const projectTemplateDir = path.join(templatesDir, "project");
+  const displayName = projectName
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+  const templateFiles = ["overview.md", "backlog.md", "architecture.md", "session-log.md"];
+
+  for (const file of templateFiles) {
+    const templatePath = path.join(projectTemplateDir, file);
+    if (fs.existsSync(templatePath)) {
+      let content = fs.readFileSync(templatePath, "utf-8");
+      content = content.replace(/\{PROJECT_NAME\}/g, displayName);
+      fs.writeFileSync(path.join(projectDir, file), content);
+    }
+  }
+
+  // Register project in CLAUDE.md
+  registerProjectInClaude(vaultPath, projectName, displayName);
+
+  spinner.succeed(chalk.green(`${t.projectCreated} ${chalk.bold(displayName)}`));
+
+  // Show project structure
+  console.log(chalk.bold(`\n  ${t.structure}:\n`));
+  console.log(chalk.dim(`  projects/${projectName}/`));
+  console.log(`  ├── ${chalk.cyan("overview.md")}`);
+  console.log(`  ├── ${chalk.yellow("architecture.md")}`);
+  console.log(`  ├── ${chalk.yellow("backlog.md")}`);
+  console.log(`  ├── ${chalk.yellow("session-log.md")}`);
+  console.log(`  └── ${chalk.dim("decisions/")}`);
+  console.log();
+}
+
+function registerProjectInClaude(vaultPath, projectName, displayName) {
+  const claudePath = path.join(vaultPath, "CLAUDE.md");
+  let content = fs.readFileSync(claudePath, "utf-8");
+
+  const projectLink = `- [[projects/${projectName}/overview|${displayName}]]`;
+
+  const startMarker = "<!-- MEMPUNK:PROJECTS:START -->";
+  const endMarker = "<!-- MEMPUNK:PROJECTS:END -->";
+
+  if (content.includes(startMarker)) {
+    // Extract current project list
+    const startIdx = content.indexOf(startMarker) + startMarker.length;
+    const endIdx = content.indexOf(endMarker);
+    const currentSection = content.substring(startIdx, endIdx).trim();
+
+    // Check if project already registered
+    if (currentSection.includes(projectName)) return;
+
+    // Build new section
+    let projects;
+    if (currentSection.includes("Ninguno registrado") || currentSection.includes("No projects")) {
+      projects = projectLink;
+    } else {
+      projects = currentSection + "\n" + projectLink;
+    }
+
+    content =
+      content.substring(0, startIdx) +
+      "\n" +
+      projects +
+      "\n" +
+      content.substring(endIdx);
+  } else {
+    // No markers found — append section
+    const section = `\n## Proyectos activos\n\n${startMarker}\n${projectLink}\n${endMarker}\n`;
+    content += section;
+  }
+
+  fs.writeFileSync(claudePath, content);
+}
+
 // ── Slash command install ────────────────────────────────────────────────────
 
 function installSlashCommand(vaultPath) {
@@ -466,6 +595,8 @@ function main() {
       return initFromArgs(rest);
     case "link":
       return linkVault(rest[0]);
+    case "project":
+      return createProject(rest[0]);
     case "unlink":
       return unlink();
     case "status":
