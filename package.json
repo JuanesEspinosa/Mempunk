@@ -1,9 +1,9 @@
 {
   "name": "mempunk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Persistent dev brain for Claude Code — memory vault across sessions",
   "bin": {
-    "mempunk": "./bin/cli.js"
+    "mempunk": "bin/cli.js"
   },
   "keywords": [
     "claude-code",
@@ -15,7 +15,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JuanesEspinosa/Mempunk.git"
+    "url": "git+https://github.com/JuanesEspinosa/Mempunk.git"
   },
   "files": [
     "bin/",
