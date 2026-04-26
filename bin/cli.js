@@ -81,7 +81,7 @@ async function setup(lang) {
   if (!lang) {
     const { language } = await inquirer.prompt([
       {
-        type: "list",
+        type: "rawlist",
         name: "language",
         message: t.selectLanguage,
         choices: [
@@ -128,7 +128,7 @@ async function setup(lang) {
   // 2. Structure
   const { preset } = await inquirer.prompt([
     {
-      type: "list",
+      type: "rawlist",
       name: "preset",
       message: t.selectStructure,
       choices: [
