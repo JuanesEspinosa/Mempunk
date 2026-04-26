@@ -1,0 +1,18 @@
+# Obsidian
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/plugins/
+.obsidian/themes/
+.obsidian/snippets/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code local
+.claude/
+
+# Sensitive data (never commit)
+*.env
+credentials.*
