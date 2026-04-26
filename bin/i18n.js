@@ -1,6 +1,5 @@
 const translations = {
   en: {
-    // ── Help ──
     help: `
   mempunk — Persistent dev brain for Claude Code
 
@@ -24,66 +23,57 @@ const translations = {
     mempunk setup
     mempunk setup --lang es
     mempunk init ./my-vault --preset full
-    mempunk init ./my-vault --projects --resources
     mempunk link ./my-vault
 `,
-
-    // ── Setup ──
-    setupTitle: "mempunk — vault setup",
+    setupTitle: "vault setup",
     selectLanguage: "Select language",
-    langEnglish: "English",
-    langSpanish: "Espanol",
     whereVault: "Where do you want your vault?",
     vaultAlreadyExists: "Vault already exists at",
     linkExisting: "Link it to Claude Code?",
-    selectStructure: "Select vault structure:",
-    presetFull: "Everything — projects, areas, resources, daily",
-    presetStandard: "Projects + resources + daily logs",
-    presetMinimal: "Projects only",
-    presetCustom: "pick folders",
-    selectFolders: "Select folders to include:",
-    enterNumbers: "Enter numbers separated by commas (e.g. 1,3,4)",
+    selectStructure: "Select vault structure",
+    selectFolders: "Select folders to include",
     linkQuestion: "Link vault to Claude Code?",
-    choose: "Choose (number)",
-    select: "Select",
-    done: "Done. Run 'claude' in any project to start using your vault.",
-    promptTitle: "Copy this prompt and paste it at the start of any Claude Code session:",
-    promptText: 'Read the CLAUDE.md file at "{path}" and follow the session start protocol defined there. This is my Mempunk vault — my persistent dev brain across sessions.',
+    done: "Run 'claude' in any project to start using your vault.",
 
-    // ── Folders ──
-    folderProjects: "One directory per active project with overview, backlog, and session logs",
-    folderAreas: "Ongoing responsibilities (university, infrastructure, etc.)",
-    folderResources: "Reusable technical knowledge across projects",
-    folderDaily: "Daily session logs written by Claude",
+    presetFull: "Full — projects, areas, resources, daily",
+    presetStandard: "Standard — projects, resources, daily",
+    presetMinimal: "Minimal — projects only",
+    presetCustom: "Custom — pick folders",
 
-    // ── Init ──
+    folderProjects: "projects  — One dir per active project",
+    folderAreas: "areas     — Ongoing responsibilities",
+    folderResources: "resources — Reusable technical knowledge",
+    folderDaily: "daily     — Session logs written by Claude",
+
+    creatingVault: "Creating vault...",
+    linkingVault: "Linking to Claude Code...",
     vaultCreated: "Vault created at",
     errorVaultExists: "Error: vault already exists at",
     errorUnknownPreset: "Error: unknown preset",
     usePresets: "Use: full, standard, minimal",
 
-    // ── Link ──
-    errorPathRequired: "Error: path required",
-    usageLink: "Usage: mempunk link <path>",
+    errorPathRequired: "Error: path required. Usage: mempunk link <path>",
     errorPathNotExist: "Error: path does not exist:",
     errorNoClaude: "Error: no CLAUDE.md found at",
     runInitFirst: "Run 'mempunk init' first to create a vault.",
     alreadyLinked: "Already linked:",
-    vaultLinked: "Vault linked:",
+    vaultLinked: "Vault linked",
     linkSuccess: "Claude Code will have access to the vault in every session.",
 
-    // ── Unlink ──
     noVaultLinked: "No vault linked.",
     vaultUnlinked: "Vault unlinked from Claude Code.",
 
-    // ── Status ──
     linkedVaults: "Linked vaults:",
-    notFound: "(not found)",
+    notFound: "not found",
     noVaultSetup: "No vault linked. Run 'mempunk setup' to get started.",
+
+    promptTitle: "Paste this at the start of any Claude Code session:",
+    promptText: 'Read the CLAUDE.md file at "{path}" and follow the session start protocol. This is my Mempunk vault — my persistent dev brain across sessions.',
+
+    structure: "Structure",
   },
 
   es: {
-    // ── Help ──
     help: `
   mempunk — Cerebro persistente para Claude Code
 
@@ -107,71 +97,61 @@ const translations = {
     mempunk setup
     mempunk setup --lang es
     mempunk init ./mi-vault --preset full
-    mempunk init ./mi-vault --projects --resources
     mempunk link ./mi-vault
 `,
-
-    // ── Setup ──
-    setupTitle: "mempunk — configuracion del vault",
+    setupTitle: "configuracion del vault",
     selectLanguage: "Selecciona idioma",
-    langEnglish: "English",
-    langSpanish: "Espanol",
     whereVault: "Donde quieres crear tu vault?",
     vaultAlreadyExists: "Ya existe un vault en",
     linkExisting: "Vincularlo a Claude Code?",
-    selectStructure: "Selecciona la estructura del vault:",
-    presetFull: "Todo — projects, areas, resources, daily",
-    presetStandard: "Projects + resources + logs diarios",
-    presetMinimal: "Solo projects",
-    presetCustom: "elegir carpetas",
-    selectFolders: "Selecciona las carpetas a incluir:",
-    enterNumbers: "Escribe los numeros separados por comas (ej. 1,3,4)",
+    selectStructure: "Selecciona la estructura del vault",
+    selectFolders: "Selecciona las carpetas a incluir",
     linkQuestion: "Vincular vault a Claude Code?",
-    choose: "Elige (numero)",
-    select: "Selecciona",
-    done: "Listo. Ejecuta 'claude' en cualquier proyecto para usar tu vault.",
-    promptTitle: "Copia este prompt y pegalo al inicio de cualquier sesion de Claude Code:",
-    promptText: 'Lee el archivo CLAUDE.md en "{path}" y sigue el protocolo de inicio de sesion definido ahi. Este es mi vault Mempunk — mi cerebro persistente entre sesiones.',
+    done: "Ejecuta 'claude' en cualquier proyecto para usar tu vault.",
 
-    // ── Folders ──
-    folderProjects: "Un directorio por proyecto activo con overview, backlog y session logs",
-    folderAreas: "Responsabilidades continuas (universidad, infraestructura, etc.)",
-    folderResources: "Conocimiento tecnico reutilizable entre proyectos",
-    folderDaily: "Logs de sesion diarios escritos por Claude",
+    presetFull: "Full — projects, areas, resources, daily",
+    presetStandard: "Standard — projects, resources, daily",
+    presetMinimal: "Minimal — solo projects",
+    presetCustom: "Custom — elegir carpetas",
 
-    // ── Init ──
+    folderProjects: "projects  — Un dir por proyecto activo",
+    folderAreas: "areas     — Responsabilidades continuas",
+    folderResources: "resources — Conocimiento tecnico reutilizable",
+    folderDaily: "daily     — Logs de sesion por Claude",
+
+    creatingVault: "Creando vault...",
+    linkingVault: "Vinculando a Claude Code...",
     vaultCreated: "Vault creado en",
     errorVaultExists: "Error: ya existe un vault en",
     errorUnknownPreset: "Error: preset desconocido",
     usePresets: "Usa: full, standard, minimal",
 
-    // ── Link ──
-    errorPathRequired: "Error: ruta requerida",
-    usageLink: "Uso: mempunk link <ruta>",
+    errorPathRequired: "Error: ruta requerida. Uso: mempunk link <ruta>",
     errorPathNotExist: "Error: la ruta no existe:",
     errorNoClaude: "Error: no se encontro CLAUDE.md en",
     runInitFirst: "Ejecuta 'mempunk init' primero para crear un vault.",
     alreadyLinked: "Ya vinculado:",
-    vaultLinked: "Vault vinculado:",
+    vaultLinked: "Vault vinculado",
     linkSuccess: "Claude Code tendra acceso al vault en cada sesion.",
 
-    // ── Unlink ──
     noVaultLinked: "No hay vault vinculado.",
     vaultUnlinked: "Vault desvinculado de Claude Code.",
 
-    // ── Status ──
     linkedVaults: "Vaults vinculados:",
-    notFound: "(no encontrado)",
+    notFound: "no encontrado",
     noVaultSetup: "No hay vault vinculado. Ejecuta 'mempunk setup' para comenzar.",
+
+    promptTitle: "Pega esto al inicio de cualquier sesion de Claude Code:",
+    promptText: 'Lee el archivo CLAUDE.md en "{path}" y sigue el protocolo de inicio de sesion. Este es mi vault Mempunk — mi cerebro persistente entre sesiones.',
+
+    structure: "Estructura",
   },
 };
 
-function getTranslations(lang) {
+export function getTranslations(lang) {
   return translations[lang] || translations.en;
 }
 
-function getAvailableLanguages() {
+export function getAvailableLanguages() {
   return Object.keys(translations);
 }
-
-module.exports = { getTranslations, getAvailableLanguages };

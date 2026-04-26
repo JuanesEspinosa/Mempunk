@@ -10,6 +10,10 @@
 Thumbs.db
 desktop.ini
 
+# Node
+node_modules/
+package-lock.json
+
 # Claude Code local
 .claude/
 

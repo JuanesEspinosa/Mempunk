@@ -1,7 +1,8 @@
 {
   "name": "mempunk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Persistent dev brain for Claude Code — memory vault across sessions",
+  "type": "module",
   "bin": {
     "mempunk": "bin/cli.js"
   },
@@ -20,5 +21,12 @@
   "files": [
     "bin/",
     "templates/"
-  ]
+  ],
+  "dependencies": {
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "gradient-string": "^3.0.0",
+    "inquirer": "^13.4.2",
+    "ora": "^9.4.0"
+  }
 }

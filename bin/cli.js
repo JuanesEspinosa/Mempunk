@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 
-const { execSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
-const readline = require("readline");
-const { getTranslations, getAvailableLanguages } = require("./i18n");
+import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import inquirer from "inquirer";
+import chalk from "chalk";
+import boxen from "boxen";
+import ora from "ora";
+import gradient from "gradient-string";
+import { getTranslations, getAvailableLanguages } from "./i18n.js";
 
 // ── Global state ─────────────────────────────────────────────────────────────
 
 let t = getTranslations("en");
-
-// ── Presets ──────────────────────────────────────────────────────────────────
 
 const PRESETS = {
   full: { folders: ["projects", "areas", "resources", "daily"] },
@@ -18,90 +20,90 @@ const PRESETS = {
   minimal: { folders: ["projects"] },
 };
 
-// ── Prompt helpers ───────────────────────────────────────────────────────────
+// ── Banner ───────────────────────────────────────────────────────────────────
 
-function createRL() {
-  return readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+function showBanner() {
+  const banner = `
+ ███╗   ███╗███████╗███╗   ███╗██████╗ ██╗   ██╗███╗   ██╗██╗  ██╗
+ ████╗ ████║██╔════╝████╗ ████║██╔══██╗██║   ██║████╗  ██║██║ ██╔╝
+ ██╔████╔██║█████╗  ██╔████╔██║██████╔╝██║   ██║██╔██╗ ██║█████╔╝
+ ██║╚██╔╝██║██╔══╝  ██║╚██╔╝██║██╔═══╝ ██║   ██║██║╚██╗██║██╔═██╗
+ ██║ ╚═╝ ██║███████╗██║ ╚═╝ ██║██║     ╚██████╔╝██║ ╚████║██║  ██╗
+ ╚═╝     ╚═╝╚══════╝╚═╝     ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝`;
+
+  const mempunkGradient = gradient(["#a855f7", "#ec4899", "#f97316"]);
+  console.log(mempunkGradient(banner));
+  console.log(
+    chalk.dim("  Persistent dev brain for Claude Code\n")
+  );
 }
 
-function ask(rl, question, defaultValue) {
-  const suffix = defaultValue ? ` (${defaultValue})` : "";
-  return new Promise((resolve) => {
-    rl.question(`  ${question}${suffix}: `, (answer) => {
-      resolve(answer.trim() || defaultValue || "");
-    });
+// ── Tree display ─────────────────────────────────────────────────────────────
+
+function showTree(vaultDir, folders) {
+  console.log(chalk.bold(`\n  ${t.structure}:\n`));
+  console.log(chalk.dim(`  ${vaultDir}/`));
+  console.log(`  ├── ${chalk.cyan("CLAUDE.md")}`);
+  folders.forEach((f, i) => {
+    const isLast = i === folders.length - 1;
+    const prefix = isLast ? "└" : "├";
+    console.log(`  ${prefix}── ${chalk.yellow(f + "/")}`);
   });
+  console.log();
 }
 
-function askYesNo(rl, question, defaultYes = true) {
-  const hint = defaultYes ? "Y/n" : "y/N";
-  return new Promise((resolve) => {
-    rl.question(`  ${question} (${hint}): `, (answer) => {
-      const a = answer.trim().toLowerCase();
-      if (a === "") resolve(defaultYes);
-      else resolve(a === "y" || a === "yes" || a === "s" || a === "si");
-    });
-  });
-}
+// ── Prompt box ───────────────────────────────────────────────────────────────
 
-function askChoice(rl, question, options) {
-  return new Promise((resolve) => {
-    console.log(`\n  ${question}\n`);
-    options.forEach((opt, i) => {
-      console.log(`    ${i + 1}) ${opt.label}`);
-    });
-    console.log();
-    rl.question(`  ${t.choose}: `, (answer) => {
-      const index = parseInt(answer.trim(), 10) - 1;
-      if (index >= 0 && index < options.length) {
-        resolve(options[index].value);
-      } else {
-        resolve(options[0].value);
-      }
-    });
-  });
-}
+function showPrompt(vaultPath) {
+  const prompt = t.promptText.replace("{path}", vaultPath);
 
-function askMultiSelect(rl, question, options) {
-  return new Promise((resolve) => {
-    console.log(`\n  ${question}`);
-    console.log(`  ${t.enterNumbers}\n`);
-    options.forEach((opt, i) => {
-      console.log(`    ${i + 1}) ${opt.label}`);
-    });
-    console.log();
-    rl.question(`  ${t.select}: `, (answer) => {
-      const indices = answer
-        .split(",")
-        .map((s) => parseInt(s.trim(), 10) - 1)
-        .filter((i) => i >= 0 && i < options.length);
-      resolve(indices.map((i) => options[i].value));
-    });
-  });
+  const content =
+    chalk.bold(t.promptTitle) +
+    "\n\n" +
+    chalk.green(prompt);
+
+  console.log(
+    boxen(content, {
+      padding: 1,
+      margin: { top: 0, bottom: 1, left: 1, right: 1 },
+      borderStyle: "round",
+      borderColor: "magenta",
+    })
+  );
 }
 
 // ── Setup (interactive) ──────────────────────────────────────────────────────
 
 async function setup(lang) {
-  const rl = createRL();
+  showBanner();
 
-  // Language selection if not provided via flag
+  // Language selection
   if (!lang) {
-    const langChoice = await askChoice(rl, t.selectLanguage + ":", [
-      { label: "English", value: "en" },
-      { label: "Espanol", value: "es" },
+    const { language } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "language",
+        message: t.selectLanguage,
+        choices: [
+          { name: "English", value: "en" },
+          { name: "Español", value: "es" },
+        ],
+      },
     ]);
-    lang = langChoice;
+    lang = language;
     t = getTranslations(lang);
   }
 
-  console.log(`\n  ${t.setupTitle}\n`);
-
   // 1. Path
-  const vaultPath = await ask(rl, t.whereVault, "./mempunk");
+  const { vaultPath } = await inquirer.prompt([
+    {
+      type: "input",
+      name: "vaultPath",
+      message: t.whereVault,
+      default: "./mempunk",
+    },
+  ]);
+
   const resolved = path.resolve(vaultPath);
 
   // Check if vault already exists
@@ -109,50 +111,78 @@ async function setup(lang) {
     fs.existsSync(path.join(resolved, "CLAUDE.md")) &&
     fs.existsSync(path.join(resolved, "projects"))
   ) {
-    console.log(`\n  ${t.vaultAlreadyExists} ${resolved}`);
-    const shouldLink = await askYesNo(rl, t.linkExisting);
-    rl.close();
-    if (shouldLink) link(resolved);
+    console.log(chalk.yellow(`\n  ${t.vaultAlreadyExists} ${resolved}`));
+    const { shouldLink } = await inquirer.prompt([
+      {
+        type: "confirm",
+        name: "shouldLink",
+        message: t.linkExisting,
+        default: true,
+      },
+    ]);
+    if (shouldLink) linkVault(resolved, false);
+    showPrompt(resolved);
     return;
   }
 
   // 2. Structure
-  const structureChoice = await askChoice(rl, t.selectStructure, [
-    { label: `full      — ${t.presetFull}`, value: "full" },
-    { label: `standard  — ${t.presetStandard}`, value: "standard" },
-    { label: `minimal   — ${t.presetMinimal}`, value: "minimal" },
-    { label: `custom    — ${t.presetCustom}`, value: "custom" },
+  const { preset } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "preset",
+      message: t.selectStructure,
+      choices: [
+        { name: t.presetFull, value: "full" },
+        { name: t.presetStandard, value: "standard" },
+        { name: t.presetMinimal, value: "minimal" },
+        { name: t.presetCustom, value: "custom" },
+      ],
+    },
   ]);
 
   let folders;
 
-  if (structureChoice === "custom") {
-    const folderOptions = [
-      { label: `${"projects".padEnd(12)} — ${t.folderProjects}`, value: "projects" },
-      { label: `${"areas".padEnd(12)} — ${t.folderAreas}`, value: "areas" },
-      { label: `${"resources".padEnd(12)} — ${t.folderResources}`, value: "resources" },
-      { label: `${"daily".padEnd(12)} — ${t.folderDaily}`, value: "daily" },
-    ];
-    folders = await askMultiSelect(rl, t.selectFolders, folderOptions);
-    if (folders.length === 0) folders = ["projects"];
+  if (preset === "custom") {
+    const { selected } = await inquirer.prompt([
+      {
+        type: "checkbox",
+        name: "selected",
+        message: t.selectFolders,
+        choices: [
+          { name: t.folderProjects, value: "projects", checked: true },
+          { name: t.folderAreas, value: "areas" },
+          { name: t.folderResources, value: "resources" },
+          { name: t.folderDaily, value: "daily" },
+        ],
+        validate: (input) => input.length > 0 || "Select at least one folder",
+      },
+    ]);
+    folders = selected;
   } else {
-    folders = PRESETS[structureChoice].folders;
+    folders = PRESETS[preset].folders;
   }
 
   // 3. Link
-  const shouldLink = await askYesNo(rl, t.linkQuestion);
-
-  rl.close();
+  const { shouldLink } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "shouldLink",
+      message: t.linkQuestion,
+      default: true,
+    },
+  ]);
 
   // Execute
-  console.log();
   initVault(resolved, folders);
 
   if (shouldLink) {
-    link(resolved);
+    linkVault(resolved, false);
   }
 
-  console.log(`  ${t.done}\n`);
+  showTree(resolved, folders);
+
+  console.log(chalk.green(`  ✔ ${t.done}\n`));
+
   showPrompt(resolved);
 }
 
@@ -163,9 +193,14 @@ function initVault(vaultDir, folders) {
     fs.existsSync(path.join(vaultDir, "CLAUDE.md")) &&
     fs.existsSync(path.join(vaultDir, "projects"))
   ) {
-    console.error(`  ${t.errorVaultExists} ${vaultDir}`);
+    console.error(chalk.red(`  ${t.errorVaultExists} ${vaultDir}`));
     process.exit(1);
   }
+
+  const spinner = ora({
+    text: t.creatingVault,
+    spinner: "dots",
+  }).start();
 
   fs.mkdirSync(vaultDir, { recursive: true });
 
@@ -174,7 +209,12 @@ function initVault(vaultDir, folders) {
   }
 
   // Copy CLAUDE.md template
-  const templateFile = path.join(__dirname, "..", "templates", "CLAUDE.md");
+  const templateFile = path.join(
+    new URL(".", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1"),
+    "..",
+    "templates",
+    "CLAUDE.md"
+  );
   const destFile = path.join(vaultDir, "CLAUDE.md");
 
   if (fs.existsSync(templateFile)) {
@@ -185,17 +225,7 @@ function initVault(vaultDir, folders) {
     fs.writeFileSync(destFile, "# CLAUDE.md\n\nVault initialized by Mempunk.\n");
   }
 
-  // Build tree display
-  const tree = folders.map((f, i) => {
-    const isLast = i === folders.length - 1;
-    return `    ${isLast ? "└" : "├"}── ${f}/`;
-  });
-
-  console.log(`  ${t.vaultCreated} ${vaultDir}\n`);
-  console.log(`    ${vaultDir}/`);
-  console.log(`    ├── CLAUDE.md`);
-  console.log(tree.join("\n"));
-  console.log();
+  spinner.succeed(chalk.green(`${t.vaultCreated} ${chalk.bold(vaultDir)}`));
 }
 
 function adjustTemplate(content, folders) {
@@ -228,17 +258,11 @@ function initFromArgs(args) {
     const arg = args[i];
     if (arg === "--preset" && args[i + 1]) {
       preset = args[++i];
-    } else if (arg === "--projects") {
-      selectedFolders.push("projects");
-    } else if (arg === "--areas") {
-      selectedFolders.push("areas");
-    } else if (arg === "--resources") {
-      selectedFolders.push("resources");
-    } else if (arg === "--daily") {
-      selectedFolders.push("daily");
-    } else if (!arg.startsWith("-")) {
-      targetPath = arg;
-    }
+    } else if (arg === "--projects") selectedFolders.push("projects");
+    else if (arg === "--areas") selectedFolders.push("areas");
+    else if (arg === "--resources") selectedFolders.push("resources");
+    else if (arg === "--daily") selectedFolders.push("daily");
+    else if (!arg.startsWith("-")) targetPath = arg;
   }
 
   const vaultDir = path.resolve(targetPath || ".");
@@ -246,7 +270,7 @@ function initFromArgs(args) {
   let folders;
   if (preset) {
     if (!PRESETS[preset]) {
-      console.error(`  ${t.errorUnknownPreset} "${preset}". ${t.usePresets}`);
+      console.error(chalk.red(`  ${t.errorUnknownPreset} "${preset}". ${t.usePresets}`));
       process.exit(1);
     }
     folders = PRESETS[preset].folders;
@@ -257,6 +281,7 @@ function initFromArgs(args) {
   }
 
   initVault(vaultDir, folders);
+  showTree(vaultDir, folders);
 }
 
 // ── Link / Unlink / Status ───────────────────────────────────────────────────
@@ -280,22 +305,22 @@ function writeClaudeConfig(config) {
   fs.writeFileSync(getClaudeConfigPath(), JSON.stringify(config, null, 2) + "\n");
 }
 
-function link(vaultPath) {
+function linkVault(vaultPath, showPromptAfter = true) {
   if (!vaultPath) {
-    console.error(`  ${t.errorPathRequired}\n  ${t.usageLink}`);
+    console.error(chalk.red(`  ${t.errorPathRequired}`));
     process.exit(1);
   }
 
   const resolved = path.resolve(vaultPath);
 
   if (!fs.existsSync(resolved)) {
-    console.error(`  ${t.errorPathNotExist} ${resolved}`);
+    console.error(chalk.red(`  ${t.errorPathNotExist} ${resolved}`));
     process.exit(1);
   }
 
   if (!fs.existsSync(path.join(resolved, "CLAUDE.md"))) {
-    console.error(`  ${t.errorNoClaude} ${resolved}`);
-    console.error(`  ${t.runInitFirst}`);
+    console.error(chalk.red(`  ${t.errorNoClaude} ${resolved}`));
+    console.error(chalk.dim(`  ${t.runInitFirst}`));
     process.exit(1);
   }
 
@@ -304,28 +329,34 @@ function link(vaultPath) {
   const dirs = config.additionalDirectories || [];
 
   if (dirs.includes(normalizedPath)) {
-    console.log(`  ${t.alreadyLinked} ${normalizedPath}\n`);
-    showPrompt(normalizedPath);
+    console.log(chalk.yellow(`  ${t.alreadyLinked} ${normalizedPath}\n`));
+    if (showPromptAfter) showPrompt(normalizedPath);
     return;
   }
+
+  const spinner = ora({
+    text: t.linkingVault,
+    spinner: "dots",
+  }).start();
 
   config.additionalDirectories = [...dirs, normalizedPath];
   writeClaudeConfig(config);
 
-  console.log(`  ${t.vaultLinked} ${normalizedPath}`);
-  console.log(`  ${t.linkSuccess}\n`);
-  showPrompt(normalizedPath);
+  spinner.succeed(chalk.green(`${t.vaultLinked} ${chalk.bold(normalizedPath)}`));
+  console.log(chalk.dim(`  ${t.linkSuccess}\n`));
+
+  if (showPromptAfter) showPrompt(normalizedPath);
 }
 
 function unlink() {
   const config = readClaudeConfig();
   if (!config.additionalDirectories || config.additionalDirectories.length === 0) {
-    console.log(`  ${t.noVaultLinked}`);
+    console.log(chalk.yellow(`  ${t.noVaultLinked}`));
     return;
   }
   delete config.additionalDirectories;
   writeClaudeConfig(config);
-  console.log(`  ${t.vaultUnlinked}`);
+  console.log(chalk.green(`  ✔ ${t.vaultUnlinked}`));
 }
 
 function status() {
@@ -333,26 +364,20 @@ function status() {
   const dirs = config.additionalDirectories || [];
 
   if (dirs.length === 0) {
-    console.log(`  ${t.noVaultSetup}`);
+    console.log(chalk.yellow(`  ${t.noVaultSetup}`));
     return;
   }
 
-  console.log(`  ${t.linkedVaults}`);
+  console.log(chalk.bold(`\n  ${t.linkedVaults}\n`));
   for (const dir of dirs) {
     const exists = fs.existsSync(dir);
-    console.log(`    ${exists ? "+" : "!"} ${dir}${exists ? "" : ` ${t.notFound}`}`);
+    if (exists) {
+      console.log(`  ${chalk.green("●")} ${dir}`);
+    } else {
+      console.log(`  ${chalk.red("●")} ${dir} ${chalk.dim(`(${t.notFound})`)}`);
+    }
   }
-}
-
-// ── Prompt display ──────────────────────────────────────────────────────────
-
-function showPrompt(vaultPath) {
-  const prompt = t.promptText.replace("{path}", vaultPath);
-  console.log(`  ┌─────────────────────────────────────────────────────────────`);
-  console.log(`  │ ${t.promptTitle}`);
-  console.log(`  │`);
-  console.log(`  │  "${prompt}"`);
-  console.log(`  └─────────────────────────────────────────────────────────────\n`);
+  console.log();
 }
 
 // ── Parse global flags ──────────────────────────────────────────────────────
@@ -365,7 +390,9 @@ function parseGlobalFlags(args) {
     if (args[i] === "--lang" && args[i + 1]) {
       lang = args[++i];
       if (!getAvailableLanguages().includes(lang)) {
-        console.error(`  Unknown language: ${lang}. Available: ${getAvailableLanguages().join(", ")}`);
+        console.error(
+          chalk.red(`  Unknown language: ${lang}. Available: ${getAvailableLanguages().join(", ")}`)
+        );
         process.exit(1);
       }
     } else {
@@ -393,7 +420,7 @@ function main() {
     case "init":
       return initFromArgs(rest);
     case "link":
-      return link(rest[0]);
+      return linkVault(rest[0]);
     case "unlink":
       return unlink();
     case "status":
