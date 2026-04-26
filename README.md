@@ -1,3 +1,5 @@
+[English](README.md) | [Español](README.es.md)
+
 # Mempunk
 
 Persistent dev brain for Claude Code — memory vault across sessions.
