@@ -55,12 +55,12 @@ function showTree(vaultDir, folders) {
 // ── Prompt box ───────────────────────────────────────────────────────────────
 
 function showPrompt(vaultPath) {
-  const prompt = t.promptText.replace("{path}", vaultPath);
-
   const content =
     chalk.bold(t.promptTitle) +
     "\n\n" +
-    chalk.green(prompt);
+    chalk.green("/mempunk") +
+    "\n\n" +
+    chalk.dim(t.promptAlt.replace("{path}", vaultPath));
 
   console.log(
     boxen(content, {
@@ -343,9 +343,16 @@ function linkVault(vaultPath, showPromptAfter = true) {
   writeClaudeConfig(config);
 
   spinner.succeed(chalk.green(`${t.vaultLinked} ${chalk.bold(normalizedPath)}`));
-  console.log(chalk.dim(`  ${t.linkSuccess}\n`));
 
-  if (showPromptAfter) showPrompt(normalizedPath);
+  // Install /mempunk slash command
+  const spinnerSkill = ora({
+    text: t.installingSkill,
+    spinner: "dots",
+  }).start();
+  installSlashCommand(normalizedPath);
+  spinnerSkill.succeed(chalk.green(t.skillInstalled));
+
+  console.log(chalk.dim(`  ${t.linkSuccess}\n`));
 }
 
 function unlink() {
@@ -378,6 +385,44 @@ function status() {
     }
   }
   console.log();
+}
+
+// ── Slash command install ────────────────────────────────────────────────────
+
+function installSlashCommand(vaultPath) {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  const skillDir = path.join(home, ".claude", "skills", "mempunk");
+  const skillFile = path.join(skillDir, "SKILL.md");
+
+  const normalizedPath = vaultPath.replace(/\\/g, "/");
+
+  const content = `---
+name: mempunk
+description: Load Mempunk vault context — persistent dev brain across sessions. Use when the user types /mempunk or asks to load vault context.
+disable-model-invocation: false
+allowed-tools: Read Glob Grep
+---
+
+Read the CLAUDE.md file at "${normalizedPath}" and follow the session start protocol defined there.
+
+This is the user's Mempunk vault — a persistent dev brain across sessions. It contains:
+- Project overviews, architecture docs, and backlogs
+- Session logs from previous Claude Code sessions
+- Architecture Decision Records
+- Reusable technical knowledge
+
+After reading CLAUDE.md, follow the session start protocol:
+1. Identify which project(s) the user wants to work on
+2. Read the project's overview.md
+3. Read the last 3 entries of the project's session-log.md
+4. Read the project's backlog.md
+5. Confirm context with the user before proceeding
+`;
+
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(skillFile, content);
+
+  return skillFile;
 }
 
 // ── Parse global flags ──────────────────────────────────────────────────────

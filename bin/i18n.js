@@ -67,8 +67,11 @@ const translations = {
     notFound: "not found",
     noVaultSetup: "No vault linked. Run 'mempunk setup' to get started.",
 
-    promptTitle: "Paste this at the start of any Claude Code session:",
-    promptText: 'Read the CLAUDE.md file at "{path}" and follow the session start protocol. This is my Mempunk vault — my persistent dev brain across sessions.',
+    promptTitle: "Type this in any Claude Code session:",
+    promptAlt: "Or paste: Read the CLAUDE.md at \"{path}\" and follow the session start protocol.",
+
+    installingSkill: "Installing /mempunk slash command...",
+    skillInstalled: "/mempunk command installed globally",
 
     structure: "Structure",
   },
@@ -141,8 +144,11 @@ const translations = {
     notFound: "no encontrado",
     noVaultSetup: "No hay vault vinculado. Ejecuta 'mempunk setup' para comenzar.",
 
-    promptTitle: "Pega esto al inicio de cualquier sesion de Claude Code:",
-    promptText: 'Lee el archivo CLAUDE.md en "{path}" y sigue el protocolo de inicio de sesion. Este es mi vault Mempunk — mi cerebro persistente entre sesiones.',
+    promptTitle: "Escribe esto en cualquier sesion de Claude Code:",
+    promptAlt: "O pega: Lee el CLAUDE.md en \"{path}\" y sigue el protocolo de inicio de sesion.",
+
+    installingSkill: "Instalando comando /mempunk...",
+    skillInstalled: "Comando /mempunk instalado globalmente",
 
     structure: "Estructura",
   },
