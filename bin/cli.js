@@ -167,6 +167,7 @@ async function setup(lang) {
           { name: "English", value: "en" },
           { name: "Español", value: "es" },
           { name: "Português", value: "pt" },
+          { name: "Français", value: "fr" },
         ],
       },
     ]);
@@ -1127,6 +1128,7 @@ async function showHelp(lang) {
           { name: "English", value: "en" },
           { name: "Español", value: "es" },
           { name: "Português", value: "pt" },
+          { name: "Français", value: "fr" },
         ],
       },
     ]);

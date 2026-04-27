@@ -18,7 +18,7 @@ const translations = {
     mempunk help                   Show this message
 
   Options:
-    --lang <code>      Language: en, es, pt (default: en)
+    --lang <code>      Language: en, es, pt, fr (default: en)
     --preset <name>    Preset: full, standard, minimal
     --projects         Include projects folder
     --areas            Include areas folder
@@ -166,7 +166,7 @@ const translations = {
     mempunk help                   Mostrar este mensaje
 
   Opciones:
-    --lang <codigo>    Idioma: en, es, pt (por defecto: en)
+    --lang <codigo>    Idioma: en, es, pt, fr (por defecto: en)
     --preset <nombre>  Preset: full, standard, minimal
     --projects         Incluir carpeta projects
     --areas            Incluir carpeta areas
@@ -313,7 +313,7 @@ const translations = {
     mempunk help                   Mostrar esta mensagem
 
   Opções:
-    --lang <código>    Idioma: en, es, pt (padrão: en)
+    --lang <código>    Idioma: en, es, pt, fr (padrão: en)
     --preset <nome>    Preset: full, standard, minimal
     --projects         Incluir pasta projects
     --areas            Incluir pasta areas
@@ -439,6 +439,153 @@ const translations = {
     availableLangs: "Disponíveis:",
 
     structure: "Estrutura",
+  },
+
+  fr: {
+    help: `
+  mempunk — Cerveau persistant pour Claude Code
+
+  Utilisation:
+    mempunk setup                  Configuration interactive complete (recommande)
+    mempunk init [chemin] [options] Creer un nouveau vault
+    mempunk project <nom>          Ajouter un nouveau projet au vault
+    mempunk remove <nom>           Supprimer un projet du vault
+    mempunk sync                   Ajouter les fichiers manquants aux projets existants
+    mempunk doctor                 Verifier la sante et l'integrite du vault
+    mempunk log <nom>              Ouvrir le session log d'un projet
+    mempunk backlog <nom>          Voir le backlog d'un projet
+    mempunk link <chemin>          Lier le vault a Claude Code (config globale)
+    mempunk unlink                 Dissocier le vault de Claude Code
+    mempunk status                 Afficher le vault lie actuel
+    mempunk help                   Afficher ce message
+
+  Options:
+    --lang <code>      Langue: en, es, pt, fr (defaut: en)
+    --preset <nom>     Preset: full, standard, minimal
+    --projects         Inclure le dossier projects
+    --areas            Inclure le dossier areas
+    --resources        Inclure le dossier resources
+    --daily            Inclure le dossier daily
+
+  Exemples:
+    mempunk setup
+    mempunk setup --lang fr
+    mempunk init ./mon-vault --preset full
+    mempunk project mon-app
+    mempunk remove mon-app
+    mempunk link ./mon-vault
+`,
+    setupTitle: "configuration du vault",
+    selectLanguage: "Choisissez la langue",
+    whereVault: "Ou voulez-vous creer votre vault?",
+    vaultAlreadyExists: "Un vault existe deja a",
+    linkExisting: "Le lier a Claude Code?",
+    selectStructure: "Choisissez la structure du vault",
+    selectFolders: "Choisissez les dossiers a inclure",
+    linkQuestion: "Lier le vault a Claude Code?",
+    done: "Lancez 'claude' dans n'importe quel projet pour utiliser votre vault.",
+
+    presetFull: "Full — projects, areas, resources, daily",
+    presetStandard: "Standard — projects, resources, daily",
+    presetMinimal: "Minimal — projects uniquement",
+    presetCustom: "Custom — choisir les dossiers",
+
+    folderProjects: "projects  — Un dossier par projet actif",
+    folderAreas: "areas     — Responsabilites continues",
+    folderResources: "resources — Connaissances techniques reutilisables",
+    folderDaily: "daily     — Logs de session par Claude",
+
+    creatingVault: "Creation du vault...",
+    linkingVault: "Liaison a Claude Code...",
+    vaultCreated: "Vault cree a",
+    errorVaultExists: "Erreur: un vault existe deja a",
+    errorUnknownPreset: "Erreur: preset inconnu",
+    usePresets: "Utilisez: full, standard, minimal",
+
+    errorPathRequired: "Erreur: chemin requis. Usage: mempunk link <chemin>",
+    errorPathNotExist: "Erreur: le chemin n'existe pas:",
+    errorNoClaude: "Erreur: CLAUDE.md non trouve a",
+    runInitFirst: "Lancez 'mempunk init' d'abord pour creer un vault.",
+    alreadyLinked: "Deja lie:",
+    vaultLinked: "Vault lie",
+    linkSuccess: "Claude Code aura acces au vault dans chaque session.",
+
+    noVaultLinked: "Aucun vault lie.",
+    vaultUnlinked: "Vault dissocie de Claude Code.",
+
+    linkedVaults: "Vaults lies:",
+    notFound: "non trouve",
+    noVaultSetup: "Aucun vault lie. Lancez 'mempunk setup' pour commencer.",
+
+    statusProjects: "Projets",
+    statusNoProjects: "Aucun projet. Lancez 'mempunk project <nom>' pour en ajouter un.",
+    statusLastSession: "Derniere session:",
+    statusNoSessions: "aucune session",
+    statusBacklog: "Backlog:",
+    statusNoBacklog: "vide",
+    statusPending: "en attente",
+    statusDone: "terminees",
+
+    promptTitle: "Tapez ceci dans n'importe quelle session Claude Code:",
+    promptAlt: "Ou collez: Lisez le CLAUDE.md a \"{path}\" et suivez le protocole de debut de session.",
+
+    installingSkill: "Installation de /mempunk et /session-end...",
+    skillInstalled: "/mempunk et /session-end installes globalement",
+
+    errorProjectName: "Erreur: nom du projet requis. Usage: mempunk project <nom>",
+    errorNoVault: "Erreur: aucun vault trouve. Lancez 'mempunk setup' d'abord.",
+    errorProjectExists: "Erreur: le projet existe deja:",
+    creatingProject: "Creation du projet {name}...",
+    projectCreated: "Projet cree:",
+
+    errorLogProjectName: "Erreur: nom du projet requis. Usage: mempunk log <nom>",
+    errorLogNotFound: "Erreur: session-log.md non trouve pour le projet:",
+    logOpened: "Session-log ouvert pour",
+
+    errorBacklogProjectName: "Erreur: nom du projet requis. Usage: mempunk backlog <nom>",
+    errorBacklogNotFound: "Erreur: backlog.md non trouve pour le projet:",
+    backlogTitle: "Backlog —",
+
+    errorRemoveProjectName: "Erreur: nom du projet requis. Usage: mempunk remove <nom>",
+    errorRemoveNotFound: "Erreur: projet non trouve:",
+    removeWarning: "Cela supprimera definitivement le projet:",
+    removePath: "Chemin:",
+    removeConfirm: "Etes-vous sur de vouloir supprimer {name}?",
+    removeCancelled: "Suppression annulee.",
+    removingProject: "Suppression du projet {name}...",
+    projectRemoved: "Projet supprime:",
+
+    syncScanning: "Analyse de",
+    syncProjects: "projets",
+    syncUpToDate: "a jour",
+    syncDone: "Synchronisation terminee.",
+    syncFilesCreated: "fichiers crees.",
+    syncAllUpToDate: "Tous les projets sont a jour.",
+
+    doctorTitle: "Verification de sante du vault",
+    doctorVaultPath: "Vault:",
+    doctorNoClaude: "CLAUDE.md non trouve dans le vault",
+    doctorClaudeOk: "CLAUDE.md trouve",
+    doctorNoMarkers: "CLAUDE.md n'a pas de marqueurs de projets (<!-- MEMPUNK:PROJECTS -->)",
+    doctorGhostProject: "Enregistre dans CLAUDE.md mais absent du disque:",
+    doctorOrphanProject: "Existe sur le disque mais non enregistre dans CLAUDE.md:",
+    doctorMissingFiles: "manquants:",
+    doctorNoMempunkSkill: "Slash command /mempunk non installe",
+    doctorMempunkSkillOk: "Slash command /mempunk installe",
+    doctorNoSessionEndSkill: "Slash command /session-end non installe",
+    doctorSessionEndSkillOk: "Slash command /session-end installe",
+    doctorAllGood: "Le vault est en bonne sante. Aucun probleme.",
+    doctorIssues: "problemes trouves",
+    doctorWarnings: "avertissements trouves",
+    doctorRunSync: "Conseil: lancez 'mempunk sync' pour corriger les fichiers manquants.",
+
+    warnCorruptConfig: "Attention: fichier de config corrompu a",
+    errorWriteConfig: "Erreur: impossible d'ecrire la config:",
+    errorSelectOne: "Selectionnez au moins un dossier",
+    errorUnknownLang: "Langue inconnue:",
+    availableLangs: "Disponibles:",
+
+    structure: "Structure",
   },
 };
 

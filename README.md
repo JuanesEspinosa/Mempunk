@@ -1,4 +1,4 @@
-[English](README.md) | [Español](README.es.md)
+[English](README.md) | [Español](README.es.md) | [Português](README.pt.md) | [Français](README.fr.md)
 
 # Mempunk
 
@@ -73,7 +73,7 @@ mempunk log <name>             Open a project's session log in your editor
 ### Options
 
 ```
---lang <code>      Language: en, es, pt (default: en)
+--lang <code>      Language: en, es, pt, fr (default: en)
 --preset <name>    Preset: full, standard, minimal
 --projects         Include projects folder
 --areas            Include areas folder
@@ -159,9 +159,9 @@ All files use `[[wikilinks]]`. Open the vault in Obsidian and the graph view sho
 
 ## Languages
 
-Available: **English** (default), **Español**, **Português**
+Available: **English** (default), **Español**, **Português**, **Français**
 
-Use `--lang es` or `--lang pt` with any command, or select interactively during setup.
+Use `--lang es`, `--lang pt`, or `--lang fr` with any command, or select interactively during setup.
 
 ## License
 
