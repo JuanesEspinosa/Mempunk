@@ -697,6 +697,14 @@ async function showHelp(lang) {
   console.log(t.help);
 }
 
+// ── Version ──────────────────────────────────────────────────────────────────
+
+function showVersion() {
+  const pkgPath = path.join(__dirname, "..", "package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+  console.log(`  mempunk v${pkg.version}`);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 function main() {
@@ -727,6 +735,9 @@ function main() {
     case "--help":
     case "-h":
       return showHelp(lang);
+    case "--version":
+    case "-v":
+      return showVersion();
     default:
       if (!command) return setup(lang);
       console.log(t.help);
