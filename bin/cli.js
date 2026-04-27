@@ -644,6 +644,26 @@ function parseGlobalFlags(args) {
   return { lang, args: filtered };
 }
 
+// ── Help ─────────────────────────────────────────────────────────────────────
+
+async function showHelp(lang) {
+  if (!lang) {
+    const { language } = await inquirer.prompt([
+      {
+        type: "rawlist",
+        name: "language",
+        message: t.selectLanguage,
+        choices: [
+          { name: "English", value: "en" },
+          { name: "Español", value: "es" },
+        ],
+      },
+    ]);
+    t = getTranslations(language);
+  }
+  console.log(t.help);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 function main() {
@@ -671,7 +691,7 @@ function main() {
     case "help":
     case "--help":
     case "-h":
-      return console.log(t.help);
+      return showHelp(lang);
     default:
       if (!command) return setup(lang);
       console.log(t.help);
