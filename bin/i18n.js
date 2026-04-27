@@ -8,6 +8,7 @@ const translations = {
     mempunk init [path] [options]  Create a new vault
     mempunk project <name>         Add a new project to the vault
     mempunk log <name>             Open a project's session log
+    mempunk backlog <name>         Show a project's backlog
     mempunk link <path>            Link vault to Claude Code (global config)
     mempunk unlink                 Remove vault from Claude Code config
     mempunk status                 Show current linked vault
@@ -96,6 +97,10 @@ const translations = {
     errorLogNotFound: "Error: session-log.md not found for project:",
     logOpened: "Opened session-log for",
 
+    errorBacklogProjectName: "Error: project name required. Usage: mempunk backlog <name>",
+    errorBacklogNotFound: "Error: backlog.md not found for project:",
+    backlogTitle: "Backlog —",
+
     warnCorruptConfig: "Warning: corrupted config file at",
     errorWriteConfig: "Error: failed to write config:",
     errorSelectOne: "Select at least one folder",
@@ -114,6 +119,7 @@ const translations = {
     mempunk init [ruta] [opciones] Crear un nuevo vault
     mempunk project <nombre>       Agregar un nuevo proyecto al vault
     mempunk log <nombre>           Abrir el session log de un proyecto
+    mempunk backlog <nombre>       Ver el backlog de un proyecto
     mempunk link <ruta>            Vincular vault a Claude Code (config global)
     mempunk unlink                 Desvincular vault de Claude Code
     mempunk status                 Mostrar vault vinculado actual
@@ -199,6 +205,10 @@ const translations = {
     errorLogProjectName: "Error: nombre de proyecto requerido. Uso: mempunk log <nombre>",
     errorLogNotFound: "Error: session-log.md no encontrado para el proyecto:",
     logOpened: "Session-log abierto para",
+
+    errorBacklogProjectName: "Error: nombre de proyecto requerido. Uso: mempunk backlog <nombre>",
+    errorBacklogNotFound: "Error: backlog.md no encontrado para el proyecto:",
+    backlogTitle: "Backlog —",
 
     warnCorruptConfig: "Advertencia: archivo de config corrupto en",
     errorWriteConfig: "Error: no se pudo escribir la config:",

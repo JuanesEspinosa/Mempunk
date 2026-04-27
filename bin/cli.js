@@ -730,6 +730,84 @@ function openLog(projectName) {
   console.log(chalk.green(`  ✔ ${t.logOpened} ${projectName}`));
 }
 
+// ── Backlog viewer ──────────────────────────────────────────────────────────
+
+function showBacklog(projectName) {
+  if (!projectName) {
+    console.error(chalk.red(`  ${t.errorBacklogProjectName}`));
+    process.exit(1);
+  }
+
+  const vaultPath = findVaultPath();
+  if (!vaultPath) {
+    console.error(chalk.red(`  ${t.errorNoVault}`));
+    process.exit(1);
+  }
+
+  const backlogFile = path.join(vaultPath, "projects", projectName, "backlog.md");
+
+  if (!fs.existsSync(backlogFile)) {
+    console.error(chalk.red(`  ${t.errorBacklogNotFound} ${projectName}`));
+    process.exit(1);
+  }
+
+  const content = fs.readFileSync(backlogFile, "utf-8");
+  const lines = content.split("\n");
+
+  const displayName = projectName
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+  console.log(chalk.bold(`\n  ${t.backlogTitle} ${displayName}\n`));
+
+  let currentSection = null;
+  let pendingCount = 0;
+  let doneCount = 0;
+
+  for (const line of lines) {
+    // Section headers
+    const sectionMatch = line.match(/^## (.+)/);
+    if (sectionMatch) {
+      currentSection = sectionMatch[1].trim();
+      console.log(chalk.bold.underline(`  ${currentSection}\n`));
+      continue;
+    }
+
+    // Skip top-level header and nav links
+    if (line.startsWith("# ") || line.startsWith(">") || line.startsWith("<!--")) continue;
+
+    // Pending items
+    if (line.match(/^- \[ \]/)) {
+      const text = line.replace(/^- \[ \]\s*/, "");
+      console.log(`  ${chalk.yellow("○")} ${text}`);
+      pendingCount++;
+      continue;
+    }
+
+    // Done items
+    if (line.match(/^- \[x\]/i)) {
+      const text = line.replace(/^- \[x\]\s*/i, "");
+      console.log(`  ${chalk.green("✔")} ${chalk.dim(text)}`);
+      doneCount++;
+      continue;
+    }
+  }
+
+  // Summary
+  console.log(
+    boxen(
+      `${chalk.yellow(`${pendingCount} ${t.statusPending}`)}  ${chalk.dim("│")}  ${chalk.green(`${doneCount} ${t.statusDone}`)}`,
+      {
+        padding: { top: 0, bottom: 0, left: 1, right: 1 },
+        margin: { top: 1, bottom: 1, left: 1, right: 1 },
+        borderStyle: "round",
+        borderColor: "dim",
+      }
+    )
+  );
+}
+
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 async function showHelp(lang) {
@@ -780,6 +858,8 @@ function main() {
       return createProject(rest[0]);
     case "log":
       return openLog(rest[0]);
+    case "backlog":
+      return showBacklog(rest[0]);
     case "unlink":
       return unlink();
     case "status":
