@@ -644,6 +644,39 @@ function parseGlobalFlags(args) {
   return { lang, args: filtered };
 }
 
+// ── Log (open session-log) ───────────────────────────────────────────────────
+
+import { execSync } from "child_process";
+
+function openLog(projectName) {
+  if (!projectName) {
+    console.error(chalk.red(`  ${t.errorLogProjectName}`));
+    process.exit(1);
+  }
+
+  const vaultPath = findVaultPath();
+  if (!vaultPath) {
+    console.error(chalk.red(`  ${t.errorNoVault}`));
+    process.exit(1);
+  }
+
+  const logFile = path.join(vaultPath, "projects", projectName, "session-log.md");
+
+  if (!fs.existsSync(logFile)) {
+    console.error(chalk.red(`  ${t.errorLogNotFound} ${projectName}`));
+    process.exit(1);
+  }
+
+  const platform = process.platform;
+  const cmd =
+    platform === "win32" ? `start "" "${logFile}"` :
+    platform === "darwin" ? `open "${logFile}"` :
+    `xdg-open "${logFile}"`;
+
+  execSync(cmd, { stdio: "ignore", shell: true });
+  console.log(chalk.green(`  ✔ ${t.logOpened} ${projectName}`));
+}
+
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 async function showHelp(lang) {
@@ -684,6 +717,8 @@ function main() {
       return linkVault(rest[0]);
     case "project":
       return createProject(rest[0]);
+    case "log":
+      return openLog(rest[0]);
     case "unlink":
       return unlink();
     case "status":

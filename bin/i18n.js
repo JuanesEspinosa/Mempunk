@@ -7,6 +7,7 @@ const translations = {
     mempunk setup                  Interactive full setup (recommended)
     mempunk init [path] [options]  Create a new vault
     mempunk project <name>         Add a new project to the vault
+    mempunk log <name>             Open a project's session log
     mempunk link <path>            Link vault to Claude Code (global config)
     mempunk unlink                 Remove vault from Claude Code config
     mempunk status                 Show current linked vault
@@ -24,6 +25,8 @@ const translations = {
     mempunk setup
     mempunk setup --lang es
     mempunk init ./my-vault --preset full
+    mempunk project my-app
+    mempunk log my-app
     mempunk link ./my-vault
 `,
     setupTitle: "vault setup",
@@ -80,6 +83,10 @@ const translations = {
     creatingProject: "Creating project {name}...",
     projectCreated: "Project created:",
 
+    errorLogProjectName: "Error: project name required. Usage: mempunk log <name>",
+    errorLogNotFound: "Error: session-log.md not found for project:",
+    logOpened: "Opened session-log for",
+
     warnCorruptConfig: "Warning: corrupted config file at",
     errorWriteConfig: "Error: failed to write config:",
     errorSelectOne: "Select at least one folder",
@@ -97,6 +104,7 @@ const translations = {
     mempunk setup                  Setup interactivo completo (recomendado)
     mempunk init [ruta] [opciones] Crear un nuevo vault
     mempunk project <nombre>       Agregar un nuevo proyecto al vault
+    mempunk log <nombre>           Abrir el session log de un proyecto
     mempunk link <ruta>            Vincular vault a Claude Code (config global)
     mempunk unlink                 Desvincular vault de Claude Code
     mempunk status                 Mostrar vault vinculado actual
@@ -169,6 +177,10 @@ const translations = {
     errorProjectExists: "Error: el proyecto ya existe:",
     creatingProject: "Creando proyecto {name}...",
     projectCreated: "Proyecto creado:",
+
+    errorLogProjectName: "Error: nombre de proyecto requerido. Uso: mempunk log <nombre>",
+    errorLogNotFound: "Error: session-log.md no encontrado para el proyecto:",
+    logOpened: "Session-log abierto para",
 
     warnCorruptConfig: "Advertencia: archivo de config corrupto en",
     errorWriteConfig: "Error: no se pudo escribir la config:",
