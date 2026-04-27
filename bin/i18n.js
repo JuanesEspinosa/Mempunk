@@ -9,6 +9,7 @@ const translations = {
     mempunk project <name>         Add a new project to the vault
     mempunk remove <name>          Remove a project from the vault
     mempunk sync                   Add missing template files to existing projects
+    mempunk doctor                 Check vault health and integrity
     mempunk log <name>             Open a project's session log
     mempunk backlog <name>         Show a project's backlog
     mempunk link <path>            Link vault to Claude Code (global config)
@@ -120,6 +121,23 @@ const translations = {
     syncFilesCreated: "files created.",
     syncAllUpToDate: "All projects are up to date.",
 
+    doctorTitle: "Vault health check",
+    doctorVaultPath: "Vault:",
+    doctorNoClaude: "CLAUDE.md not found in vault",
+    doctorClaudeOk: "CLAUDE.md found",
+    doctorNoMarkers: "CLAUDE.md has no project markers (<!-- MEMPUNK:PROJECTS -->)",
+    doctorGhostProject: "Registered in CLAUDE.md but missing on disk:",
+    doctorOrphanProject: "Exists on disk but not registered in CLAUDE.md:",
+    doctorMissingFiles: "missing:",
+    doctorNoMempunkSkill: "/mempunk slash command not installed",
+    doctorMempunkSkillOk: "/mempunk slash command installed",
+    doctorNoSessionEndSkill: "/session-end slash command not installed",
+    doctorSessionEndSkillOk: "/session-end slash command installed",
+    doctorAllGood: "Vault is healthy. No issues found.",
+    doctorIssues: "issues found",
+    doctorWarnings: "warnings found",
+    doctorRunSync: "Tip: run 'mempunk sync' to fix missing project files.",
+
     warnCorruptConfig: "Warning: corrupted config file at",
     errorWriteConfig: "Error: failed to write config:",
     errorSelectOne: "Select at least one folder",
@@ -139,6 +157,7 @@ const translations = {
     mempunk project <nombre>       Agregar un nuevo proyecto al vault
     mempunk remove <nombre>        Eliminar un proyecto del vault
     mempunk sync                   Agregar archivos faltantes a proyectos existentes
+    mempunk doctor                 Verificar salud e integridad del vault
     mempunk log <nombre>           Abrir el session log de un proyecto
     mempunk backlog <nombre>       Ver el backlog de un proyecto
     mempunk link <ruta>            Vincular vault a Claude Code (config global)
@@ -249,6 +268,23 @@ const translations = {
     syncFilesCreated: "archivos creados.",
     syncAllUpToDate: "Todos los proyectos estan al dia.",
 
+    doctorTitle: "Verificacion de salud del vault",
+    doctorVaultPath: "Vault:",
+    doctorNoClaude: "CLAUDE.md no encontrado en el vault",
+    doctorClaudeOk: "CLAUDE.md encontrado",
+    doctorNoMarkers: "CLAUDE.md no tiene marcadores de proyectos (<!-- MEMPUNK:PROJECTS -->)",
+    doctorGhostProject: "Registrado en CLAUDE.md pero no existe en disco:",
+    doctorOrphanProject: "Existe en disco pero no registrado en CLAUDE.md:",
+    doctorMissingFiles: "faltan:",
+    doctorNoMempunkSkill: "Slash command /mempunk no instalado",
+    doctorMempunkSkillOk: "Slash command /mempunk instalado",
+    doctorNoSessionEndSkill: "Slash command /session-end no instalado",
+    doctorSessionEndSkillOk: "Slash command /session-end instalado",
+    doctorAllGood: "El vault esta saludable. Sin problemas.",
+    doctorIssues: "problemas encontrados",
+    doctorWarnings: "advertencias encontradas",
+    doctorRunSync: "Tip: ejecuta 'mempunk sync' para arreglar archivos faltantes.",
+
     warnCorruptConfig: "Advertencia: archivo de config corrupto en",
     errorWriteConfig: "Error: no se pudo escribir la config:",
     errorSelectOne: "Selecciona al menos una carpeta",
@@ -268,6 +304,7 @@ const translations = {
     mempunk project <nome>         Adicionar um novo projeto ao vault
     mempunk remove <nome>          Remover um projeto do vault
     mempunk sync                   Adicionar arquivos faltantes a projetos existentes
+    mempunk doctor                 Verificar saúde e integridade do vault
     mempunk log <nome>             Abrir o session log de um projeto
     mempunk backlog <nome>         Ver o backlog de um projeto
     mempunk link <caminho>         Vincular vault ao Claude Code (config global)
@@ -377,6 +414,23 @@ const translations = {
     syncDone: "Sincronização completa.",
     syncFilesCreated: "arquivos criados.",
     syncAllUpToDate: "Todos os projetos estão atualizados.",
+
+    doctorTitle: "Verificação de saúde do vault",
+    doctorVaultPath: "Vault:",
+    doctorNoClaude: "CLAUDE.md não encontrado no vault",
+    doctorClaudeOk: "CLAUDE.md encontrado",
+    doctorNoMarkers: "CLAUDE.md não tem marcadores de projetos (<!-- MEMPUNK:PROJECTS -->)",
+    doctorGhostProject: "Registrado no CLAUDE.md mas não existe no disco:",
+    doctorOrphanProject: "Existe no disco mas não registrado no CLAUDE.md:",
+    doctorMissingFiles: "faltam:",
+    doctorNoMempunkSkill: "Slash command /mempunk não instalado",
+    doctorMempunkSkillOk: "Slash command /mempunk instalado",
+    doctorNoSessionEndSkill: "Slash command /session-end não instalado",
+    doctorSessionEndSkillOk: "Slash command /session-end instalado",
+    doctorAllGood: "O vault está saudável. Sem problemas.",
+    doctorIssues: "problemas encontrados",
+    doctorWarnings: "avisos encontrados",
+    doctorRunSync: "Dica: execute 'mempunk sync' para corrigir arquivos faltantes.",
 
     warnCorruptConfig: "Aviso: arquivo de config corrompido em",
     errorWriteConfig: "Erro: falha ao escrever a config:",

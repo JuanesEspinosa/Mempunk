@@ -621,9 +621,10 @@ This is the user's Mempunk vault — a persistent dev brain across sessions. It 
 After reading CLAUDE.md, follow the session start protocol:
 1. Identify which project(s) the user wants to work on
 2. Read the project's overview.md
-3. Read the last 3 entries of the project's session-log.md
-4. Read the project's backlog.md
-5. Confirm context with the user before proceeding
+3. Read the project's conventions.md (if it exists) — these are the rules and coding standards for the project
+4. Read the last 3 entries of the project's session-log.md
+5. Read the project's backlog.md
+6. Confirm context with the user before proceeding, mentioning any key conventions loaded
 `
   );
 
@@ -667,9 +668,10 @@ Follow these steps:
 - [list of files touched]
 \`\`\`
 
-4. Use the ACTUAL current date and time for the entry
-5. Be specific — list real file names, real changes, real decisions
-6. After writing the log, confirm to the user what was logged and for which project
+4. If the project has a conventions.md, check if any conventions were established or changed during this session and note them in "Decisions made"
+5. Use the ACTUAL current date and time for the entry
+6. Be specific — list real file names, real changes, real decisions
+7. After writing the log, confirm to the user what was logged and for which project
 
 IMPORTANT: If you used /mempunk at the start and know which project was active, write the log there. If multiple projects were worked on, write a log entry for each. If no project context exists, ask the user which project this session was for.
 `
@@ -808,6 +810,141 @@ function showBacklog(projectName) {
       }
     )
   );
+}
+
+// ── Doctor (vault integrity check) ─────────────────────────────────────────
+
+function doctor() {
+  const vaultPath = findVaultPath();
+  if (!vaultPath) {
+    console.error(chalk.red(`  ${t.errorNoVault}`));
+    process.exit(1);
+  }
+
+  console.log(chalk.bold(`\n  ${t.doctorTitle}\n`));
+  console.log(chalk.dim(`  ${t.doctorVaultPath} ${vaultPath}\n`));
+
+  let issues = 0;
+  let warnings = 0;
+
+  // 1. Check CLAUDE.md exists and has project markers
+  const claudePath = path.join(vaultPath, "CLAUDE.md");
+  if (!fs.existsSync(claudePath)) {
+    console.log(`  ${chalk.red("✘")} ${t.doctorNoClaude}`);
+    issues++;
+  } else {
+    console.log(`  ${chalk.green("✔")} ${t.doctorClaudeOk}`);
+
+    const claudeContent = fs.readFileSync(claudePath, "utf-8");
+    const hasMarkers = claudeContent.includes("<!-- MEMPUNK:PROJECTS:START -->");
+    if (!hasMarkers) {
+      console.log(`  ${chalk.yellow("!")} ${t.doctorNoMarkers}`);
+      warnings++;
+    }
+
+    // 2. Check registered vs actual projects
+    const registeredProjects = [];
+    if (hasMarkers) {
+      const startMarker = "<!-- MEMPUNK:PROJECTS:START -->";
+      const endMarker = "<!-- MEMPUNK:PROJECTS:END -->";
+      const startIdx = claudeContent.indexOf(startMarker) + startMarker.length;
+      const endIdx = claudeContent.indexOf(endMarker);
+      const section = claudeContent.substring(startIdx, endIdx);
+      const matches = section.matchAll(/projects\/([^/]+)\//g);
+      for (const match of matches) {
+        registeredProjects.push(match[1]);
+      }
+    }
+
+    const projectsDir = path.join(vaultPath, "projects");
+    const actualProjects = fs.existsSync(projectsDir)
+      ? fs.readdirSync(projectsDir, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name)
+      : [];
+
+    // Registered but not on disk
+    for (const proj of registeredProjects) {
+      if (!actualProjects.includes(proj)) {
+        console.log(`  ${chalk.red("✘")} ${t.doctorGhostProject} ${chalk.bold(proj)}`);
+        issues++;
+      }
+    }
+
+    // On disk but not registered
+    for (const proj of actualProjects) {
+      if (!registeredProjects.includes(proj)) {
+        console.log(`  ${chalk.yellow("!")} ${t.doctorOrphanProject} ${chalk.bold(proj)}`);
+        warnings++;
+      }
+    }
+  }
+
+  // 3. Check each project's files
+  const projectsDir = path.join(vaultPath, "projects");
+  if (fs.existsSync(projectsDir)) {
+    const projects = fs.readdirSync(projectsDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+
+    const expectedFiles = ["overview.md", "architecture.md", "conventions.md", "backlog.md", "session-log.md"];
+
+    for (const project of projects) {
+      const projectDir = path.join(projectsDir, project);
+      const missingFiles = [];
+
+      for (const file of expectedFiles) {
+        if (!fs.existsSync(path.join(projectDir, file))) {
+          missingFiles.push(file);
+        }
+      }
+
+      if (!fs.existsSync(path.join(projectDir, "decisions"))) {
+        missingFiles.push("decisions/");
+      }
+
+      if (missingFiles.length > 0) {
+        const displayName = project.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        console.log(`  ${chalk.yellow("!")} ${chalk.bold(displayName)}: ${t.doctorMissingFiles} ${chalk.dim(missingFiles.join(", "))}`);
+        warnings++;
+      }
+    }
+  }
+
+  // 4. Check slash commands installed
+  const mempunkSkill = getHomePath(".claude", "skills", "mempunk", "SKILL.md");
+  const sessionEndSkill = getHomePath(".claude", "skills", "session-end", "SKILL.md");
+
+  if (!fs.existsSync(mempunkSkill)) {
+    console.log(`  ${chalk.yellow("!")} ${t.doctorNoMempunkSkill}`);
+    warnings++;
+  } else {
+    console.log(`  ${chalk.green("✔")} ${t.doctorMempunkSkillOk}`);
+  }
+
+  if (!fs.existsSync(sessionEndSkill)) {
+    console.log(`  ${chalk.yellow("!")} ${t.doctorNoSessionEndSkill}`);
+    warnings++;
+  } else {
+    console.log(`  ${chalk.green("✔")} ${t.doctorSessionEndSkillOk}`);
+  }
+
+  // Summary
+  console.log();
+  if (issues === 0 && warnings === 0) {
+    console.log(chalk.green(`  ✔ ${t.doctorAllGood}`));
+  } else {
+    if (issues > 0) {
+      console.log(chalk.red(`  ✘ ${issues} ${t.doctorIssues}`));
+    }
+    if (warnings > 0) {
+      console.log(chalk.yellow(`  ! ${warnings} ${t.doctorWarnings}`));
+    }
+    if (warnings > 0) {
+      console.log(chalk.dim(`\n  ${t.doctorRunSync}`));
+    }
+  }
+  console.log();
 }
 
 // ── Sync (upgrade existing vaults/projects) ────────────────────────────────
@@ -1030,6 +1167,8 @@ function main() {
       return removeProject(rest[0]);
     case "sync":
       return syncVault();
+    case "doctor":
+      return doctor();
     case "log":
       return openLog(rest[0]);
     case "backlog":

@@ -23,7 +23,7 @@ You end up repeating context, re-explaining decisions, and losing momentum. The 
 
 Mempunk is a structured markdown vault that acts as Claude's persistent memory. It works in two moments:
 
-- **Session start** (`/mempunk`): Claude reads the vault, sees your projects, loads the relevant overview, the last session logs, and the backlog. It picks up where you left off.
+- **Session start** (`/mempunk`): Claude reads the vault, sees your projects, loads the relevant overview, conventions, the last session logs, and the backlog. It picks up where you left off.
 - **Session end** (`/session-end`): Claude writes what it did, what decisions were made, what's left, and which files were touched. The next session starts with full context.
 
 The vault is just markdown files organized by project. You manage it with a CLI. Claude navigates it with slash commands. It also works as an Obsidian vault, so you can browse and search everything visually.
@@ -56,6 +56,8 @@ mempunk init [path] [options]  Create a new vault
 mempunk link <path>            Link vault to Claude Code (global config)
 mempunk unlink                 Remove vault from Claude Code config
 mempunk status                 Show vault dashboard with project info
+mempunk sync                   Add missing template files to existing projects
+mempunk doctor                 Check vault health and integrity
 mempunk -v                     Show version
 ```
 
@@ -63,6 +65,7 @@ mempunk -v                     Show version
 
 ```
 mempunk project <name>         Add a new project to the vault
+mempunk remove <name>          Remove a project from the vault
 mempunk backlog <name>         Show a project's backlog in the terminal
 mempunk log <name>             Open a project's session log in your editor
 ```
@@ -70,7 +73,7 @@ mempunk log <name>             Open a project's session log in your editor
 ### Options
 
 ```
---lang <code>      Language: en, es (default: en)
+--lang <code>      Language: en, es, pt (default: en)
 --preset <name>    Preset: full, standard, minimal
 --projects         Include projects folder
 --areas            Include areas folder
@@ -85,8 +88,11 @@ mempunk setup --lang es
 mempunk init ./vault --preset full
 mempunk init ./vault --projects --resources --daily
 mempunk project my-saas
+mempunk remove my-saas
 mempunk backlog my-saas
 mempunk log my-saas
+mempunk sync
+mempunk doctor
 mempunk status
 ```
 
@@ -99,6 +105,7 @@ vault/
 │   └── my-project/
 │       ├── overview.md    # What the project is, stack, repo, status
 │       ├── architecture.md # Technical decisions and diagrams
+│       ├── conventions.md # Project rules, coding standards, patterns
 │       ├── backlog.md     # Prioritized tasks (- [ ] / - [x])
 │       ├── session-log.md # What Claude did each session
 │       └── decisions/     # Architecture Decision Records
@@ -109,6 +116,8 @@ vault/
 
 `mempunk project <name>` scaffolds this structure and registers the project in `CLAUDE.md` with a direct `[[wikilink]]`.
 
+`mempunk sync` adds any missing template files (like `conventions.md`) to existing projects without overwriting.
+
 ## Session Flow
 
 ### Start: `/mempunk`
@@ -118,8 +127,9 @@ Installed globally at `~/.claude/skills/mempunk/` during setup. When you type `/
 1. Read the vault's `CLAUDE.md`
 2. See the project index with direct links
 3. Ask which project you want to work on
-4. Read that project's overview, last 3 session logs, and backlog
-5. Confirm context before proceeding
+4. Read that project's overview and conventions
+5. Read the last 3 session logs and backlog
+6. Confirm context before proceeding
 
 ### End: `/session-end`
 
@@ -128,19 +138,30 @@ Installed globally at `~/.claude/skills/session-end/`. When you type `/session-e
 1. Identify which project was worked on
 2. Write a structured entry to the project's `session-log.md`
 3. Include: what was done, decisions made, current state, next steps, files modified
-4. Confirm what was logged
+4. Note any conventions that were established or changed
+5. Confirm what was logged
 
 The next session picks up exactly where this one left off.
 
+## Vault Maintenance
+
+```bash
+# Add missing files to existing projects after updating mempunk
+mempunk sync
+
+# Check vault integrity — ghost projects, missing files, broken registrations
+mempunk doctor
+```
+
 ## Obsidian Compatible
 
-All files use `[[wikilinks]]`. Open the vault in Obsidian and the graph view shows connections between `CLAUDE.md`, project overviews, backlogs, architecture docs, and session logs.
+All files use `[[wikilinks]]`. Open the vault in Obsidian and the graph view shows connections between `CLAUDE.md`, project overviews, backlogs, architecture docs, conventions, and session logs.
 
 ## Languages
 
-Available: **English** (default), **Español**
+Available: **English** (default), **Español**, **Português**
 
-Use `--lang es` with any command, or select interactively during setup.
+Use `--lang es` or `--lang pt` with any command, or select interactively during setup.
 
 ## License
 
