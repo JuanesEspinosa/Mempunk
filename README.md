@@ -9,11 +9,26 @@ Persistent dev brain for Claude Code — a markdown vault that survives between 
 
 ## The Problem
 
-Claude Code forgets everything when a session ends. Context, decisions, progress — gone. The next session starts from zero.
+Claude Code has no memory between sessions. Every time you start a new conversation, it doesn't know:
+
+- What you were working on yesterday
+- What architectural decisions were already made
+- What tasks are pending or done
+- What files were modified and why
+- What the next steps were supposed to be
+
+You end up repeating context, re-explaining decisions, and losing momentum. The longer a project runs, the worse it gets.
 
 ## The Solution
 
-Mempunk is a structured markdown vault that Claude reads at the start of each session and writes to at the end. It stores project overviews, architecture decisions, backlogs, and session logs. You manage it with a CLI. Claude navigates it with slash commands.
+Mempunk is a structured markdown vault that acts as Claude's persistent memory. It works in two moments:
+
+- **Session start** (`/mempunk`): Claude reads the vault, sees your projects, loads the relevant overview, the last session logs, and the backlog. It picks up where you left off.
+- **Session end** (`/session-end`): Claude writes what it did, what decisions were made, what's left, and which files were touched. The next session starts with full context.
+
+The vault is just markdown files organized by project. You manage it with a CLI. Claude navigates it with slash commands. It also works as an Obsidian vault, so you can browse and search everything visually.
+
+No database. No server. No API keys. Just files.
 
 ## Quick Start
 
