@@ -71,6 +71,15 @@ const translations = {
     notFound: "not found",
     noVaultSetup: "No vault linked. Run 'mempunk setup' to get started.",
 
+    statusProjects: "Projects",
+    statusNoProjects: "No projects found. Run 'mempunk project <name>' to add one.",
+    statusLastSession: "Last session:",
+    statusNoSessions: "no sessions yet",
+    statusBacklog: "Backlog:",
+    statusNoBacklog: "empty",
+    statusPending: "pending",
+    statusDone: "done",
+
     promptTitle: "Type this in any Claude Code session:",
     promptAlt: "Or paste: Read the CLAUDE.md at \"{path}\" and follow the session start protocol.",
 
@@ -165,6 +174,15 @@ const translations = {
     linkedVaults: "Vaults vinculados:",
     notFound: "no encontrado",
     noVaultSetup: "No hay vault vinculado. Ejecuta 'mempunk setup' para comenzar.",
+
+    statusProjects: "Proyectos",
+    statusNoProjects: "Sin proyectos. Ejecuta 'mempunk project <nombre>' para agregar uno.",
+    statusLastSession: "Ultima sesion:",
+    statusNoSessions: "sin sesiones aun",
+    statusBacklog: "Backlog:",
+    statusNoBacklog: "vacio",
+    statusPending: "pendientes",
+    statusDone: "completadas",
 
     promptTitle: "Escribe esto en cualquier sesion de Claude Code:",
     promptAlt: "O pega: Lee el CLAUDE.md en \"{path}\" y sigue el protocolo de inicio de sesion.",

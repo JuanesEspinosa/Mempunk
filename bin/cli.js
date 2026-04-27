@@ -414,16 +414,69 @@ function status() {
     return;
   }
 
-  console.log(chalk.bold(`\n  ${t.linkedVaults}\n`));
   for (const dir of dirs) {
-    const exists = fs.existsSync(dir);
-    if (exists) {
-      console.log(`  ${chalk.green("●")} ${dir}`);
-    } else {
-      console.log(`  ${chalk.red("●")} ${dir} ${chalk.dim(`(${t.notFound})`)}`);
+    if (!fs.existsSync(dir)) {
+      console.log(`\n  ${chalk.red("●")} ${dir} ${chalk.dim(`(${t.notFound})`)}\n`);
+      continue;
+    }
+
+    console.log(`\n  ${chalk.green("●")} ${chalk.bold("Vault:")} ${dir}\n`);
+
+    // Scan projects
+    const projectsDir = path.join(dir, "projects");
+    if (!fs.existsSync(projectsDir)) {
+      console.log(chalk.dim(`  ${t.statusNoProjects}\n`));
+      continue;
+    }
+
+    const projects = fs.readdirSync(projectsDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+
+    if (projects.length === 0) {
+      console.log(chalk.dim(`  ${t.statusNoProjects}\n`));
+      continue;
+    }
+
+    console.log(chalk.bold(`  ${t.statusProjects} (${projects.length}):\n`));
+
+    for (const project of projects) {
+      const projectPath = path.join(projectsDir, project);
+      const displayName = project
+        .split("-")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+
+      // Last session log
+      const logFile = path.join(projectPath, "session-log.md");
+      let lastSession = chalk.dim(t.statusNoSessions);
+      if (fs.existsSync(logFile)) {
+        const logContent = fs.readFileSync(logFile, "utf-8");
+        const sessionMatch = logContent.match(/## Sesi[oó]n (\d{4}-\d{2}-\d{2}[\s\d:]*)|## Session (\d{4}-\d{2}-\d{2}[\s\d:]*)/);
+        if (sessionMatch) {
+          const date = (sessionMatch[1] || sessionMatch[2]).trim();
+          lastSession = chalk.cyan(date);
+        }
+      }
+
+      // Backlog pending items
+      const backlogFile = path.join(projectPath, "backlog.md");
+      let backlogInfo = chalk.dim(t.statusNoBacklog);
+      if (fs.existsSync(backlogFile)) {
+        const backlogContent = fs.readFileSync(backlogFile, "utf-8");
+        const pending = (backlogContent.match(/- \[ \]/g) || []).length;
+        const done = (backlogContent.match(/- \[x\]/gi) || []).length;
+        if (pending > 0 || done > 0) {
+          backlogInfo = chalk.yellow(`${pending} ${t.statusPending}`) + chalk.dim(` / ${done} ${t.statusDone}`);
+        }
+      }
+
+      console.log(`  ${chalk.bold(displayName)}`);
+      console.log(`    ${t.statusLastSession} ${lastSession}`);
+      console.log(`    ${t.statusBacklog} ${backlogInfo}`);
+      console.log();
     }
   }
-  console.log();
 }
 
 // ── Project scaffolding ─────────────────────────────────────────────────────
