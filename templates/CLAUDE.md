@@ -38,6 +38,7 @@ Cada carpeta en `projects/` sigue esta estructura estandar:
 projects/[nombre-proyecto]/
 ├── overview.md          # LEER PRIMERO al trabajar en este proyecto
 ├── architecture.md      # Stack, decisiones tecnicas, diagramas
+├── conventions.md       # Reglas, estandares y convenciones de codigo
 ├── backlog.md           # Tareas pendientes priorizadas
 ├── decisions/           # ADRs (Architecture Decision Records)
 │   └── YYYY-MM-DD-titulo.md

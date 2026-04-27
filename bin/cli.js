@@ -166,6 +166,7 @@ async function setup(lang) {
         choices: [
           { name: "English", value: "en" },
           { name: "Español", value: "es" },
+          { name: "Português", value: "pt" },
         ],
       },
     ]);
@@ -529,7 +530,7 @@ function createProject(projectName) {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 
-  const templateFiles = ["overview.md", "backlog.md", "architecture.md", "session-log.md"];
+  const templateFiles = ["overview.md", "backlog.md", "architecture.md", "conventions.md", "session-log.md"];
 
   for (const file of templateFiles) {
     const templatePath = path.join(projectTemplateDir, file);
@@ -550,6 +551,7 @@ function createProject(projectName) {
   console.log(chalk.dim(`  projects/${projectName}/`));
   console.log(`  ├── ${chalk.cyan("overview.md")}`);
   console.log(`  ├── ${chalk.yellow("architecture.md")}`);
+  console.log(`  ├── ${chalk.yellow("conventions.md")}`);
   console.log(`  ├── ${chalk.yellow("backlog.md")}`);
   console.log(`  ├── ${chalk.yellow("session-log.md")}`);
   console.log(`  └── ${chalk.dim("decisions/")}`);
@@ -808,6 +810,173 @@ function showBacklog(projectName) {
   );
 }
 
+// ── Sync (upgrade existing vaults/projects) ────────────────────────────────
+
+function syncVault() {
+  const vaultPath = findVaultPath();
+  if (!vaultPath) {
+    console.error(chalk.red(`  ${t.errorNoVault}`));
+    process.exit(1);
+  }
+
+  const projectsDir = path.join(vaultPath, "projects");
+  if (!fs.existsSync(projectsDir)) {
+    console.log(chalk.yellow(`  ${t.statusNoProjects}`));
+    return;
+  }
+
+  const projects = fs.readdirSync(projectsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+
+  if (projects.length === 0) {
+    console.log(chalk.yellow(`  ${t.statusNoProjects}`));
+    return;
+  }
+
+  const projectTemplateDir = path.join(getTemplatesDir(), "project");
+  const templateFiles = fs.readdirSync(projectTemplateDir).filter((f) => f.endsWith(".md"));
+
+  let totalCreated = 0;
+
+  console.log(chalk.bold(`\n  ${t.syncScanning} ${projects.length} ${t.syncProjects}...\n`));
+
+  for (const project of projects) {
+    const projectDir = path.join(projectsDir, project);
+    const displayName = project
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+
+    const missing = [];
+
+    for (const file of templateFiles) {
+      const filePath = path.join(projectDir, file);
+      if (!fs.existsSync(filePath)) {
+        // Create from template
+        const templatePath = path.join(projectTemplateDir, file);
+        let content = fs.readFileSync(templatePath, "utf-8");
+        content = content.replace(/\{PROJECT_NAME\}/g, displayName);
+        fs.writeFileSync(filePath, content);
+        missing.push(file);
+      }
+    }
+
+    // Ensure decisions/ directory exists
+    const decisionsDir = path.join(projectDir, "decisions");
+    if (!fs.existsSync(decisionsDir)) {
+      fs.mkdirSync(decisionsDir, { recursive: true });
+      missing.push("decisions/");
+    }
+
+    if (missing.length > 0) {
+      console.log(`  ${chalk.green("+")} ${chalk.bold(displayName)}`);
+      for (const file of missing) {
+        console.log(`    ${chalk.dim("└")} ${chalk.cyan(file)}`);
+      }
+      totalCreated += missing.length;
+    } else {
+      console.log(`  ${chalk.dim("✔")} ${chalk.dim(displayName)} ${chalk.dim(`(${t.syncUpToDate})`)}`);
+    }
+  }
+
+  console.log();
+  if (totalCreated > 0) {
+    console.log(chalk.green(`  ✔ ${t.syncDone} ${totalCreated} ${t.syncFilesCreated}`));
+  } else {
+    console.log(chalk.green(`  ✔ ${t.syncAllUpToDate}`));
+  }
+  console.log();
+}
+
+// ── Remove project ─────────────────────────────────────────────────────────
+
+async function removeProject(projectName) {
+  if (!projectName) {
+    console.error(chalk.red(`  ${t.errorRemoveProjectName}`));
+    process.exit(1);
+  }
+
+  const vaultPath = findVaultPath();
+  if (!vaultPath) {
+    console.error(chalk.red(`  ${t.errorNoVault}`));
+    process.exit(1);
+  }
+
+  const projectDir = path.join(vaultPath, "projects", projectName);
+
+  if (!fs.existsSync(projectDir)) {
+    console.error(chalk.red(`  ${t.errorRemoveNotFound} ${projectName}`));
+    process.exit(1);
+  }
+
+  const displayName = projectName
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+  // Show what will be deleted
+  console.log(chalk.yellow(`\n  ${t.removeWarning} ${chalk.bold(displayName)}\n`));
+  console.log(chalk.dim(`  ${t.removePath} ${projectDir}\n`));
+
+  const { confirm } = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "confirm",
+      message: t.removeConfirm.replace("{name}", displayName),
+      default: false,
+    },
+  ]);
+
+  if (!confirm) {
+    console.log(chalk.dim(`  ${t.removeCancelled}`));
+    return;
+  }
+
+  const spinner = ora({
+    text: t.removingProject.replace("{name}", projectName),
+    spinner: "dots",
+  }).start();
+
+  // Delete project directory
+  fs.rmSync(projectDir, { recursive: true, force: true });
+
+  // Unregister from CLAUDE.md
+  unregisterProjectFromClaude(vaultPath, projectName);
+
+  spinner.succeed(chalk.green(`${t.projectRemoved} ${chalk.bold(displayName)}`));
+}
+
+function unregisterProjectFromClaude(vaultPath, projectName) {
+  const claudePath = path.join(vaultPath, "CLAUDE.md");
+  if (!fs.existsSync(claudePath)) return;
+
+  let content = fs.readFileSync(claudePath, "utf-8");
+
+  const startMarker = "<!-- MEMPUNK:PROJECTS:START -->";
+  const endMarker = "<!-- MEMPUNK:PROJECTS:END -->";
+
+  if (!content.includes(startMarker)) return;
+
+  const startIdx = content.indexOf(startMarker) + startMarker.length;
+  const endIdx = content.indexOf(endMarker);
+  const currentSection = content.substring(startIdx, endIdx);
+
+  // Remove the line that references this project
+  const lines = currentSection.split("\n").filter((line) => {
+    return !line.includes(`projects/${projectName}/`);
+  });
+
+  const newSection = lines.join("\n");
+
+  content =
+    content.substring(0, startIdx) +
+    newSection +
+    content.substring(endIdx);
+
+  fs.writeFileSync(claudePath, content);
+}
+
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 async function showHelp(lang) {
@@ -820,6 +989,7 @@ async function showHelp(lang) {
         choices: [
           { name: "English", value: "en" },
           { name: "Español", value: "es" },
+          { name: "Português", value: "pt" },
         ],
       },
     ]);
@@ -856,6 +1026,10 @@ function main() {
       return linkVault(rest[0]);
     case "project":
       return createProject(rest[0]);
+    case "remove":
+      return removeProject(rest[0]);
+    case "sync":
+      return syncVault();
     case "log":
       return openLog(rest[0]);
     case "backlog":

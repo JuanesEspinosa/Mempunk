@@ -37,5 +37,6 @@
 **Navegacion del proyecto:**
 - [[backlog|Backlog]] — tareas pendientes
 - [[architecture|Arquitectura]] — stack y decisiones tecnicas
+- [[conventions|Convenciones]] — reglas, estandares y patrones
 - [[session-log|Session Log]] — historial de sesiones
 - [[decisions/|Decisiones]] — ADRs
