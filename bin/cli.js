@@ -386,7 +386,7 @@ function linkVault(vaultPath, showPromptAfter = true) {
     text: t.installingSkill,
     spinner: "dots",
   }).start();
-  installSlashCommand(normalized);
+  installSlashCommands(normalized);
   spinnerSkill.succeed(chalk.green(t.skillInstalled));
 
   console.log(chalk.dim(`  ${t.linkSuccess}\n`));
@@ -542,11 +542,13 @@ function registerProjectInClaude(vaultPath, projectName, displayName) {
 
 // ── Slash command install ────────────────────────────────────────────────────
 
-function installSlashCommand(vaultPath) {
-  const skillDir = getHomePath(".claude", "skills", "mempunk");
-  const skillFile = path.join(skillDir, "SKILL.md");
-
-  const content = `---
+function installSlashCommands(vaultPath) {
+  // /mempunk — session start
+  const mempunkDir = getHomePath(".claude", "skills", "mempunk");
+  fs.mkdirSync(mempunkDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(mempunkDir, "SKILL.md"),
+    `---
 name: mempunk
 description: Load Mempunk vault context — persistent dev brain across sessions. Use when the user types /mempunk or asks to load vault context.
 disable-model-invocation: false
@@ -567,10 +569,56 @@ After reading CLAUDE.md, follow the session start protocol:
 3. Read the last 3 entries of the project's session-log.md
 4. Read the project's backlog.md
 5. Confirm context with the user before proceeding
-`;
+`
+  );
 
-  fs.mkdirSync(skillDir, { recursive: true });
-  fs.writeFileSync(skillFile, content);
+  // /session-end — session close
+  const sessionEndDir = getHomePath(".claude", "skills", "session-end");
+  fs.mkdirSync(sessionEndDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(sessionEndDir, "SKILL.md"),
+    `---
+name: session-end
+description: Close the current session and write the session log. Use when the user types /session-end, says they're done, or wants to close the session.
+disable-model-invocation: false
+allowed-tools: Read Write Glob Grep
+---
+
+The user wants to close this session. You MUST write a session log entry before ending.
+
+Follow these steps:
+
+1. Identify which project(s) were worked on in this session
+2. Find the session-log.md file for each project in the Mempunk vault at "${vaultPath}"
+   - The path is: ${vaultPath}/projects/[project-name]/session-log.md
+3. Write a new entry AT THE TOP of the file (most recent first), below the frontmatter/header, using this exact format:
+
+\`\`\`markdown
+## Session YYYY-MM-DD HH:MM
+
+### What was done
+- [concise list of changes made]
+
+### Decisions made
+- [architectural or technical decisions, if any]
+
+### Current state
+- [state of the code/feature when session ended]
+
+### Next steps
+- [what's left to do, in priority order]
+
+### Modified files
+- [list of files touched]
+\`\`\`
+
+4. Use the ACTUAL current date and time for the entry
+5. Be specific — list real file names, real changes, real decisions
+6. After writing the log, confirm to the user what was logged and for which project
+
+IMPORTANT: If you used /mempunk at the start and know which project was active, write the log there. If multiple projects were worked on, write a log entry for each. If no project context exists, ask the user which project this session was for.
+`
+  );
 }
 
 // ── Parse global flags ──────────────────────────────────────────────────────

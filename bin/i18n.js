@@ -71,8 +71,8 @@ const translations = {
     promptTitle: "Type this in any Claude Code session:",
     promptAlt: "Or paste: Read the CLAUDE.md at \"{path}\" and follow the session start protocol.",
 
-    installingSkill: "Installing /mempunk slash command...",
-    skillInstalled: "/mempunk command installed globally",
+    installingSkill: "Installing /mempunk and /session-end commands...",
+    skillInstalled: "/mempunk and /session-end installed globally",
 
     errorProjectName: "Error: project name required. Usage: mempunk project <name>",
     errorNoVault: "Error: no vault found. Run 'mempunk setup' first.",
@@ -161,8 +161,8 @@ const translations = {
     promptTitle: "Escribe esto en cualquier sesion de Claude Code:",
     promptAlt: "O pega: Lee el CLAUDE.md en \"{path}\" y sigue el protocolo de inicio de sesion.",
 
-    installingSkill: "Instalando comando /mempunk...",
-    skillInstalled: "Comando /mempunk instalado globalmente",
+    installingSkill: "Instalando /mempunk y /session-end...",
+    skillInstalled: "/mempunk y /session-end instalados globalmente",
 
     errorProjectName: "Error: nombre de proyecto requerido. Uso: mempunk project <nombre>",
     errorNoVault: "Error: no se encontro un vault. Ejecuta 'mempunk setup' primero.",
