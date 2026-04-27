@@ -2,14 +2,23 @@
 
 # Mempunk
 
-Cerebro persistente para Claude Code — vault de memoria entre sesiones.
+[![npm version](https://img.shields.io/npm/v/mempunk)](https://www.npmjs.com/package/mempunk)
+[![license](https://img.shields.io/npm/l/mempunk)](LICENSE)
 
-Claude Code olvida todo entre sesiones. Mempunk es la continuidad: lee el contexto al inicio, escribe lo que hizo al final.
+Cerebro persistente para Claude Code — un vault de markdown que sobrevive entre sesiones.
 
-## Inicio rapido
+## El Problema
+
+Claude Code olvida todo cuando termina una sesion. Contexto, decisiones, progreso — desaparece. La siguiente sesion empieza desde cero.
+
+## La Solucion
+
+Mempunk es un vault de markdown estructurado que Claude lee al inicio de cada sesion y escribe al final. Almacena overviews de proyectos, decisiones de arquitectura, backlogs y session logs. Tu lo gestionas con un CLI. Claude lo navega con slash commands.
+
+## Inicio Rapido
 
 ```bash
-# 1. Crear y vincular vault
+# 1. Crear y vincular un vault
 npx mempunk
 
 # 2. Agregar un proyecto
@@ -17,25 +26,35 @@ npx mempunk project mi-app
 
 # 3. En cualquier sesion de Claude Code, escribe:
 /mempunk
+
+# 4. Cuando termines, escribe:
+/session-end
 ```
 
-Eso es todo. Claude carga el vault, ve tus proyectos y retoma donde quedo.
+## Referencia del CLI
 
-## CLI
+### Gestion del vault
 
 ```
 mempunk setup                  Setup interactivo completo (recomendado)
 mempunk init [ruta] [opciones] Crear un nuevo vault
-mempunk project <nombre>       Agregar un nuevo proyecto al vault
-mempunk link <ruta>            Vincular vault a Claude Code
+mempunk link <ruta>            Vincular vault a Claude Code (config global)
 mempunk unlink                 Desvincular vault de Claude Code
-mempunk status                 Mostrar vault vinculado actual
-mempunk help                   Mostrar este mensaje
+mempunk status                 Dashboard del vault con info de proyectos
+mempunk -v                     Mostrar version
 ```
 
-### Opciones de init
+### Gestion de proyectos
 
-```bash
+```
+mempunk project <nombre>       Agregar un nuevo proyecto al vault
+mempunk backlog <nombre>       Ver el backlog de un proyecto en terminal
+mempunk log <nombre>           Abrir el session log en tu editor
+```
+
+### Opciones
+
+```
 --lang <codigo>    Idioma: en, es (por defecto: en)
 --preset <nombre>  Preset: full, standard, minimal
 --projects         Incluir carpeta projects
@@ -47,95 +66,67 @@ mempunk help                   Mostrar este mensaje
 ### Ejemplos
 
 ```bash
-# Setup interactivo en espanol
 mempunk setup --lang es
-
-# Crear vault con preset
 mempunk init ./vault --preset full
-
-# Elegir carpetas especificas
 mempunk init ./vault --projects --resources --daily
-
-# Agregar proyectos
 mempunk project mi-saas
-mempunk project app-movil
-
-# Vincular vault existente
-mempunk link ./mi-vault
-
-# Ver que esta vinculado
+mempunk backlog mi-saas
+mempunk log mi-saas
 mempunk status
 ```
 
-## Agregar proyectos
-
-```bash
-mempunk project arion-colombia
-```
-
-Este comando:
-1. Crea la estructura completa del proyecto dentro del vault
-2. Registra el proyecto en `CLAUDE.md` con un link directo
-3. Conecta todos los archivos con `[[wikilinks]]` de Obsidian
-
-Despues de agregar un proyecto, Claude sabe que existe y puede navegar directamente a el sin escanear todas las carpetas.
-
-## Estructura del vault
+## Estructura del Vault
 
 ```
 vault/
 ├── CLAUDE.md              # Punto de entrada — Claude lee esto primero
-├── projects/              # Un directorio por proyecto activo
+├── projects/
 │   └── mi-proyecto/
-│       ├── overview.md    # Contexto general (leer primero)
-│       ├── architecture.md # Stack y decisiones tecnicas
-│       ├── backlog.md     # Tareas pendientes priorizadas
-│       ├── session-log.md # Log de cada sesion de Claude
+│       ├── overview.md    # Que es el proyecto, stack, repo, estado
+│       ├── architecture.md # Decisiones tecnicas y diagramas
+│       ├── backlog.md     # Tareas priorizadas (- [ ] / - [x])
+│       ├── session-log.md # Que hizo Claude en cada sesion
 │       └── decisions/     # Architecture Decision Records
-├── areas/                 # Responsabilidades continuas
+├── areas/                 # Responsabilidades continuas (no proyectos)
 ├── resources/             # Conocimiento tecnico reutilizable
 └── daily/                 # Logs de sesion diarios
 ```
 
-## Como funciona
+`mempunk project <nombre>` crea esta estructura y registra el proyecto en `CLAUDE.md` con un `[[wikilink]]` directo.
 
-1. **Setup:** `npx mempunk` — elige idioma, ubicacion y estructura
-2. **Agregar proyectos:** `mempunk project <nombre>` — crea y registra cada proyecto
-3. **Usar:** Escribe `/mempunk` en cualquier sesion de Claude Code
-4. **Inicio de sesion:** Claude lee `CLAUDE.md`, ve el indice de proyectos, lee el overview + session-log + backlog relevante, y confirma contexto
-5. **Fin de sesion:** Claude escribe que hizo, que decidio y que falta en el session-log
+## Flujo de Sesion
 
-## El comando `/mempunk`
+### Inicio: `/mempunk`
 
-Durante el setup, se instala un slash command global en `~/.claude/skills/mempunk/`. En cualquier sesion de Claude Code, escribe `/mempunk` y Claude:
+Se instala globalmente en `~/.claude/skills/mempunk/` durante el setup. Al escribir `/mempunk` en cualquier sesion de Claude Code, Claude:
 
 1. Lee el `CLAUDE.md` del vault
-2. Lista tus proyectos activos
-3. Pregunta en cual quieres trabajar
-4. Carga el contexto completo de ese proyecto
+2. Ve el indice de proyectos con links directos
+3. Pregunta en cual proyecto quieres trabajar
+4. Lee el overview, los ultimos 3 session logs, y el backlog
+5. Confirma el contexto antes de continuar
 
-Sin necesidad de copiar prompts o recordar rutas.
+### Cierre: `/session-end`
 
-## Idiomas
+Se instala globalmente en `~/.claude/skills/session-end/`. Al escribir `/session-end`, Claude:
 
-Actualmente disponibles:
+1. Identifica en que proyecto se trabajo
+2. Escribe una entrada estructurada en el `session-log.md` del proyecto
+3. Incluye: que se hizo, decisiones, estado actual, proximos pasos, archivos modificados
+4. Confirma que se registro
 
-- **English** (por defecto)
-- **Espanol**
-
-Usa `--lang es` con cualquier comando, o seleccionalo interactivamente durante el setup.
+La siguiente sesion retoma exactamente donde esta termino.
 
 ## Compatible con Obsidian
 
-Todos los archivos usan `[[wikilinks]]` — la vista de grafo muestra conexiones entre CLAUDE.md, overviews de proyectos, backlogs, docs de arquitectura y session logs.
+Todos los archivos usan `[[wikilinks]]`. Abre el vault en Obsidian y la vista de grafo muestra las conexiones entre `CLAUDE.md`, overviews, backlogs, docs de arquitectura y session logs.
 
-## Personalizar
+## Idiomas
 
-Edita `CLAUDE.md` para ajustar:
-- Preferencias de stack y estilo de codigo
-- Reglas de comunicacion
-- Protocolos de inicio/cierre de sesion
+Disponibles: **English** (por defecto), **Español**
+
+Usa `--lang es` con cualquier comando, o seleccionalo interactivamente durante el setup.
 
 ## Licencia
 
-MIT
+[MIT](LICENSE)
