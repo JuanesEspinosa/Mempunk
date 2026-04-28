@@ -5,11 +5,11 @@
 [![npm version](https://img.shields.io/npm/v/mempunk)](https://www.npmjs.com/package/mempunk)
 [![license](https://img.shields.io/npm/l/mempunk)](LICENSE)
 
-Cerebro persistente para Claude Code — un vault de markdown que sobrevive entre sesiones.
+Cerebro persistente para CLIs de IA — un vault de markdown que sobrevive entre sesiones. Compatible con **Claude Code**, **opencode** y **gemini-cli**.
 
 ## El Problema
 
-Claude Code no tiene memoria entre sesiones. Cada vez que inicias una conversacion nueva, no sabe:
+Los CLIs de IA no tienen memoria entre sesiones. Cada vez que inicias una conversacion nueva, tu asistente no sabe:
 
 - En que estabas trabajando ayer
 - Que decisiones de arquitectura ya se tomaron
@@ -21,25 +21,25 @@ Terminas repitiendo contexto, re-explicando decisiones y perdiendo impulso. Mien
 
 ## La Solucion
 
-Mempunk es un vault de markdown estructurado que funciona como la memoria persistente de Claude. Trabaja en dos momentos:
+Mempunk es un vault de markdown estructurado que funciona como la memoria persistente de tu asistente. Trabaja en dos momentos:
 
-- **Inicio de sesion** (`/mempunk`): Claude lee el vault, ve tus proyectos, carga el overview relevante, las convenciones, los ultimos session logs y el backlog. Retoma donde quedaste.
-- **Fin de sesion** (`/session-end`): Claude escribe que hizo, que decisiones se tomaron, que falta y que archivos se tocaron. La siguiente sesion arranca con contexto completo.
+- **Inicio de sesion** (`/mempunk`): el asistente lee el vault, ve tus proyectos, carga el overview relevante, las convenciones, los ultimos session logs y el backlog. Retoma donde quedaste.
+- **Fin de sesion** (`/session-end`): el asistente escribe que hizo, que decisiones se tomaron, que falta y que archivos se tocaron. La siguiente sesion arranca con contexto completo.
 
-El vault son archivos markdown organizados por proyecto. Tu lo gestionas con un CLI. Claude lo navega con slash commands. Tambien funciona como vault de Obsidian, asi que puedes navegar y buscar todo visualmente.
+El vault son archivos markdown organizados por proyecto. Tu lo gestionas con un CLI. Tu asistente de IA lo navega con slash commands. Tambien funciona como vault de Obsidian, asi que puedes navegar y buscar todo visualmente.
 
 Sin base de datos. Sin servidor. Sin API keys. Solo archivos.
 
 ## Inicio Rapido
 
 ```bash
-# 1. Crear y vincular un vault
+# 1. Ejecuta el setup (pregunta que CLI usaras, crea y vincula un vault)
 npx mempunk
 
 # 2. Agregar un proyecto
 npx mempunk project mi-app
 
-# 3. En cualquier sesion de Claude Code, escribe:
+# 3. En cualquier sesion de tu CLI, escribe:
 /mempunk
 
 # 4. Cuando termines, escribe:
@@ -53,7 +53,7 @@ npx mempunk project mi-app
 ```
 mempunk setup                  Setup interactivo completo (recomendado)
 mempunk init [ruta] [opciones] Crear un nuevo vault
-mempunk link <ruta>            Vincular un vault a Claude Code (soporta multiples)
+mempunk link <ruta>            Vincular un vault a tu CLI (soporta multiples)
 mempunk unlink [ruta]          Desvincular un vault (interactivo si hay varios)
 mempunk status                 Mostrar todos los vaults vinculados y sus proyectos
 mempunk -v                     Mostrar version
@@ -120,11 +120,23 @@ vault/
 
 `mempunk sync` agrega archivos de template faltantes (como `conventions.md`) a proyectos existentes sin sobreescribir.
 
+## CLIs Soportados
+
+mempunk pregunta que CLI quieres usar durante `setup` y lo configura segun corresponda. Cada CLI usa su mecanismo nativo:
+
+| CLI | Registro del vault | Ubicacion de skills |
+|---|---|---|
+| **Claude Code** | `~/.claude.json` → `additionalDirectories[]` | `~/.claude/skills/<name>/SKILL.md` |
+| **opencode** | `~/.config/opencode/AGENTS.md` (marcadores) | `~/.config/opencode/skills/<name>/SKILL.md` |
+| **gemini-cli** | `~/.gemini/settings.json` → `context.includeDirectories[]` | `~/.gemini/skills/<name>/SKILL.md` |
+
+El vault en si (archivos markdown en `projects/`, `daily/`, etc.) es el mismo independientemente del CLI — es portable. Tu CLI seleccionado se persiste en `~/.mempunk/config.json`.
+
 ## Flujo de Sesion
 
 ### Inicio: `/mempunk`
 
-Se instala globalmente en `~/.claude/skills/mempunk/` durante el setup. Al escribir `/mempunk` en cualquier sesion de Claude Code, Claude:
+Se instala globalmente durante el setup en la ruta de skills que use tu CLI (ver tabla arriba). Al escribir `/mempunk`, el asistente:
 
 1. Descubre todos los vaults vinculados automaticamente
 2. Si hay multiples vaults, pregunta cual usar
@@ -136,7 +148,7 @@ Se instala globalmente en `~/.claude/skills/mempunk/` durante el setup. Al escri
 
 ### Cierre: `/session-end`
 
-Se instala globalmente en `~/.claude/skills/session-end/`. Al escribir `/session-end`, Claude:
+Se instala junto a `/mempunk`. Al escribir `/session-end`, el asistente:
 
 1. Identifica en que proyecto se trabajo
 2. Escribe una entrada estructurada en el `session-log.md` del proyecto
