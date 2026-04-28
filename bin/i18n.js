@@ -70,7 +70,11 @@ const translations = {
     linkSuccess: "Claude Code will have access to the vault in every session.",
 
     noVaultLinked: "No vault linked.",
-    vaultUnlinked: "Vault unlinked from Claude Code.",
+    vaultUnlinked: "Vault unlinked:",
+    notLinked: "Vault not linked:",
+    unlinkWhich: "Which vault do you want to unlink?",
+    unlinkAll: "All vaults",
+    allVaultsUnlinked: "All vaults unlinked from Claude Code.",
 
     linkedVaults: "Linked vaults:",
     notFound: "not found",
@@ -217,7 +221,11 @@ const translations = {
     linkSuccess: "Claude Code tendra acceso al vault en cada sesion.",
 
     noVaultLinked: "No hay vault vinculado.",
-    vaultUnlinked: "Vault desvinculado de Claude Code.",
+    vaultUnlinked: "Vault desvinculado:",
+    notLinked: "Vault no vinculado:",
+    unlinkWhich: "Cual vault quieres desvincular?",
+    unlinkAll: "Todos los vaults",
+    allVaultsUnlinked: "Todos los vaults desvinculados de Claude Code.",
 
     linkedVaults: "Vaults vinculados:",
     notFound: "no encontrado",
@@ -364,7 +372,11 @@ const translations = {
     linkSuccess: "Claude Code terá acesso ao vault em cada sessão.",
 
     noVaultLinked: "Nenhum vault vinculado.",
-    vaultUnlinked: "Vault desvinculado do Claude Code.",
+    vaultUnlinked: "Vault desvinculado:",
+    notLinked: "Vault não vinculado:",
+    unlinkWhich: "Qual vault você quer desvincular?",
+    unlinkAll: "Todos os vaults",
+    allVaultsUnlinked: "Todos os vaults desvinculados do Claude Code.",
 
     linkedVaults: "Vaults vinculados:",
     notFound: "não encontrado",
@@ -511,7 +523,11 @@ const translations = {
     linkSuccess: "Claude Code aura acces au vault dans chaque session.",
 
     noVaultLinked: "Aucun vault lie.",
-    vaultUnlinked: "Vault dissocie de Claude Code.",
+    vaultUnlinked: "Vault dissocie:",
+    notLinked: "Vault non lie:",
+    unlinkWhich: "Quel vault voulez-vous dissocier?",
+    unlinkAll: "Tous les vaults",
+    allVaultsUnlinked: "Tous les vaults dissocies de Claude Code.",
 
     linkedVaults: "Vaults lies:",
     notFound: "non trouve",

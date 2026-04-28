@@ -1,6 +1,6 @@
 {
   "name": "mempunk",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Persistent dev brain for Claude Code — memory vault across sessions",
   "type": "module",
   "bin": {

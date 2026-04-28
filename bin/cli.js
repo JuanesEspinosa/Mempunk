@@ -383,12 +383,12 @@ function linkVault(vaultPath, showPromptAfter = true) {
 
   spinner.succeed(chalk.green(`${t.vaultLinked} ${chalk.bold(normalized)}`));
 
-  // Install /mempunk slash command
+  // Install/update slash commands (multi-vault aware)
   const spinnerSkill = ora({
     text: t.installingSkill,
     spinner: "dots",
   }).start();
-  installSlashCommands(normalized);
+  installSlashCommands();
   spinnerSkill.succeed(chalk.green(t.skillInstalled));
 
   console.log(chalk.dim(`  ${t.linkSuccess}\n`));
@@ -396,15 +396,71 @@ function linkVault(vaultPath, showPromptAfter = true) {
   if (showPromptAfter) showPrompt(normalized);
 }
 
-function unlink() {
+async function unlink(specificPath) {
   const config = readClaudeConfig();
-  if (!config.additionalDirectories || config.additionalDirectories.length === 0) {
+  const dirs = config.additionalDirectories || [];
+
+  if (dirs.length === 0) {
     console.log(chalk.yellow(`  ${t.noVaultLinked}`));
     return;
   }
-  delete config.additionalDirectories;
-  writeClaudeConfig(config);
-  console.log(chalk.green(`  ✔ ${t.vaultUnlinked}`));
+
+  // Filter to only Mempunk vaults (dirs with CLAUDE.md)
+  const vaults = dirs.filter((d) => fs.existsSync(path.join(d, "CLAUDE.md")));
+  const nonVaults = dirs.filter((d) => !fs.existsSync(path.join(d, "CLAUDE.md")));
+
+  if (specificPath) {
+    // Unlink a specific vault by path
+    const normalized = normalizePath(path.resolve(specificPath));
+    if (!dirs.includes(normalized)) {
+      console.log(chalk.yellow(`  ${t.notLinked} ${normalized}`));
+      return;
+    }
+    config.additionalDirectories = dirs.filter((d) => d !== normalized);
+    if (config.additionalDirectories.length === 0) delete config.additionalDirectories;
+    writeClaudeConfig(config);
+    console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(normalized)}`));
+    return;
+  }
+
+  if (vaults.length === 1) {
+    // Only one vault — unlink it directly
+    config.additionalDirectories = nonVaults;
+    if (config.additionalDirectories.length === 0) delete config.additionalDirectories;
+    writeClaudeConfig(config);
+    console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(vaults[0])}`));
+    return;
+  }
+
+  // Multiple vaults — ask which to unlink
+  const choices = [
+    ...vaults.map((v) => {
+      const name = path.basename(v);
+      return { name: `${name} ${chalk.dim(`(${v})`)}`, value: v };
+    }),
+    { name: t.unlinkAll, value: "__all__" },
+  ];
+
+  const { selected } = await inquirer.prompt([
+    {
+      type: "rawlist",
+      name: "selected",
+      message: t.unlinkWhich,
+      choices,
+    },
+  ]);
+
+  if (selected === "__all__") {
+    config.additionalDirectories = nonVaults;
+    if (config.additionalDirectories.length === 0) delete config.additionalDirectories;
+    writeClaudeConfig(config);
+    console.log(chalk.green(`  ✔ ${t.allVaultsUnlinked}`));
+  } else {
+    config.additionalDirectories = dirs.filter((d) => d !== selected);
+    if (config.additionalDirectories.length === 0) delete config.additionalDirectories;
+    writeClaudeConfig(config);
+    console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(selected)}`));
+  }
 }
 
 function status() {
@@ -598,8 +654,10 @@ function registerProjectInClaude(vaultPath, projectName, displayName) {
 
 // ── Slash command install ────────────────────────────────────────────────────
 
-function installSlashCommands(vaultPath) {
-  // /mempunk — session start
+function installSlashCommands() {
+  const configPath = normalizePath(getClaudeConfigPath());
+
+  // /mempunk — session start (multi-vault aware)
   const mempunkDir = getHomePath(".claude", "skills", "mempunk");
   fs.mkdirSync(mempunkDir, { recursive: true });
   fs.writeFileSync(
@@ -611,25 +669,31 @@ disable-model-invocation: false
 allowed-tools: Read Glob Grep
 ---
 
-Read the CLAUDE.md file at "${vaultPath}" and follow the session start protocol defined there.
+This is the Mempunk session start protocol. The user has one or more Mempunk vaults (persistent dev brains).
 
-This is the user's Mempunk vault — a persistent dev brain across sessions. It contains:
-- Project overviews, architecture docs, and backlogs
-- Session logs from previous Claude Code sessions
-- Architecture Decision Records
-- Reusable technical knowledge
+**Step 1: Discover vaults**
 
-After reading CLAUDE.md, follow the session start protocol:
+Read the file at "${configPath}" and parse the JSON. Look at the "additionalDirectories" array. For each directory, check if it contains a CLAUDE.md file. Those are Mempunk vaults.
+
+**Step 2: Select vault**
+
+- If there is only ONE vault: use it automatically.
+- If there are MULTIPLE vaults: present a numbered list to the user showing the vault name (last segment of the path) and full path, then ask which one they want to work with.
+- If there are ZERO vaults: tell the user to run \`mempunk setup\` first.
+
+**Step 3: Load context**
+
+Once a vault is selected, read its CLAUDE.md and follow the session start protocol:
 1. Identify which project(s) the user wants to work on
 2. Read the project's overview.md
 3. Read the project's conventions.md (if it exists) — these are the rules and coding standards for the project
 4. Read the last 3 entries of the project's session-log.md
 5. Read the project's backlog.md
-6. Confirm context with the user before proceeding, mentioning any key conventions loaded
+6. Confirm context with the user before proceeding, mentioning which vault was loaded and any key conventions
 `
   );
 
-  // /session-end — session close
+  // /session-end — session close (multi-vault aware)
   const sessionEndDir = getHomePath(".claude", "skills", "session-end");
   fs.mkdirSync(sessionEndDir, { recursive: true });
   fs.writeFileSync(
@@ -643,14 +707,18 @@ allowed-tools: Read Write Glob Grep
 
 The user wants to close this session. You MUST write a session log entry before ending.
 
-Follow these steps:
+**Step 1: Identify the active vault**
+
+If you loaded a vault via /mempunk earlier in this session, use that vault. Otherwise, read "${configPath}", parse the JSON, and find Mempunk vaults in "additionalDirectories" (directories that contain CLAUDE.md). If multiple vaults exist and you don't know which was active, ask the user.
+
+**Step 2: Write the session log**
 
 1. Identify which project(s) were worked on in this session
-2. Find the session-log.md file for each project in the Mempunk vault at "${vaultPath}"
-   - The path is: ${vaultPath}/projects/[project-name]/session-log.md
+2. Find the session-log.md file for each project in the active vault
+   - The path is: [vault-path]/projects/[project-name]/session-log.md
 3. Write a new entry AT THE TOP of the file (most recent first), below the frontmatter/header, using this exact format:
 
-\`\`\`markdown
+\\\`\\\`\\\`markdown
 ## Session YYYY-MM-DD HH:MM
 
 ### What was done
@@ -667,7 +735,7 @@ Follow these steps:
 
 ### Modified files
 - [list of files touched]
-\`\`\`
+\\\`\\\`\\\`
 
 4. If the project has a conventions.md, check if any conventions were established or changed during this session and note them in "Decisions made"
 5. Use the ACTUAL current date and time for the entry
@@ -1176,7 +1244,7 @@ function main() {
     case "backlog":
       return showBacklog(rest[0]);
     case "unlink":
-      return unlink();
+      return unlink(rest[0]);
     case "status":
       return status();
     case "help":
