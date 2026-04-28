@@ -53,8 +53,8 @@ npx mempunk project my-app
 ```
 mempunk setup                  Interactive full setup (recommended)
 mempunk init [path] [options]  Create a new vault
-mempunk link <path>            Link vault to Claude Code (global config)
-mempunk unlink                 Remove vault from Claude Code config
+mempunk link <path>            Link a vault to Claude Code (supports multiple)
+mempunk unlink [path]          Unlink a vault (interactive if multiple)
 mempunk status                 Show vault dashboard with project info
 mempunk sync                   Add missing template files to existing projects
 mempunk doctor                 Check vault health and integrity
@@ -124,12 +124,13 @@ vault/
 
 Installed globally at `~/.claude/skills/mempunk/` during setup. When you type `/mempunk` in any Claude Code session, Claude will:
 
-1. Read the vault's `CLAUDE.md`
-2. See the project index with direct links
-3. Ask which project you want to work on
-4. Read that project's overview and conventions
-5. Read the last 3 session logs and backlog
-6. Confirm context before proceeding
+1. Discover all linked vaults automatically
+2. If multiple vaults exist, ask which one to use
+3. Read the vault's `CLAUDE.md` and project index
+4. Ask which project you want to work on
+5. Read that project's overview and conventions
+6. Read the last 3 session logs and backlog
+7. Confirm context before proceeding
 
 ### End: `/session-end`
 
@@ -151,6 +152,21 @@ mempunk sync
 
 # Check vault integrity — ghost projects, missing files, broken registrations
 mempunk doctor
+```
+
+## Multiple Vaults
+
+You can link multiple vaults and switch between them at session start:
+
+```bash
+mempunk link ./work-vault
+mempunk link ./personal-vault
+
+# /mempunk will ask which vault to use
+
+mempunk unlink ./personal-vault   # Unlink a specific vault
+mempunk unlink                    # Interactive selection if multiple
+mempunk status                    # Shows all linked vaults
 ```
 
 ## Obsidian Compatible

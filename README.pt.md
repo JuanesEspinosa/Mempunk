@@ -53,8 +53,8 @@ npx mempunk project meu-app
 ```
 mempunk setup                  Setup interativo completo (recomendado)
 mempunk init [caminho] [opcoes] Criar um novo vault
-mempunk link <caminho>         Vincular vault ao Claude Code (config global)
-mempunk unlink                 Desvincular vault do Claude Code
+mempunk link <caminho>         Vincular um vault ao Claude Code (suporta multiplos)
+mempunk unlink [caminho]       Desvincular um vault (interativo se houver varios)
 mempunk status                 Dashboard do vault com info de projetos
 mempunk sync                   Adicionar arquivos faltantes a projetos existentes
 mempunk doctor                 Verificar saude e integridade do vault
@@ -124,12 +124,13 @@ vault/
 
 Instalado globalmente em `~/.claude/skills/mempunk/` durante o setup. Ao digitar `/mempunk` em qualquer sessao do Claude Code, Claude:
 
-1. Le o `CLAUDE.md` do vault
-2. Ve o indice de projetos com links diretos
-3. Pergunta em qual projeto voce quer trabalhar
-4. Le o overview e as convencoes do projeto
-5. Le os ultimos 3 session logs e o backlog
-6. Confirma o contexto antes de continuar
+1. Descobre todos os vaults vinculados automaticamente
+2. Se houver multiplos vaults, pergunta qual usar
+3. Le o `CLAUDE.md` do vault e o indice de projetos
+4. Pergunta em qual projeto voce quer trabalhar
+5. Le o overview e as convencoes do projeto
+6. Le os ultimos 3 session logs e o backlog
+7. Confirma o contexto antes de continuar
 
 ### Encerramento: `/session-end`
 
@@ -151,6 +152,21 @@ mempunk sync
 
 # Verificar integridade — projetos fantasma, arquivos faltantes, registros quebrados
 mempunk doctor
+```
+
+## Multiplos Vaults
+
+Voce pode vincular multiplos vaults e alternar entre eles no inicio da sessao:
+
+```bash
+mempunk link ./vault-trabalho
+mempunk link ./vault-pessoal
+
+# /mempunk vai perguntar qual vault usar
+
+mempunk unlink ./vault-pessoal    # Desvincular um vault especifico
+mempunk unlink                    # Selecao interativa se houver varios
+mempunk status                    # Mostra todos os vaults vinculados
 ```
 
 ## Compativel com Obsidian

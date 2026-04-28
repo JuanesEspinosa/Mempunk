@@ -53,8 +53,8 @@ npx mempunk project mon-app
 ```
 mempunk setup                  Configuration interactive complete (recommande)
 mempunk init [chemin] [options] Creer un nouveau vault
-mempunk link <chemin>          Lier le vault a Claude Code (config globale)
-mempunk unlink                 Dissocier le vault de Claude Code
+mempunk link <chemin>          Lier un vault a Claude Code (supporte plusieurs)
+mempunk unlink [chemin]        Dissocier un vault (interactif si plusieurs)
 mempunk status                 Dashboard du vault avec info des projets
 mempunk sync                   Ajouter les fichiers manquants aux projets existants
 mempunk doctor                 Verifier la sante et l'integrite du vault
@@ -124,12 +124,13 @@ vault/
 
 Installe globalement dans `~/.claude/skills/mempunk/` lors du setup. Quand vous tapez `/mempunk` dans une session Claude Code, Claude:
 
-1. Lit le `CLAUDE.md` du vault
-2. Voit l'index des projets avec des liens directs
-3. Demande sur quel projet vous voulez travailler
-4. Lit l'overview et les conventions du projet
-5. Lit les 3 derniers session logs et le backlog
-6. Confirme le contexte avant de continuer
+1. Decouvre tous les vaults lies automatiquement
+2. S'il y a plusieurs vaults, demande lequel utiliser
+3. Lit le `CLAUDE.md` du vault et l'index des projets
+4. Demande sur quel projet vous voulez travailler
+5. Lit l'overview et les conventions du projet
+6. Lit les 3 derniers session logs et le backlog
+7. Confirme le contexte avant de continuer
 
 ### Fin: `/session-end`
 
@@ -151,6 +152,21 @@ mempunk sync
 
 # Verifier l'integrite — projets fantomes, fichiers manquants, enregistrements casses
 mempunk doctor
+```
+
+## Plusieurs Vaults
+
+Vous pouvez lier plusieurs vaults et basculer entre eux au debut de la session:
+
+```bash
+mempunk link ./vault-travail
+mempunk link ./vault-perso
+
+# /mempunk demandera quel vault utiliser
+
+mempunk unlink ./vault-perso      # Dissocier un vault specifique
+mempunk unlink                    # Selection interactive si plusieurs
+mempunk status                    # Affiche tous les vaults lies
 ```
 
 ## Compatible Obsidian
