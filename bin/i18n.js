@@ -95,6 +95,7 @@ const translations = {
     installingSkill: "Installing /mempunk and /session-end commands...",
     skillInstalled: "/mempunk and /session-end installed globally",
 
+    selectVault: "Which vault do you want to use?",
     errorProjectName: "Error: project name required. Usage: mempunk project <name>",
     errorNoVault: "Error: no vault found. Run 'mempunk setup' first.",
     errorProjectExists: "Error: project already exists:",
@@ -246,6 +247,7 @@ const translations = {
     installingSkill: "Instalando /mempunk y /session-end...",
     skillInstalled: "/mempunk y /session-end instalados globalmente",
 
+    selectVault: "En cual vault quieres trabajar?",
     errorProjectName: "Error: nombre de proyecto requerido. Uso: mempunk project <nombre>",
     errorNoVault: "Error: no se encontro un vault. Ejecuta 'mempunk setup' primero.",
     errorProjectExists: "Error: el proyecto ya existe:",
@@ -397,6 +399,7 @@ const translations = {
     installingSkill: "Instalando /mempunk e /session-end...",
     skillInstalled: "/mempunk e /session-end instalados globalmente",
 
+    selectVault: "Em qual vault voce quer trabalhar?",
     errorProjectName: "Erro: nome do projeto necessário. Uso: mempunk project <nome>",
     errorNoVault: "Erro: nenhum vault encontrado. Execute 'mempunk setup' primeiro.",
     errorProjectExists: "Erro: o projeto já existe:",
@@ -548,6 +551,7 @@ const translations = {
     installingSkill: "Installation de /mempunk et /session-end...",
     skillInstalled: "/mempunk et /session-end installes globalement",
 
+    selectVault: "Dans quel vault voulez-vous travailler?",
     errorProjectName: "Erreur: nom du projet requis. Usage: mempunk project <nom>",
     errorNoVault: "Erreur: aucun vault trouve. Lancez 'mempunk setup' d'abord.",
     errorProjectExists: "Erreur: le projet existe deja:",

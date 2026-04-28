@@ -553,13 +553,44 @@ function findVaultPath() {
   return null;
 }
 
-function createProject(projectName) {
+async function resolveVaultPath() {
+  const config = readClaudeConfig();
+  const dirs = config.additionalDirectories || [];
+  const vaults = dirs.filter((d) => fs.existsSync(path.join(d, "CLAUDE.md")));
+
+  // Fallback to cwd
+  if (vaults.length === 0 && fs.existsSync(path.join(process.cwd(), "CLAUDE.md"))) {
+    return process.cwd();
+  }
+
+  if (vaults.length === 0) return null;
+  if (vaults.length === 1) return vaults[0];
+
+  // Multiple vaults — ask the user
+  const choices = vaults.map((v) => ({
+    name: `${path.basename(v)} ${chalk.dim(`(${v})`)}`,
+    value: v,
+  }));
+
+  const { selected } = await inquirer.prompt([
+    {
+      type: "rawlist",
+      name: "selected",
+      message: t.selectVault,
+      choices,
+    },
+  ]);
+
+  return selected;
+}
+
+async function createProject(projectName) {
   if (!projectName) {
     console.error(chalk.red(`  ${t.errorProjectName}`));
     process.exit(1);
   }
 
-  const vaultPath = findVaultPath();
+  const vaultPath = await resolveVaultPath();
   if (!vaultPath) {
     console.error(chalk.red(`  ${t.errorNoVault}`));
     process.exit(1);
@@ -774,13 +805,13 @@ function parseGlobalFlags(args) {
 
 import { execSync } from "child_process";
 
-function openLog(projectName) {
+async function openLog(projectName) {
   if (!projectName) {
     console.error(chalk.red(`  ${t.errorLogProjectName}`));
     process.exit(1);
   }
 
-  const vaultPath = findVaultPath();
+  const vaultPath = await resolveVaultPath();
   if (!vaultPath) {
     console.error(chalk.red(`  ${t.errorNoVault}`));
     process.exit(1);
@@ -805,13 +836,13 @@ function openLog(projectName) {
 
 // ── Backlog viewer ──────────────────────────────────────────────────────────
 
-function showBacklog(projectName) {
+async function showBacklog(projectName) {
   if (!projectName) {
     console.error(chalk.red(`  ${t.errorBacklogProjectName}`));
     process.exit(1);
   }
 
-  const vaultPath = findVaultPath();
+  const vaultPath = await resolveVaultPath();
   if (!vaultPath) {
     console.error(chalk.red(`  ${t.errorNoVault}`));
     process.exit(1);
@@ -883,8 +914,8 @@ function showBacklog(projectName) {
 
 // ── Doctor (vault integrity check) ─────────────────────────────────────────
 
-function doctor() {
-  const vaultPath = findVaultPath();
+async function doctor() {
+  const vaultPath = await resolveVaultPath();
   if (!vaultPath) {
     console.error(chalk.red(`  ${t.errorNoVault}`));
     process.exit(1);
@@ -1018,8 +1049,8 @@ function doctor() {
 
 // ── Sync (upgrade existing vaults/projects) ────────────────────────────────
 
-function syncVault() {
-  const vaultPath = findVaultPath();
+async function syncVault() {
+  const vaultPath = await resolveVaultPath();
   if (!vaultPath) {
     console.error(chalk.red(`  ${t.errorNoVault}`));
     process.exit(1);
@@ -1103,7 +1134,7 @@ async function removeProject(projectName) {
     process.exit(1);
   }
 
-  const vaultPath = findVaultPath();
+  const vaultPath = await resolveVaultPath();
   if (!vaultPath) {
     console.error(chalk.red(`  ${t.errorNoVault}`));
     process.exit(1);
