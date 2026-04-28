@@ -55,9 +55,7 @@ mempunk setup                  Interactive full setup (recommended)
 mempunk init [path] [options]  Create a new vault
 mempunk link <path>            Link a vault to Claude Code (supports multiple)
 mempunk unlink [path]          Unlink a vault (interactive if multiple)
-mempunk status                 Show vault dashboard with project info
-mempunk sync                   Add missing template files to existing projects
-mempunk doctor                 Check vault health and integrity
+mempunk status                 Show all linked vaults and their projects
 mempunk -v                     Show version
 ```
 
@@ -68,7 +66,11 @@ mempunk project <name>         Add a new project to the vault
 mempunk remove <name>          Remove a project from the vault
 mempunk backlog <name>         Show a project's backlog in the terminal
 mempunk log <name>             Open a project's session log in your editor
+mempunk sync                   Add missing template files to existing projects
+mempunk doctor                 Check vault health and integrity
 ```
+
+> All project commands ask which vault to use when multiple are linked.
 
 ### Options
 
