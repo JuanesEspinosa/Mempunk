@@ -17,18 +17,11 @@ function agentsPath() {
   return path.join(configDir(), "AGENTS.md");
 }
 
-function skillPath(name) {
-  return path.join(configDir(), "skills", name, "SKILL.md");
-}
-
-function skillDir(name) {
-  return path.join(configDir(), "skills", name);
-}
-
 // ── Vault registration via AGENTS.md markers ─────────────────────────────────
 
 const VAULT_START = "<!-- MEMPUNK:VAULTS:START -->";
 const VAULT_END = "<!-- MEMPUNK:VAULTS:END -->";
+const PATHS_END = "<!-- MEMPUNK:PATHS:END -->";
 
 function readAgents() {
   const p = agentsPath();
@@ -52,7 +45,10 @@ function parseVaultsBlock(content) {
   const startIdx = content.indexOf(VAULT_START);
   const endIdx = content.indexOf(VAULT_END);
   if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) return [];
-  const block = content.substring(startIdx + VAULT_START.length, endIdx);
+  // Only parse vault paths between VAULT_START and PATHS_END (or VAULT_END as fallback)
+  const pathsEndIdx = content.indexOf(PATHS_END);
+  const boundary = pathsEndIdx !== -1 && pathsEndIdx < endIdx ? pathsEndIdx : endIdx;
+  const block = content.substring(startIdx + VAULT_START.length, boundary);
   return block
     .split("\n")
     .map((l) => l.trim())
@@ -64,11 +60,34 @@ function parseVaultsBlock(content) {
 function renderVaultsBlock(vaults) {
   const lines = vaults.map((v) => `- ${v}`).join("\n");
   return `${VAULT_START}
-## Mempunk vaults
+## Mempunk — persistent dev brain
 
-The user has the following persistent dev brain vaults. Read their CLAUDE.md to discover available projects when the user invokes /mempunk:
+Vaults:
 
 ${lines}
+${PATHS_END}
+
+### /mempunk — Session start protocol
+
+When the user types "/mempunk" or asks to load vault context:
+
+1. For each vault path above, check if it contains a CLAUDE.md file.
+2. If only ONE vault: use it. If MULTIPLE: ask the user which one.
+3. Read the vault's CLAUDE.md and the project index.
+4. Ask which project to work on.
+5. Read that project's overview.md and conventions.md (if it exists).
+6. Read the last 3 entries of session-log.md and the backlog.md.
+7. Confirm context with the user before proceeding.
+
+### /session-end — Session close protocol
+
+When the user types "/session-end" or says they're done:
+
+1. Identify which project was worked on.
+2. Write a structured entry to the project's session-log.md (most recent first):
+   - What was done, decisions made, current state, next steps, modified files.
+3. If conventions changed, note them in "Decisions made".
+4. Confirm what was logged.
 ${VAULT_END}`;
 }
 
@@ -102,87 +121,6 @@ function removeVaultsBlock() {
     return;
   }
   writeAgents(next);
-}
-
-// ── Skill content ────────────────────────────────────────────────────────────
-
-function mempunkSkillContent() {
-  const agents = agentsPath().replace(/\\/g, "/");
-  return `---
-name: mempunk
-description: Load Mempunk vault context — persistent dev brain across sessions. Use when the user types /mempunk or asks to load vault context.
----
-
-This is the Mempunk session start protocol. The user has one or more Mempunk vaults (persistent dev brains).
-
-**Step 1: Discover vaults**
-
-Read the file at "${agents}" and find vault paths listed between \`<!-- MEMPUNK:VAULTS:START -->\` and \`<!-- MEMPUNK:VAULTS:END -->\` markers. Each line starting with "- " under those markers is a vault path. For each path, verify it contains a CLAUDE.md file.
-
-**Step 2: Select vault**
-
-- If there is only ONE vault: use it automatically.
-- If there are MULTIPLE vaults: present a numbered list to the user showing the vault name (last segment of the path) and full path, then ask which one they want to work with.
-- If there are ZERO vaults: tell the user to run \`mempunk setup\` first.
-
-**Step 3: Load context**
-
-Once a vault is selected, read its CLAUDE.md and follow the session start protocol:
-1. Identify which project(s) the user wants to work on
-2. Read the project's overview.md
-3. Read the project's conventions.md (if it exists) — these are the rules and coding standards for the project
-4. Read the last 3 entries of the project's session-log.md
-5. Read the project's backlog.md
-6. Confirm context with the user before proceeding, mentioning which vault was loaded and any key conventions
-`;
-}
-
-function sessionEndSkillContent() {
-  const agents = agentsPath().replace(/\\/g, "/");
-  return `---
-name: session-end
-description: Close the current session and write the session log. Use when the user types /session-end, says they're done, or wants to close the session.
----
-
-The user wants to close this session. You MUST write a session log entry before ending.
-
-**Step 1: Identify the active vault**
-
-If you loaded a vault via /mempunk earlier in this session, use that vault. Otherwise, read "${agents}" and find vault paths listed between \`<!-- MEMPUNK:VAULTS:START -->\` and \`<!-- MEMPUNK:VAULTS:END -->\` markers (lines starting with "- "). If multiple vaults exist and you don't know which was active, ask the user.
-
-**Step 2: Write the session log**
-
-1. Identify which project(s) were worked on in this session
-2. Find the session-log.md file for each project in the active vault
-   - The path is: [vault-path]/projects/[project-name]/session-log.md
-3. Write a new entry AT THE TOP of the file (most recent first), below the frontmatter/header, using this exact format:
-
-\`\`\`markdown
-## Session YYYY-MM-DD HH:MM
-
-### What was done
-- [concise list of changes made]
-
-### Decisions made
-- [architectural or technical decisions, if any]
-
-### Current state
-- [state of the code/feature when session ended]
-
-### Next steps
-- [what's left to do, in priority order]
-
-### Modified files
-- [list of files touched]
-\`\`\`
-
-4. If the project has a conventions.md, check if any conventions were established or changed during this session and note them in "Decisions made"
-5. Use the ACTUAL current date and time for the entry
-6. Be specific — list real file names, real changes, real decisions
-7. After writing the log, confirm to the user what was logged and for which project
-
-IMPORTANT: If you used /mempunk at the start and know which project was active, write the log there. If multiple projects were worked on, write a log entry for each. If no project context exists, ask the user which project this session was for.
-`;
 }
 
 // ── Adapter ──────────────────────────────────────────────────────────────────
@@ -226,17 +164,20 @@ export const opencodeAdapter = {
   },
 
   installSkills() {
-    fs.mkdirSync(skillDir("mempunk"), { recursive: true });
-    fs.writeFileSync(skillPath("mempunk"), mempunkSkillContent());
-
-    fs.mkdirSync(skillDir("session-end"), { recursive: true });
-    fs.writeFileSync(skillPath("session-end"), sessionEndSkillContent());
+    // opencode reads AGENTS.md automatically — the vault protocol instructions
+    // are embedded directly in the vaults block (see renderVaultsBlock).
+    // Re-render the block to ensure instructions are up-to-date.
+    const current = parseVaultsBlock(readAgents());
+    if (current.length > 0) upsertVaultsBlock(current);
   },
 
   verifySkills() {
+    // For opencode, "skills installed" means the AGENTS.md has the protocol
+    // instructions embedded in the vaults block.
+    const content = readAgents();
     const missing = [];
-    if (!fs.existsSync(skillPath("mempunk"))) missing.push("mempunk");
-    if (!fs.existsSync(skillPath("session-end"))) missing.push("session-end");
+    if (!content.includes("/mempunk")) missing.push("mempunk");
+    if (!content.includes("/session-end")) missing.push("session-end");
     return { ok: missing.length === 0, missing };
   },
 };
