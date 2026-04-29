@@ -16,8 +16,11 @@ CLIs de IA nao tem memoria entre sessoes. Cada vez que voce inicia uma nova conv
 - Quais tarefas estao pendentes ou concluidas
 - Quais arquivos foram modificados e por que
 - Quais eram os proximos passos
+- Qual ferramenta CLI voce estava usando (Claude Code? opencode? gemini-cli?)
 
 Voce acaba repetindo contexto, re-explicando decisoes e perdendo impulso. Quanto mais longo o projeto, pior fica.
+
+Alem disso, se voce alterna entre diferentes CLIs de IA — Claude Code para alguns projetos, opencode ou gemini-cli para outros — cada ferramenta vive em seu proprio silo. Seu contexto fica fragmentado entre ferramentas.
 
 ## A Solucao
 
@@ -29,6 +32,8 @@ Mempunk e um vault de markdown estruturado que funciona como a memoria persisten
 O vault sao arquivos markdown organizados por projeto. Voce gerencia com um CLI. Seu assistente de IA navega com slash commands. Tambem funciona como vault do Obsidian, entao voce pode navegar e buscar tudo visualmente.
 
 Sem banco de dados. Sem servidor. Sem API keys. Apenas arquivos.
+
+E como o vault e agnostico ao CLI, voce pode usar o mesmo vault com Claude Code, opencode e gemini-cli simultaneamente. Alterne entre CLIs sem perder contexto.
 
 ## Inicio Rapido
 
@@ -56,6 +61,9 @@ mempunk init [caminho] [opcoes] Criar um novo vault
 mempunk link <caminho>         Vincular um vault ao seu CLI (suporta multiplos)
 mempunk unlink [caminho]       Desvincular um vault (interativo se houver varios)
 mempunk status                 Mostrar todos os vaults vinculados e seus projetos
+mempunk cli add <nome>         Adicionar um CLI (claude-code, opencode, gemini-cli)
+mempunk cli remove <nome>      Remover um CLI
+mempunk cli list               Mostrar CLIs ativos
 mempunk -v                     Mostrar versao
 ```
 
@@ -96,6 +104,10 @@ mempunk log meu-saas
 mempunk sync
 mempunk doctor
 mempunk status
+mempunk cli add opencode
+mempunk cli add gemini-cli
+mempunk cli list
+mempunk cli remove opencode
 ```
 
 ## Estrutura do Vault
@@ -122,7 +134,7 @@ vault/
 
 ## CLIs Suportados
 
-mempunk pergunta qual CLI voce quer usar durante o `setup` e o configura adequadamente. Cada CLI usa seu mecanismo nativo:
+mempunk suporta o uso de multiplos CLIs simultaneamente com o mesmo vault. Durante o `setup`, selecione um ou mais CLIs. Voce pode adicionar mais depois com `mempunk cli add <nome>`. Cada CLI usa seu mecanismo nativo:
 
 | CLI | Registro do vault | Localizacao das skills |
 |---|---|---|
@@ -130,7 +142,7 @@ mempunk pergunta qual CLI voce quer usar durante o `setup` e o configura adequad
 | **opencode** | `~/.config/opencode/AGENTS.md` (marcadores) | `~/.config/opencode/skills/<name>/SKILL.md` |
 | **gemini-cli** | `~/.gemini/settings.json` → `context.includeDirectories[]` | `~/.gemini/skills/<name>/SKILL.md` |
 
-O vault em si (arquivos markdown em `projects/`, `daily/`, etc.) e o mesmo independentemente do CLI — e portavel. Sua escolha de CLI fica persistida em `~/.mempunk/config.json`.
+O vault em si (arquivos markdown em `projects/`, `daily/`, etc.) e o mesmo independentemente do CLI — e portavel. Quando voce faz `link` ou `unlink` de um vault, a operacao se aplica a todos os CLIs ativos de uma vez. Seus CLIs ativos ficam persistidos em `~/.mempunk/config.json`.
 
 ## Fluxo de Sessao
 
@@ -182,6 +194,29 @@ mempunk unlink ./vault-pessoal    # Desvincular um vault especifico
 mempunk unlink                    # Selecao interativa se houver varios
 mempunk status                    # Mostra todos os vaults vinculados
 ```
+
+## Multiplos CLIs
+
+Use o mesmo vault com diferentes CLIs de IA ao mesmo tempo:
+
+```bash
+# Adicionar um segundo CLI
+mempunk cli add opencode
+
+# Adicionar um terceiro
+mempunk cli add gemini-cli
+
+# link/unlink agora registra em todos os CLIs ativos de uma vez
+mempunk link ./meu-vault    # Registra no Claude Code, opencode E gemini-cli
+
+# Ver quais CLIs estao ativos
+mempunk cli list
+
+# Remover um
+mempunk cli remove gemini-cli
+```
+
+`doctor` verifica skills em todos os CLIs ativos. `status` agrega vaults de todos os CLIs.
 
 ## Compativel com Obsidian
 

@@ -24,12 +24,53 @@ export function writeMempunkConfig(config) {
   fs.writeFileSync(cfg, JSON.stringify(config, null, 2) + "\n");
 }
 
+// ── Single CLI (backward compat) ────────────────────────────────────────────
+
 export function getActiveCLI() {
-  return readMempunkConfig().cli || DEFAULT_CLI;
+  const cfg = readMempunkConfig();
+  // v1.4+: first entry in clis array; v1.3 fallback: cli field
+  if (cfg.clis && cfg.clis.length > 0) return cfg.clis[0];
+  return cfg.cli || DEFAULT_CLI;
 }
 
 export function setActiveCLI(name) {
   const cfg = readMempunkConfig();
-  cfg.cli = name;
+  cfg.clis = [name];
+  delete cfg.cli; // migrate away from old field
   writeMempunkConfig(cfg);
+}
+
+// ── Multi-CLI (v1.4) ───────────────────────────────────────────────────────
+
+export function getActiveCLIs() {
+  const cfg = readMempunkConfig();
+  // v1.4+: clis array; v1.3 fallback: single cli field
+  if (cfg.clis && cfg.clis.length > 0) return [...cfg.clis];
+  return [cfg.cli || DEFAULT_CLI];
+}
+
+export function addCLI(name) {
+  const cfg = readMempunkConfig();
+  const clis = cfg.clis && cfg.clis.length > 0
+    ? [...cfg.clis]
+    : [cfg.cli || DEFAULT_CLI];
+  if (clis.includes(name)) return false; // already active
+  clis.push(name);
+  cfg.clis = clis;
+  delete cfg.cli;
+  writeMempunkConfig(cfg);
+  return true;
+}
+
+export function removeCLI(name) {
+  const cfg = readMempunkConfig();
+  const clis = cfg.clis && cfg.clis.length > 0
+    ? [...cfg.clis]
+    : [cfg.cli || DEFAULT_CLI];
+  if (!clis.includes(name)) return false; // not active
+  cfg.clis = clis.filter((c) => c !== name);
+  delete cfg.cli;
+  if (cfg.clis.length === 0) cfg.clis = [DEFAULT_CLI];
+  writeMempunkConfig(cfg);
+  return true;
 }

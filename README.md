@@ -16,8 +16,11 @@ AI coding CLIs have no memory between sessions. Every time you start a new conve
 - What tasks are pending or done
 - What files were modified and why
 - What the next steps were supposed to be
+- Which CLI tool you were using (Claude Code? opencode? gemini-cli?)
 
 You end up repeating context, re-explaining decisions, and losing momentum. The longer a project runs, the worse it gets.
+
+On top of that, if you switch between different AI coding CLIs — Claude Code for some projects, opencode or gemini-cli for others — each tool lives in its own silo. Your context is fragmented across tools.
 
 ## The Solution
 
@@ -29,6 +32,8 @@ Mempunk is a structured markdown vault that acts as your AI's persistent memory.
 The vault is just markdown files organized by project. You manage it with a CLI. Your AI assistant navigates it with slash commands. It also works as an Obsidian vault, so you can browse and search everything visually.
 
 No database. No server. No API keys. Just files.
+
+And because the vault is CLI-agnostic, you can use the same vault with Claude Code, opencode, and gemini-cli simultaneously. Switch between CLIs without losing context.
 
 ## Quick Start
 
@@ -56,6 +61,9 @@ mempunk init [path] [options]  Create a new vault
 mempunk link <path>            Link a vault to your CLI (supports multiple)
 mempunk unlink [path]          Unlink a vault (interactive if multiple)
 mempunk status                 Show all linked vaults and their projects
+mempunk cli add <name>         Add a CLI (claude-code, opencode, gemini-cli)
+mempunk cli remove <name>      Remove a CLI
+mempunk cli list               Show active CLIs
 mempunk -v                     Show version
 ```
 
@@ -96,6 +104,10 @@ mempunk log my-saas
 mempunk sync
 mempunk doctor
 mempunk status
+mempunk cli add opencode
+mempunk cli add gemini-cli
+mempunk cli list
+mempunk cli remove opencode
 ```
 
 ## Vault Structure
@@ -122,7 +134,7 @@ vault/
 
 ## Supported CLIs
 
-mempunk asks which CLI you want to use during `setup` and configures it accordingly. Each CLI gets its own native registration:
+mempunk supports using multiple CLIs simultaneously with the same vault. During `setup`, select one or more CLIs. You can add more later with `mempunk cli add <name>`. Each CLI gets its own native registration:
 
 | CLI | Vault registration | Skills location |
 |---|---|---|
@@ -130,7 +142,7 @@ mempunk asks which CLI you want to use during `setup` and configures it accordin
 | **opencode** | `~/.config/opencode/AGENTS.md` (markers) | `~/.config/opencode/skills/<name>/SKILL.md` |
 | **gemini-cli** | `~/.gemini/settings.json` → `context.includeDirectories[]` | `~/.gemini/skills/<name>/SKILL.md` |
 
-The vault itself (markdown files in `projects/`, `daily/`, etc.) is the same regardless of CLI — it's portable. Your selected CLI is persisted in `~/.mempunk/config.json`.
+The vault itself (markdown files in `projects/`, `daily/`, etc.) is the same regardless of CLI — it's portable. When you `link` or `unlink` a vault, the operation applies to all active CLIs at once. Your active CLIs are persisted in `~/.mempunk/config.json`.
 
 ## Session Flow
 
@@ -182,6 +194,29 @@ mempunk unlink ./personal-vault   # Unlink a specific vault
 mempunk unlink                    # Interactive selection if multiple
 mempunk status                    # Shows all linked vaults
 ```
+
+## Multiple CLIs
+
+Use the same vault with different AI coding CLIs at the same time:
+
+```bash
+# Add a second CLI
+mempunk cli add opencode
+
+# Add a third
+mempunk cli add gemini-cli
+
+# link/unlink now registers in all active CLIs at once
+mempunk link ./my-vault    # Registers in Claude Code, opencode, AND gemini-cli
+
+# See which CLIs are active
+mempunk cli list
+
+# Remove one
+mempunk cli remove gemini-cli
+```
+
+`doctor` checks skills for all active CLIs. `status` aggregates vaults from all CLIs.
 
 ## Obsidian Compatible
 
