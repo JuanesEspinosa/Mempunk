@@ -16,8 +16,11 @@ Les CLI d'IA n'ont aucune memoire entre les sessions. A chaque nouvelle conversa
 - Quelles taches sont en attente ou terminees
 - Quels fichiers ont ete modifies et pourquoi
 - Quelles etaient les prochaines etapes
+- Quel outil CLI vous utilisiez (Claude Code? opencode? gemini-cli?)
 
 Vous finissez par repeter le contexte, re-expliquer les decisions et perdre l'elan. Plus le projet est long, pire c'est.
+
+De plus, si vous alternez entre differents CLI d'IA — Claude Code pour certains projets, opencode ou gemini-cli pour d'autres — chaque outil vit dans son propre silo. Votre contexte est fragmente entre les outils.
 
 ## La Solution
 
@@ -29,6 +32,8 @@ Mempunk est un vault markdown structure qui sert de memoire persistante a votre 
 Le vault est constitue de fichiers markdown organises par projet. Vous le gerez avec un CLI. Votre assistant IA le navigue avec des slash commands. Il fonctionne aussi comme vault Obsidian, pour naviguer et chercher visuellement.
 
 Pas de base de donnees. Pas de serveur. Pas de cles API. Juste des fichiers.
+
+Et comme le vault est agnostique au CLI, vous pouvez utiliser le meme vault avec Claude Code, opencode et gemini-cli simultanement. Changez de CLI sans perdre le contexte.
 
 ## Demarrage Rapide
 
@@ -56,6 +61,9 @@ mempunk init [chemin] [options] Creer un nouveau vault
 mempunk link <chemin>          Lier un vault a votre CLI (supporte plusieurs)
 mempunk unlink [chemin]        Dissocier un vault (interactif si plusieurs)
 mempunk status                 Afficher tous les vaults lies et leurs projets
+mempunk cli add <nom>          Ajouter un CLI (claude-code, opencode, gemini-cli)
+mempunk cli remove <nom>       Supprimer un CLI
+mempunk cli list               Afficher les CLIs actifs
 mempunk -v                     Afficher la version
 ```
 
@@ -96,6 +104,10 @@ mempunk log mon-saas
 mempunk sync
 mempunk doctor
 mempunk status
+mempunk cli add opencode
+mempunk cli add gemini-cli
+mempunk cli list
+mempunk cli remove opencode
 ```
 
 ## Structure du Vault
@@ -122,7 +134,7 @@ vault/
 
 ## CLI Supportes
 
-mempunk demande quel CLI vous voulez utiliser durant `setup` et le configure en consequence. Chaque CLI utilise son propre mecanisme natif:
+mempunk supporte l'utilisation de plusieurs CLI simultanement avec le meme vault. Durant `setup`, selectionnez un ou plusieurs CLI. Vous pouvez en ajouter d'autres avec `mempunk cli add <nom>`. Chaque CLI utilise son propre mecanisme natif:
 
 | CLI | Enregistrement du vault | Emplacement des skills |
 |---|---|---|
@@ -130,7 +142,7 @@ mempunk demande quel CLI vous voulez utiliser durant `setup` et le configure en 
 | **opencode** | `~/.config/opencode/AGENTS.md` (marqueurs) | `~/.config/opencode/skills/<name>/SKILL.md` |
 | **gemini-cli** | `~/.gemini/settings.json` → `context.includeDirectories[]` | `~/.gemini/skills/<name>/SKILL.md` |
 
-Le vault lui-meme (fichiers markdown dans `projects/`, `daily/`, etc.) est le meme quel que soit le CLI — il est portable. Votre choix de CLI est sauvegarde dans `~/.mempunk/config.json`.
+Le vault lui-meme (fichiers markdown dans `projects/`, `daily/`, etc.) est le meme quel que soit le CLI — il est portable. Quand vous faites `link` ou `unlink` d'un vault, l'operation s'applique a tous les CLI actifs en meme temps. Vos CLI actifs sont sauvegardes dans `~/.mempunk/config.json`.
 
 ## Flux de Session
 
@@ -182,6 +194,29 @@ mempunk unlink ./vault-perso      # Dissocier un vault specifique
 mempunk unlink                    # Selection interactive si plusieurs
 mempunk status                    # Affiche tous les vaults lies
 ```
+
+## Plusieurs CLI
+
+Utilisez le meme vault avec differents CLI d'IA en meme temps:
+
+```bash
+# Ajouter un deuxieme CLI
+mempunk cli add opencode
+
+# Ajouter un troisieme
+mempunk cli add gemini-cli
+
+# link/unlink enregistre maintenant dans tous les CLI actifs en meme temps
+mempunk link ./mon-vault    # Enregistre dans Claude Code, opencode ET gemini-cli
+
+# Voir quels CLI sont actifs
+mempunk cli list
+
+# Supprimer un
+mempunk cli remove gemini-cli
+```
+
+`doctor` verifie les skills pour tous les CLI actifs. `status` agrege les vaults de tous les CLI.
 
 ## Compatible Obsidian
 

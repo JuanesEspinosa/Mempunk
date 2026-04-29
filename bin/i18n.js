@@ -12,9 +12,12 @@ const translations = {
     mempunk doctor                 Check vault health and integrity
     mempunk log <name>             Open a project's session log
     mempunk backlog <name>         Show a project's backlog
-    mempunk link <path>            Link vault to your CLI (global config)
-    mempunk unlink                 Remove vault from your CLI's config
-    mempunk status                 Show current linked vault
+    mempunk link <path>            Link vault to your active CLIs
+    mempunk unlink                 Remove vault from your CLIs' config
+    mempunk cli add <name>         Add a CLI (claude-code, opencode, gemini-cli)
+    mempunk cli remove <name>      Remove a CLI
+    mempunk cli list               Show active CLIs
+    mempunk status                 Show linked vaults and active CLIs
     mempunk help                   Show this message
 
   Options:
@@ -151,6 +154,21 @@ const translations = {
     availableLangs: "Available:",
 
     structure: "Structure",
+
+    cliAddSuccess: "CLI added:",
+    cliAlreadyActive: "CLI already active:",
+    cliRemoveSuccess: "CLI removed:",
+    cliNotActive: "CLI not active:",
+    cliCannotRemoveLast: "Cannot remove the last active CLI.",
+    cliListTitle: "Active CLIs:",
+    cliNameRequired: "Error: CLI name required. Options: claude-code, opencode, gemini-cli",
+    cliUnknown: "Error: unknown CLI:",
+    cliAvailable: "Available:",
+    cliNotInstalled: "Warning: {cli} does not appear to be installed.",
+    cliLinkingAll: "Linking to {count} CLIs...",
+    cliUnlinkingAll: "Unlinking from {count} CLIs...",
+    cliInstallingSkills: "Installing skills for {count} CLIs...",
+    selectCLIs: "Which AI CLIs will you use with mempunk?",
   },
 
   es: {
@@ -166,9 +184,12 @@ const translations = {
     mempunk doctor                 Verificar salud e integridad del vault
     mempunk log <nombre>           Abrir el session log de un proyecto
     mempunk backlog <nombre>       Ver el backlog de un proyecto
-    mempunk link <ruta>            Vincular vault a tu CLI (config global)
-    mempunk unlink                 Desvincular vault de tu CLI
-    mempunk status                 Mostrar vault vinculado actual
+    mempunk link <ruta>            Vincular vault a tus CLIs activos
+    mempunk unlink                 Desvincular vault de tus CLIs
+    mempunk cli add <nombre>       Agregar un CLI (claude-code, opencode, gemini-cli)
+    mempunk cli remove <nombre>    Quitar un CLI
+    mempunk cli list               Mostrar CLIs activos
+    mempunk status                 Mostrar vaults vinculados y CLIs activos
     mempunk help                   Mostrar este mensaje
 
   Opciones:
@@ -304,6 +325,21 @@ const translations = {
     availableLangs: "Disponibles:",
 
     structure: "Estructura",
+
+    cliAddSuccess: "CLI agregado:",
+    cliAlreadyActive: "CLI ya activo:",
+    cliRemoveSuccess: "CLI eliminado:",
+    cliNotActive: "CLI no activo:",
+    cliCannotRemoveLast: "No se puede eliminar el ultimo CLI activo.",
+    cliListTitle: "CLIs activos:",
+    cliNameRequired: "Error: nombre de CLI requerido. Opciones: claude-code, opencode, gemini-cli",
+    cliUnknown: "Error: CLI desconocido:",
+    cliAvailable: "Disponibles:",
+    cliNotInstalled: "Advertencia: {cli} no parece estar instalado.",
+    cliLinkingAll: "Vinculando a {count} CLIs...",
+    cliUnlinkingAll: "Desvinculando de {count} CLIs...",
+    cliInstallingSkills: "Instalando skills en {count} CLIs...",
+    selectCLIs: "¿Que CLIs de IA vas a usar con mempunk?",
   },
 
   pt: {
@@ -319,9 +355,12 @@ const translations = {
     mempunk doctor                 Verificar saúde e integridade do vault
     mempunk log <nome>             Abrir o session log de um projeto
     mempunk backlog <nome>         Ver o backlog de um projeto
-    mempunk link <caminho>         Vincular vault ao seu CLI (config global)
-    mempunk unlink                 Desvincular vault do seu CLI
-    mempunk status                 Mostrar vault vinculado atual
+    mempunk link <caminho>         Vincular vault aos seus CLIs ativos
+    mempunk unlink                 Desvincular vault dos seus CLIs
+    mempunk cli add <nome>         Adicionar um CLI (claude-code, opencode, gemini-cli)
+    mempunk cli remove <nome>      Remover um CLI
+    mempunk cli list               Mostrar CLIs ativos
+    mempunk status                 Mostrar vaults vinculados e CLIs ativos
     mempunk help                   Mostrar esta mensagem
 
   Opções:
@@ -457,6 +496,21 @@ const translations = {
     availableLangs: "Disponíveis:",
 
     structure: "Estrutura",
+
+    cliAddSuccess: "CLI adicionado:",
+    cliAlreadyActive: "CLI ja ativo:",
+    cliRemoveSuccess: "CLI removido:",
+    cliNotActive: "CLI nao ativo:",
+    cliCannotRemoveLast: "Nao e possivel remover o ultimo CLI ativo.",
+    cliListTitle: "CLIs ativos:",
+    cliNameRequired: "Erro: nome do CLI necessario. Opcoes: claude-code, opencode, gemini-cli",
+    cliUnknown: "Erro: CLI desconhecido:",
+    cliAvailable: "Disponiveis:",
+    cliNotInstalled: "Aviso: {cli} nao parece estar instalado.",
+    cliLinkingAll: "Vinculando a {count} CLIs...",
+    cliUnlinkingAll: "Desvinculando de {count} CLIs...",
+    cliInstallingSkills: "Instalando skills em {count} CLIs...",
+    selectCLIs: "Quais CLIs de IA voce vai usar com o mempunk?",
   },
 
   fr: {
@@ -472,9 +526,12 @@ const translations = {
     mempunk doctor                 Verifier la sante et l'integrite du vault
     mempunk log <nom>              Ouvrir le session log d'un projet
     mempunk backlog <nom>          Voir le backlog d'un projet
-    mempunk link <chemin>          Lier le vault a votre CLI (config globale)
-    mempunk unlink                 Dissocier le vault de votre CLI
-    mempunk status                 Afficher le vault lie actuel
+    mempunk link <chemin>          Lier le vault a vos CLIs actifs
+    mempunk unlink                 Dissocier le vault de vos CLIs
+    mempunk cli add <nom>          Ajouter un CLI (claude-code, opencode, gemini-cli)
+    mempunk cli remove <nom>       Supprimer un CLI
+    mempunk cli list               Afficher les CLIs actifs
+    mempunk status                 Afficher les vaults lies et CLIs actifs
     mempunk help                   Afficher ce message
 
   Options:
@@ -610,6 +667,21 @@ const translations = {
     availableLangs: "Disponibles:",
 
     structure: "Structure",
+
+    cliAddSuccess: "CLI ajoute:",
+    cliAlreadyActive: "CLI deja actif:",
+    cliRemoveSuccess: "CLI supprime:",
+    cliNotActive: "CLI non actif:",
+    cliCannotRemoveLast: "Impossible de supprimer le dernier CLI actif.",
+    cliListTitle: "CLIs actifs:",
+    cliNameRequired: "Erreur: nom du CLI requis. Options: claude-code, opencode, gemini-cli",
+    cliUnknown: "Erreur: CLI inconnu:",
+    cliAvailable: "Disponibles:",
+    cliNotInstalled: "Attention: {cli} ne semble pas etre installe.",
+    cliLinkingAll: "Liaison a {count} CLIs...",
+    cliUnlinkingAll: "Dissociation de {count} CLIs...",
+    cliInstallingSkills: "Installation des skills pour {count} CLIs...",
+    selectCLIs: "Quels CLIs d'IA allez-vous utiliser avec mempunk?",
   },
 };
 

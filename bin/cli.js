@@ -10,7 +10,7 @@ import ora from "ora";
 import gradient from "gradient-string";
 import { getTranslations, getAvailableLanguages } from "./i18n.js";
 import { getAdapter, listAdapters } from "./adapters/index.js";
-import { getActiveCLI, setActiveCLI } from "./config.js";
+import { getActiveCLI, setActiveCLI, getActiveCLIs, addCLI, removeCLI } from "./config.js";
 
 // ── Global state ─────────────────────────────────────────────────────────────
 
@@ -27,6 +27,20 @@ function adapter() {
     });
   }
   return a;
+}
+
+// All active CLI adapters (v1.4 multi-CLI).
+function allAdapters() {
+  return getActiveCLIs().map((name) => {
+    const a = getAdapter(name);
+    if (typeof a.onCorruptConfig === "function") {
+      a.onCorruptConfig((cfgPath, err) => {
+        console.warn(chalk.yellow(`  ${t.warnCorruptConfig} ${cfgPath}`));
+        console.warn(chalk.dim(`  ${err.message}`));
+      });
+    }
+    return a;
+  });
 }
 
 function runWrite(fn) {
@@ -157,17 +171,23 @@ async function setup(lang) {
     t = getTranslations(lang);
   }
 
-  // CLI selection — persisted in ~/.mempunk/config.json so subsequent
-  // commands resolve the right adapter via getActiveCLI().
-  const { chosenCLI } = await inquirer.prompt([
+  // CLI selection — persisted in ~/.mempunk/config.json. v1.4: multiple CLIs.
+  const { chosenCLIs } = await inquirer.prompt([
     {
-      type: "rawlist",
-      name: "chosenCLI",
-      message: t.selectCLI,
-      choices: listAdapters().map((a) => ({ name: a.displayName, value: a.name })),
+      type: "checkbox",
+      name: "chosenCLIs",
+      message: t.selectCLIs || t.selectCLI,
+      choices: listAdapters().map((a) => ({
+        name: a.displayName,
+        value: a.name,
+        checked: a.name === "claude-code",
+      })),
+      validate: (input) => input.length > 0 || t.errorSelectOne,
     },
   ]);
-  setActiveCLI(chosenCLI);
+  // Set first as primary, store all
+  setActiveCLI(chosenCLIs[0]);
+  for (const cli of chosenCLIs.slice(1)) addCLI(cli);
 
   // 1. Path
   const { vaultPath } = await inquirer.prompt([
@@ -358,62 +378,76 @@ function linkVault(vaultPath, showPromptAfter = true) {
     process.exit(1);
   }
 
-  const dirs = adapter().getRegisteredDirs();
+  const adapters = allAdapters();
 
-  if (dirs.includes(normalized)) {
+  // Check if already linked in all CLIs
+  const allLinked = adapters.every((a) => a.getRegisteredDirs().includes(normalized));
+  if (allLinked) {
     console.log(chalk.yellow(`  ${t.alreadyLinked} ${normalized}\n`));
     if (showPromptAfter) showPrompt(normalized);
     return;
   }
 
+  const cliNames = adapters.map((a) => a.displayName).join(", ");
   const spinner = ora({
-    text: t.linkingVault.replace("{cli}", adapter().displayName),
+    text: adapters.length > 1
+      ? t.cliLinkingAll.replace("{count}", adapters.length)
+      : t.linkingVault.replace("{cli}", adapters[0].displayName),
     spinner: "dots",
   }).start();
 
-  runWrite(() => adapter().addDir(normalized));
+  runWrite(() => {
+    for (const a of adapters) a.addDir(normalized);
+  });
 
   spinner.succeed(chalk.green(`${t.vaultLinked} ${chalk.bold(normalized)}`));
 
-  // Install/update slash commands (multi-vault aware)
+  // Install/update slash commands for all CLIs
   const spinnerSkill = ora({
-    text: t.installingSkill,
+    text: adapters.length > 1
+      ? t.cliInstallingSkills.replace("{count}", adapters.length)
+      : t.installingSkill,
     spinner: "dots",
   }).start();
-  adapter().installSkills();
+  for (const a of adapters) a.installSkills();
   spinnerSkill.succeed(chalk.green(t.skillInstalled));
 
-  console.log(chalk.dim(`  ${t.linkSuccess.replace("{cli}", adapter().displayName)}\n`));
+  console.log(chalk.dim(`  ${t.linkSuccess.replace("{cli}", cliNames)}\n`));
 
   if (showPromptAfter) showPrompt(normalized);
 }
 
 async function unlink(specificPath) {
-  const dirs = adapter().getRegisteredDirs();
+  const adapters = allAdapters();
 
-  if (dirs.length === 0) {
+  // Aggregate all registered dirs across all CLIs (deduplicated)
+  const allDirs = [...new Set(adapters.flatMap((a) => a.getRegisteredDirs()))];
+
+  if (allDirs.length === 0) {
     console.log(chalk.yellow(`  ${t.noVaultLinked}`));
     return;
   }
 
   // Filter to only Mempunk vaults (dirs with CLAUDE.md)
-  const vaults = dirs.filter((d) => fs.existsSync(path.join(d, "CLAUDE.md")));
+  const vaults = allDirs.filter((d) => fs.existsSync(path.join(d, "CLAUDE.md")));
 
   if (specificPath) {
-    // Unlink a specific vault by path
     const normalized = normalizePath(path.resolve(specificPath));
-    if (!dirs.includes(normalized)) {
+    if (!allDirs.includes(normalized)) {
       console.log(chalk.yellow(`  ${t.notLinked} ${normalized}`));
       return;
     }
-    runWrite(() => adapter().removeDir(normalized));
+    runWrite(() => {
+      for (const a of adapters) a.removeDir(normalized);
+    });
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(normalized)}`));
     return;
   }
 
   if (vaults.length === 1) {
-    // Only one vault — unlink it directly
-    runWrite(() => adapter().removeDir(vaults[0]));
+    runWrite(() => {
+      for (const a of adapters) a.removeDir(vaults[0]);
+    });
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(vaults[0])}`));
     return;
   }
@@ -438,22 +472,30 @@ async function unlink(specificPath) {
 
   if (selected === "__all__") {
     runWrite(() => {
-      for (const v of vaults) adapter().removeDir(v);
+      for (const v of vaults) {
+        for (const a of adapters) a.removeDir(v);
+      }
     });
     console.log(chalk.green(`  ✔ ${t.allVaultsUnlinked}`));
   } else {
-    runWrite(() => adapter().removeDir(selected));
+    runWrite(() => {
+      for (const a of adapters) a.removeDir(selected);
+    });
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(selected)}`));
   }
 }
 
 function status() {
-  const dirs = adapter().getRegisteredDirs();
+  const adapters = allAdapters();
+  const cliNames = adapters.map((a) => a.displayName).join(", ");
+  const dirs = [...new Set(adapters.flatMap((a) => a.getRegisteredDirs()))];
 
   if (dirs.length === 0) {
     console.log(chalk.yellow(`  ${t.noVaultSetup}`));
     return;
   }
+
+  console.log(chalk.dim(`\n  CLIs: ${cliNames}`));
 
   for (const dir of dirs) {
     if (!fs.existsSync(dir)) {
@@ -523,7 +565,7 @@ function status() {
 // ── Project scaffolding ─────────────────────────────────────────────────────
 
 function findVaultPath() {
-  const dirs = adapter().getRegisteredDirs();
+  const dirs = [...new Set(allAdapters().flatMap((a) => a.getRegisteredDirs()))];
   for (const dir of dirs) {
     if (fs.existsSync(path.join(dir, "CLAUDE.md"))) {
       return dir;
@@ -536,7 +578,7 @@ function findVaultPath() {
 }
 
 async function resolveVaultPath() {
-  const dirs = adapter().getRegisteredDirs();
+  const dirs = [...new Set(allAdapters().flatMap((a) => a.getRegisteredDirs()))];
   const vaults = dirs.filter((d) => fs.existsSync(path.join(d, "CLAUDE.md")));
 
   // Fallback to cwd
@@ -897,20 +939,23 @@ async function doctor() {
     }
   }
 
-  // 4. Check slash commands installed
-  const skills = adapter().verifySkills();
-  if (skills.missing.includes("mempunk")) {
-    console.log(`  ${chalk.yellow("!")} ${t.doctorNoMempunkSkill}`);
-    warnings++;
-  } else {
-    console.log(`  ${chalk.green("✔")} ${t.doctorMempunkSkillOk}`);
-  }
+  // 4. Check slash commands installed for all active CLIs
+  for (const a of allAdapters()) {
+    const skills = a.verifySkills();
+    const label = allAdapters().length > 1 ? ` (${a.displayName})` : "";
+    if (skills.missing.includes("mempunk")) {
+      console.log(`  ${chalk.yellow("!")} ${t.doctorNoMempunkSkill}${label}`);
+      warnings++;
+    } else {
+      console.log(`  ${chalk.green("✔")} ${t.doctorMempunkSkillOk}${label}`);
+    }
 
-  if (skills.missing.includes("session-end")) {
-    console.log(`  ${chalk.yellow("!")} ${t.doctorNoSessionEndSkill}`);
-    warnings++;
-  } else {
-    console.log(`  ${chalk.green("✔")} ${t.doctorSessionEndSkillOk}`);
+    if (skills.missing.includes("session-end")) {
+      console.log(`  ${chalk.yellow("!")} ${t.doctorNoSessionEndSkill}${label}`);
+      warnings++;
+    } else {
+      console.log(`  ${chalk.green("✔")} ${t.doctorSessionEndSkillOk}${label}`);
+    }
   }
 
   // Summary
@@ -1098,6 +1143,82 @@ function unregisterProjectFromClaude(vaultPath, projectName) {
   fs.writeFileSync(claudePath, content);
 }
 
+// ── CLI management (v1.4) ───────────────────────────────────────────────────
+
+function cliCommand(subcommand, cliName) {
+  const validNames = listAdapters().map((a) => a.name);
+
+  switch (subcommand) {
+    case "add": {
+      if (!cliName) {
+        console.error(chalk.red(`  ${t.cliNameRequired}`));
+        process.exit(1);
+      }
+      if (!validNames.includes(cliName)) {
+        console.error(chalk.red(`  ${t.cliUnknown} ${cliName}`));
+        console.error(chalk.dim(`  ${t.cliAvailable} ${validNames.join(", ")}`));
+        process.exit(1);
+      }
+      const a = getAdapter(cliName);
+      if (!a.isInstalled()) {
+        console.log(chalk.yellow(`  ${t.cliNotInstalled.replace("{cli}", a.displayName)}`));
+      }
+      if (!addCLI(cliName)) {
+        console.log(chalk.yellow(`  ${t.cliAlreadyActive} ${a.displayName}`));
+        return;
+      }
+      console.log(chalk.green(`  ✔ ${t.cliAddSuccess} ${chalk.bold(a.displayName)}`));
+      // Re-register existing vaults and install skills for the new CLI
+      const primaryDirs = adapter().getRegisteredDirs();
+      if (primaryDirs.length > 0) {
+        runWrite(() => {
+          for (const dir of primaryDirs) a.addDir(dir);
+        });
+        a.installSkills();
+        console.log(chalk.dim(`  ${primaryDirs.length} vault(s) synced to ${a.displayName}`));
+      }
+      return;
+    }
+    case "remove": {
+      if (!cliName) {
+        console.error(chalk.red(`  ${t.cliNameRequired}`));
+        process.exit(1);
+      }
+      if (!validNames.includes(cliName)) {
+        console.error(chalk.red(`  ${t.cliUnknown} ${cliName}`));
+        console.error(chalk.dim(`  ${t.cliAvailable} ${validNames.join(", ")}`));
+        process.exit(1);
+      }
+      const activeCLIs = getActiveCLIs();
+      if (activeCLIs.length <= 1 && activeCLIs.includes(cliName)) {
+        console.log(chalk.yellow(`  ${t.cliCannotRemoveLast}`));
+        return;
+      }
+      const a2 = getAdapter(cliName);
+      if (!removeCLI(cliName)) {
+        console.log(chalk.yellow(`  ${t.cliNotActive} ${a2.displayName}`));
+        return;
+      }
+      console.log(chalk.green(`  ✔ ${t.cliRemoveSuccess} ${chalk.bold(a2.displayName)}`));
+      return;
+    }
+    case "list": {
+      const active = getActiveCLIs();
+      console.log(chalk.bold(`\n  ${t.cliListTitle}\n`));
+      for (const name of active) {
+        const a = getAdapter(name);
+        const installed = a.isInstalled() ? chalk.green("●") : chalk.yellow("○");
+        console.log(`  ${installed} ${chalk.bold(a.displayName)} ${chalk.dim(`(${a.name})`)}`);
+      }
+      console.log();
+      return;
+    }
+    default:
+      console.error(chalk.red(`  ${t.cliNameRequired}`));
+      process.exit(1);
+  }
+}
+
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 async function showHelp(lang) {
@@ -1162,6 +1283,8 @@ function main() {
       return unlink(rest[0]);
     case "status":
       return status();
+    case "cli":
+      return cliCommand(rest[0], rest[1]);
     case "help":
     case "--help":
     case "-h":
