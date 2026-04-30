@@ -10,6 +10,7 @@ import ora from "ora";
 import gradient from "gradient-string";
 import { getTranslations, getAvailableLanguages } from "./i18n.js";
 import { getAdapter, listAdapters } from "./adapters/index.js";
+import { getHomePath } from "./adapters/base.js";
 import { getActiveCLI, setActiveCLI, getActiveCLIs, addCLI, removeCLI } from "./config.js";
 
 // ── Global state ─────────────────────────────────────────────────────────────
@@ -440,6 +441,7 @@ async function unlink(specificPath) {
     runWrite(() => {
       for (const a of adapters) a.removeDir(normalized);
     });
+    cleanupAutoStartIfNoVaults(adapters);
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(normalized)}`));
     return;
   }
@@ -448,6 +450,7 @@ async function unlink(specificPath) {
     runWrite(() => {
       for (const a of adapters) a.removeDir(vaults[0]);
     });
+    cleanupAutoStartIfNoVaults(adapters);
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(vaults[0])}`));
     return;
   }
@@ -476,11 +479,13 @@ async function unlink(specificPath) {
         for (const a of adapters) a.removeDir(v);
       }
     });
+    cleanupAutoStartIfNoVaults(adapters);
     console.log(chalk.green(`  ✔ ${t.allVaultsUnlinked}`));
   } else {
     runWrite(() => {
       for (const a of adapters) a.removeDir(selected);
     });
+    cleanupAutoStartIfNoVaults(adapters);
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(selected)}`));
   }
 }
@@ -641,7 +646,7 @@ async function createProject(projectName) {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 
-  const templateFiles = ["overview.md", "backlog.md", "architecture.md", "conventions.md", "session-log.md"];
+  const templateFiles = ["INDEX.md", "overview.md", "backlog.md", "architecture.md", "conventions.md", "session-log.md"];
 
   for (const file of templateFiles) {
     const templatePath = path.join(projectTemplateDir, file);
@@ -660,6 +665,7 @@ async function createProject(projectName) {
   // Show project structure
   console.log(chalk.bold(`\n  ${t.structure}:\n`));
   console.log(chalk.dim(`  projects/${projectName}/`));
+  console.log(`  ├── ${chalk.cyan("INDEX.md")}`);
   console.log(`  ├── ${chalk.cyan("overview.md")}`);
   console.log(`  ├── ${chalk.yellow("architecture.md")}`);
   console.log(`  ├── ${chalk.yellow("conventions.md")}`);
@@ -673,7 +679,7 @@ function registerProjectInClaude(vaultPath, projectName, displayName) {
   const claudePath = path.join(vaultPath, "CLAUDE.md");
   let content = fs.readFileSync(claudePath, "utf-8");
 
-  const projectLink = `- [[projects/${projectName}/overview|${displayName}]]`;
+  const projectLink = `- [[projects/${projectName}/INDEX|${displayName}]]`;
 
   const startMarker = "<!-- MEMPUNK:PROJECTS:START -->";
   const endMarker = "<!-- MEMPUNK:PROJECTS:END -->";
@@ -1219,6 +1225,108 @@ function cliCommand(subcommand, cliName) {
   }
 }
 
+// ── Auto-start ──────────────────────────────────────────────────────────────
+
+const MEMPUNK_HOOK_MARKER = "mempunk-auto-start";
+
+function getClaudeSettingsPath() {
+  return getHomePath(".claude", "settings.json");
+}
+
+function readClaudeSettings() {
+  const settingsPath = getClaudeSettingsPath();
+  if (!fs.existsSync(settingsPath)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeClaudeSettings(settings) {
+  const settingsPath = getClaudeSettingsPath();
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+function isMempunkHook(hookGroup) {
+  return hookGroup.matcher === MEMPUNK_HOOK_MARKER ||
+    (hookGroup.hooks && hookGroup.hooks.some((h) => h.prompt && h.prompt.includes("/mempunk")));
+}
+
+function isAutoStartEnabled() {
+  const settings = readClaudeSettings();
+  if (!settings.hooks || !settings.hooks.SessionStart) return false;
+  return settings.hooks.SessionStart.some(isMempunkHook);
+}
+
+function enableAutoStart() {
+  const settings = readClaudeSettings();
+  if (!settings.hooks) settings.hooks = {};
+  if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+
+  // Don't add if already present
+  if (settings.hooks.SessionStart.some(isMempunkHook)) return;
+
+  settings.hooks.SessionStart.push({
+    matcher: MEMPUNK_HOOK_MARKER,
+    hooks: [
+      {
+        type: "prompt",
+        prompt: "The user has mempunk auto-start enabled. Run the /mempunk slash command now to load the vault context.",
+      },
+    ],
+  });
+
+  writeClaudeSettings(settings);
+}
+
+function disableAutoStart() {
+  const settings = readClaudeSettings();
+  if (!settings.hooks || !settings.hooks.SessionStart) return;
+
+  settings.hooks.SessionStart = settings.hooks.SessionStart.filter((g) => !isMempunkHook(g));
+
+  // Clean up empty arrays
+  if (settings.hooks.SessionStart.length === 0) delete settings.hooks.SessionStart;
+  if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
+
+  writeClaudeSettings(settings);
+}
+
+function cleanupAutoStartIfNoVaults(adapters) {
+  const remaining = [...new Set(adapters.flatMap((a) => a.getRegisteredDirs()))];
+  if (remaining.length === 0 && isAutoStartEnabled()) {
+    disableAutoStart();
+  }
+}
+
+function autoStart(action) {
+  // Only works with claude-code
+  const activeCLIs = getActiveCLIs();
+  if (!activeCLIs.includes("claude-code")) {
+    console.log(chalk.yellow(`  ${t.autoStartOnlyClaudeCode}`));
+    return;
+  }
+
+  switch (action) {
+    case "on":
+      enableAutoStart();
+      console.log(chalk.green(`  ✔ ${t.autoStartEnabled}`));
+      return;
+    case "off":
+      disableAutoStart();
+      console.log(chalk.green(`  ✔ ${t.autoStartDisabled}`));
+      return;
+    default: {
+      const enabled = isAutoStartEnabled();
+      console.log(`  ${t.autoStartStatus} ${enabled ? chalk.green(t.autoStartOn) : chalk.yellow(t.autoStartOff)}`);
+      console.log(chalk.dim(`  ${t.autoStartUsage}`));
+      return;
+    }
+  }
+}
+
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 async function showHelp(lang) {
@@ -1285,6 +1393,8 @@ function main() {
       return status();
     case "cli":
       return cliCommand(rest[0], rest[1]);
+    case "auto-start":
+      return autoStart(rest[0]);
     case "help":
     case "--help":
     case "-h":

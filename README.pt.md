@@ -64,6 +64,7 @@ mempunk status                 Mostrar todos os vaults vinculados e seus projeto
 mempunk cli add <nome>         Adicionar um CLI (claude-code, opencode, gemini-cli)
 mempunk cli remove <nome>      Remover um CLI
 mempunk cli list               Mostrar CLIs ativos
+mempunk auto-start [on|off]    Auto-executar /mempunk em novas sessoes
 mempunk -v                     Mostrar versao
 ```
 
@@ -117,20 +118,26 @@ vault/
 ├── CLAUDE.md              # Ponto de entrada — Claude le isso primeiro
 ├── projects/
 │   └── meu-projeto/
-│       ├── overview.md    # O que e o projeto, stack, repo, estado
+│       ├── INDEX.md       # Entrada rapida — status, top 3 backlog, links
+│       ├── overview.md    # O que e o projeto, stack, repo, status
 │       ├── architecture.md # Decisoes tecnicas e diagramas
-│       ├── conventions.md # Regras do projeto, padroes de codigo, padroes
+│       ├── conventions.md # Regras do projeto, padroes de codigo
 │       ├── backlog.md     # Tarefas priorizadas (- [ ] / - [x])
 │       ├── session-log.md # O que Claude fez em cada sessao
 │       └── decisions/     # Architecture Decision Records
 ├── areas/                 # Responsabilidades continuas (nao projetos)
+│   └── INDEX.md           # Indice de areas
 ├── resources/             # Conhecimento tecnico reutilizavel
-└── daily/                 # Logs de sessao diarios
+│   └── INDEX.md           # Indice de recursos por categoria
+└── daily/                 # Logs diarios consolidados
+    └── INDEX.md           # Indice de logs diarios
 ```
 
-`mempunk project <nome>` cria essa estrutura e registra o projeto no `CLAUDE.md` com um `[[wikilink]]` direto.
+`CLAUDE.md` linka diretamente ao `INDEX.md` de cada projeto — nunca a arquivos internos. Cada `INDEX.md` linka aos arquivos internos do projeto. Isso mantem o grafo do Obsidian limpo (arvore, nao teia de aranha).
 
-`mempunk sync` adiciona arquivos de template faltantes (como `conventions.md`) a projetos existentes sem sobrescrever.
+`mempunk project <nome>` cria essa estrutura e registra o projeto no `CLAUDE.md` com um `[[wikilink]]` direto ao seu `INDEX.md`.
+
+`mempunk sync` adiciona arquivos de template faltantes (como `INDEX.md`, `conventions.md`) a projetos existentes sem sobrescrever.
 
 ## CLIs Suportados
 
@@ -152,23 +159,33 @@ Instalado globalmente durante o setup no caminho de skills que seu CLI usa (ver 
 
 1. Descobre todos os vaults vinculados automaticamente
 2. Se houver multiplos vaults, pergunta qual usar
-3. Le o `CLAUDE.md` do vault e o indice de projetos
-4. Pergunta em qual projeto voce quer trabalhar
-5. Le o overview e as convencoes do projeto
+3. Le o `CLAUDE.md` do vault e lista os projetos disponiveis
+4. Pergunta em qual projeto voce quer trabalhar — nunca assume
+5. Le o `INDEX.md`, `overview.md` e `conventions.md` do projeto
 6. Le os ultimos 3 session logs e o backlog
-7. Confirma o contexto antes de continuar
+7. **Smart Context Check** — detecta gaps (session-log antigo, overview vazio, arquitetura sem definir, backlog vazio) e oferece revisar o repo real se necessario
+8. Confirma o contexto antes de continuar
 
 ### Encerramento: `/session-end`
 
-Instalado junto com `/mempunk`. Ao digitar `/session-end`, o assistente:
+Instalado junto ao `/mempunk`. Ao digitar `/session-end`, o assistente:
 
-1. Identifica em qual projeto se trabalhou
-2. Escreve uma entrada estruturada no `session-log.md` do projeto
-3. Inclui: o que foi feito, decisoes, estado atual, proximos passos, arquivos modificados
-4. Nota convencoes que foram estabelecidas ou alteradas
-5. Confirma o que foi registrado
+1. Escreve uma entrada estruturada no `session-log.md` do projeto
+2. **Atualiza o backlog** — marca tarefas completadas, adiciona novas, reordena por prioridade
+3. **Atualiza INDEX.md** — reflete a ultima sessao e top 3 do backlog
+4. **Escreve log diario** — cria ou atualiza `daily/YYYY-MM-DD.md` com resumo consolidado
+5. Nota convencoes que foram estabelecidas ou mudaram
+6. Confirma o que foi registrado
 
 A proxima sessao retoma exatamente de onde esta terminou.
+
+### Skills automaticos
+
+O `CLAUDE.md` do vault inclui regras que o assistente segue automaticamente durante qualquer sessao:
+
+- **ADRs automaticos** — Quando uma decisao tecnica e tomada (arquitetura, stack, padroes), um ADR e criado em `decisions/` sem ser solicitado
+- **Captura de conhecimento** — Quando um problema tecnico reutilizavel e resolvido, a solucao e salva em `resources/` por categoria
+- **Contexto de areas** — Quando o usuario pergunta sobre universidade ou infraestrutura, o assistente le o INDEX da area correspondente primeiro
 
 ## Manutencao do Vault
 
@@ -217,6 +234,25 @@ mempunk cli remove gemini-cli
 ```
 
 `doctor` verifica skills em todos os CLIs ativos. `status` agrega vaults de todos os CLIs.
+
+## Auto-start
+
+Carregue automaticamente o contexto do vault no inicio de cada nova sessao do Claude Code:
+
+```bash
+# Ativar
+mempunk auto-start on
+
+# Desativar
+mempunk auto-start off
+
+# Ver status
+mempunk auto-start
+```
+
+Isso instala um hook `SessionStart` no `settings.json` do Claude Code. Quando ativado, `/mempunk` e executado automaticamente em cada nova sessao — sem necessidade de digitar manualmente.
+
+> **Nota:** Auto-start so esta disponivel para Claude Code. Se voce desvincular todos os vaults, o hook e removido automaticamente.
 
 ## Compativel com Obsidian
 
