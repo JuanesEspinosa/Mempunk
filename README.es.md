@@ -151,6 +151,25 @@ mempunk soporta el uso de multiples CLIs simultaneamente con el mismo vault. Dur
 
 El vault en si (archivos markdown en `projects/`, `daily/`, etc.) es el mismo independientemente del CLI — es portable. Cuando haces `link` o `unlink` de un vault, la operacion aplica a todos los CLIs activos a la vez. Tus CLIs activos se persisten en `~/.mempunk/config.json`.
 
+### Compatibilidad de features
+
+| Feature | Claude Code | opencode | gemini-cli |
+|---|:---:|:---:|:---:|
+| Vincular/desvincular vault | ✔ | ✔ | ✔ |
+| Multi-vault | ✔ | ✔ | ✔ |
+| Skill `/mempunk` | ✔ | ✔ | ✔ |
+| Skill `/session-end` | ✔ | ✔ | ✔ |
+| Smart Context Check | ✔ | ✔ | ✔ |
+| ADRs automaticos | ✔ | ✔ | ✔ |
+| Backlog inteligente | ✔ | ✔ | ✔ |
+| Daily consolidado | ✔ | ✔ | ✔ |
+| Captura de conocimiento | ✔ | ✔ | ✔ |
+| `sync` / `doctor` | ✔ | ✔ | ✔ |
+| Auto-start | ✔ | ✘ | ✔ |
+| Multi-CLI simultaneo | ✔ | ✔ | ✔ |
+
+> Los skills, ADRs, actualizaciones de backlog y logs diarios son features a nivel de vault — funcionan en cualquier CLI que lea el `CLAUDE.md` del vault. Auto-start requiere hooks de sesion, que opencode no soporta.
+
 ## Flujo de Sesion
 
 ### Inicio: `/mempunk`
@@ -250,9 +269,9 @@ mempunk auto-start off
 mempunk auto-start
 ```
 
-Esto instala un hook `SessionStart` en el `settings.json` de Claude Code. Cuando esta activado, `/mempunk` se ejecuta automaticamente en cada nueva sesion — no necesitas escribirlo manualmente.
+Esto instala un hook `SessionStart` en el `settings.json` del CLI. Cuando esta activado, `/mempunk` se ejecuta automaticamente en cada nueva sesion — no necesitas escribirlo manualmente. Si tienes multiples CLIs soportados activos, el comando pregunta cual configurar.
 
-> **Nota:** Auto-start solo esta disponible para Claude Code. Si desvinculas todos los vaults, el hook se elimina automaticamente.
+> **Nota:** Auto-start esta disponible para **Claude Code** y **gemini-cli**. opencode no soporta hooks de sesion. Si desvinculas todos los vaults, los hooks se eliminan automaticamente.
 
 ## Compatible con Obsidian
 
