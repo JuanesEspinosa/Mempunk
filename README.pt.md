@@ -151,6 +151,25 @@ mempunk suporta o uso de multiplos CLIs simultaneamente com o mesmo vault. Duran
 
 O vault em si (arquivos markdown em `projects/`, `daily/`, etc.) e o mesmo independentemente do CLI — e portavel. Quando voce faz `link` ou `unlink` de um vault, a operacao se aplica a todos os CLIs ativos de uma vez. Seus CLIs ativos ficam persistidos em `~/.mempunk/config.json`.
 
+### Compatibilidade de features
+
+| Feature | Claude Code | opencode | gemini-cli |
+|---|:---:|:---:|:---:|
+| Vincular/desvincular vault | ✔ | ✔ | ✔ |
+| Multi-vault | ✔ | ✔ | ✔ |
+| Skill `/mempunk` | ✔ | ✔ | ✔ |
+| Skill `/session-end` | ✔ | ✔ | ✔ |
+| Smart Context Check | ✔ | ✔ | ✔ |
+| ADRs automaticos | ✔ | ✔ | ✔ |
+| Backlog inteligente | ✔ | ✔ | ✔ |
+| Daily consolidado | ✔ | ✔ | ✔ |
+| Captura de conhecimento | ✔ | ✔ | ✔ |
+| `sync` / `doctor` | ✔ | ✔ | ✔ |
+| Auto-start | ✔ | ✘ | ✔ |
+| Multi-CLI simultaneo | ✔ | ✔ | ✔ |
+
+> Skills, ADRs, atualizacoes de backlog e logs diarios sao features a nivel de vault — funcionam em qualquer CLI que leia o `CLAUDE.md` do vault. Auto-start requer hooks de sessao, que o opencode nao suporta.
+
 ## Fluxo de Sessao
 
 ### Inicio: `/mempunk`
