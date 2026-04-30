@@ -1228,102 +1228,144 @@ function cliCommand(subcommand, cliName) {
 // ── Auto-start ──────────────────────────────────────────────────────────────
 
 const MEMPUNK_HOOK_MARKER = "mempunk-auto-start";
+const AUTO_START_SUPPORTED = ["claude-code", "gemini-cli"];
 
-function getClaudeSettingsPath() {
-  return getHomePath(".claude", "settings.json");
+const MEMPUNK_HOOK_PROMPT = "The user has mempunk auto-start enabled. Run the /mempunk slash command now to load the vault context.";
+
+// ── Generic settings I/O per CLI ────────────────────────────────────────────
+
+function getSettingsPath(cli) {
+  if (cli === "claude-code") return getHomePath(".claude", "settings.json");
+  if (cli === "gemini-cli") return getHomePath(".gemini", "settings.json");
+  return null;
 }
 
-function readClaudeSettings() {
-  const settingsPath = getClaudeSettingsPath();
-  if (!fs.existsSync(settingsPath)) return {};
+function readSettings(cli) {
+  const p = getSettingsPath(cli);
+  if (!p || !fs.existsSync(p)) return {};
   try {
-    return JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    return JSON.parse(fs.readFileSync(p, "utf-8"));
   } catch {
     return {};
   }
 }
 
-function writeClaudeSettings(settings) {
-  const settingsPath = getClaudeSettingsPath();
-  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
-  fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+function writeSettings(cli, settings) {
+  const p = getSettingsPath(cli);
+  if (!p) return;
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(settings, null, 2) + "\n");
 }
+
+// ── Hook detection ──────────────────────────────────────────────────────────
 
 function isMempunkHook(hookGroup) {
   return hookGroup.matcher === MEMPUNK_HOOK_MARKER ||
     (hookGroup.hooks && hookGroup.hooks.some((h) => h.prompt && h.prompt.includes("/mempunk")));
 }
 
-function isAutoStartEnabled() {
-  const settings = readClaudeSettings();
+function isAutoStartEnabledFor(cli) {
+  const settings = readSettings(cli);
   if (!settings.hooks || !settings.hooks.SessionStart) return false;
   return settings.hooks.SessionStart.some(isMempunkHook);
 }
 
-function enableAutoStart() {
-  const settings = readClaudeSettings();
+// ── Enable/disable per CLI ──────────────────────────────────────────────────
+
+function enableAutoStartFor(cli) {
+  const settings = readSettings(cli);
   if (!settings.hooks) settings.hooks = {};
   if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
 
-  // Don't add if already present
   if (settings.hooks.SessionStart.some(isMempunkHook)) return;
 
   settings.hooks.SessionStart.push({
     matcher: MEMPUNK_HOOK_MARKER,
-    hooks: [
-      {
-        type: "prompt",
-        prompt: "The user has mempunk auto-start enabled. Run the /mempunk slash command now to load the vault context.",
-      },
-    ],
+    hooks: [{ type: "prompt", prompt: MEMPUNK_HOOK_PROMPT }],
   });
 
-  writeClaudeSettings(settings);
+  writeSettings(cli, settings);
 }
 
-function disableAutoStart() {
-  const settings = readClaudeSettings();
+function disableAutoStartFor(cli) {
+  const settings = readSettings(cli);
   if (!settings.hooks || !settings.hooks.SessionStart) return;
 
   settings.hooks.SessionStart = settings.hooks.SessionStart.filter((g) => !isMempunkHook(g));
 
-  // Clean up empty arrays
   if (settings.hooks.SessionStart.length === 0) delete settings.hooks.SessionStart;
   if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
 
-  writeClaudeSettings(settings);
+  writeSettings(cli, settings);
 }
+
+// ── Cleanup on unlink ───────────────────────────────────────────────────────
 
 function cleanupAutoStartIfNoVaults(adapters) {
   const remaining = [...new Set(adapters.flatMap((a) => a.getRegisteredDirs()))];
-  if (remaining.length === 0 && isAutoStartEnabled()) {
-    disableAutoStart();
+  if (remaining.length === 0) {
+    for (const cli of AUTO_START_SUPPORTED) {
+      if (isAutoStartEnabledFor(cli)) disableAutoStartFor(cli);
+    }
   }
 }
 
-function autoStart(action) {
-  // Only works with claude-code
+// ── Command ─────────────────────────────────────────────────────────────────
+
+async function autoStart(action) {
   const activeCLIs = getActiveCLIs();
-  if (!activeCLIs.includes("claude-code")) {
-    console.log(chalk.yellow(`  ${t.autoStartOnlyClaudeCode}`));
+  const supportedActive = activeCLIs.filter((c) => AUTO_START_SUPPORTED.includes(c));
+
+  if (supportedActive.length === 0) {
+    console.log(chalk.yellow(`  ${t.autoStartNotAvailable}`));
     return;
   }
 
-  switch (action) {
-    case "on":
-      enableAutoStart();
-      console.log(chalk.green(`  ✔ ${t.autoStartEnabled}`));
-      return;
-    case "off":
-      disableAutoStart();
-      console.log(chalk.green(`  ✔ ${t.autoStartDisabled}`));
-      return;
-    default: {
-      const enabled = isAutoStartEnabled();
-      console.log(`  ${t.autoStartStatus} ${enabled ? chalk.green(t.autoStartOn) : chalk.yellow(t.autoStartOff)}`);
-      console.log(chalk.dim(`  ${t.autoStartUsage}`));
-      return;
+  // No action → show status for all supported CLIs
+  if (!action) {
+    console.log(`\n  ${t.autoStartStatus}`);
+    for (const cli of supportedActive) {
+      const a = getAdapter(cli);
+      const enabled = isAutoStartEnabledFor(cli);
+      const icon = enabled ? chalk.green("●") : chalk.yellow("○");
+      const label = enabled ? chalk.green(t.autoStartOn) : chalk.yellow(t.autoStartOff);
+      console.log(`  ${icon} ${chalk.bold(a.displayName)}: ${label}`);
     }
+    console.log(chalk.dim(`\n  ${t.autoStartUsage}`));
+    return;
+  }
+
+  // on/off → ask which CLI if multiple supported are active
+  let targetCLI;
+  if (supportedActive.length === 1) {
+    targetCLI = supportedActive[0];
+  } else {
+    const choices = supportedActive.map((c) => {
+      const a = getAdapter(c);
+      const enabled = isAutoStartEnabledFor(c);
+      const status = enabled ? chalk.green(`(${t.autoStartOn})`) : chalk.yellow(`(${t.autoStartOff})`);
+      return { name: `${a.displayName} ${status}`, value: c };
+    });
+
+    const { selected } = await inquirer.prompt([
+      {
+        type: "rawlist",
+        name: "selected",
+        message: t.autoStartSelectCLI,
+        choices,
+      },
+    ]);
+    targetCLI = selected;
+  }
+
+  const displayName = getAdapter(targetCLI).displayName;
+
+  if (action === "on") {
+    enableAutoStartFor(targetCLI);
+    console.log(chalk.green(`  ✔ ${t.autoStartEnabled} ${chalk.bold(displayName)}`));
+  } else if (action === "off") {
+    disableAutoStartFor(targetCLI);
+    console.log(chalk.green(`  ✔ ${t.autoStartDisabled} ${chalk.bold(displayName)}`));
   }
 }
 

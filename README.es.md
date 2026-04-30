@@ -250,9 +250,9 @@ mempunk auto-start off
 mempunk auto-start
 ```
 
-Esto instala un hook `SessionStart` en el `settings.json` de Claude Code. Cuando esta activado, `/mempunk` se ejecuta automaticamente en cada nueva sesion — no necesitas escribirlo manualmente.
+Esto instala un hook `SessionStart` en el `settings.json` del CLI. Cuando esta activado, `/mempunk` se ejecuta automaticamente en cada nueva sesion — no necesitas escribirlo manualmente. Si tienes multiples CLIs soportados activos, el comando pregunta cual configurar.
 
-> **Nota:** Auto-start solo esta disponible para Claude Code. Si desvinculas todos los vaults, el hook se elimina automaticamente.
+> **Nota:** Auto-start esta disponible para **Claude Code** y **gemini-cli**. opencode no soporta hooks de sesion. Si desvinculas todos los vaults, los hooks se eliminan automaticamente.
 
 ## Compatible con Obsidian
 
