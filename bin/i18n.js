@@ -17,6 +17,7 @@ const translations = {
     mempunk cli add <name>         Add a CLI (claude-code, opencode, gemini-cli)
     mempunk cli remove <name>      Remove a CLI
     mempunk cli list               Show active CLIs
+    mempunk auto-start [on|off]    Auto-run /mempunk on new sessions
     mempunk status                 Show linked vaults and active CLIs
     mempunk help                   Show this message
 
@@ -169,6 +170,13 @@ const translations = {
     cliUnlinkingAll: "Unlinking from {count} CLIs...",
     cliInstallingSkills: "Installing skills for {count} CLIs...",
     selectCLIs: "Which AI CLIs will you use with mempunk?",
+    autoStartEnabled: "Auto-start enabled — /mempunk will run on every new session.",
+    autoStartDisabled: "Auto-start disabled — /mempunk will not run automatically.",
+    autoStartStatus: "Auto-start is currently:",
+    autoStartOn: "enabled",
+    autoStartOff: "disabled",
+    autoStartOnlyClaudeCode: "Auto-start is only available for Claude Code.",
+    autoStartUsage: "Usage: mempunk auto-start [on|off]",
   },
 
   es: {
@@ -189,6 +197,7 @@ const translations = {
     mempunk cli add <nombre>       Agregar un CLI (claude-code, opencode, gemini-cli)
     mempunk cli remove <nombre>    Quitar un CLI
     mempunk cli list               Mostrar CLIs activos
+    mempunk auto-start [on|off]    Auto-ejecutar /mempunk en nuevas sesiones
     mempunk status                 Mostrar vaults vinculados y CLIs activos
     mempunk help                   Mostrar este mensaje
 
@@ -340,6 +349,13 @@ const translations = {
     cliUnlinkingAll: "Desvinculando de {count} CLIs...",
     cliInstallingSkills: "Instalando skills en {count} CLIs...",
     selectCLIs: "¿Que CLIs de IA vas a usar con mempunk?",
+    autoStartEnabled: "Auto-start activado — /mempunk se ejecutara en cada nueva sesion.",
+    autoStartDisabled: "Auto-start desactivado — /mempunk no se ejecutara automaticamente.",
+    autoStartStatus: "Auto-start esta actualmente:",
+    autoStartOn: "activado",
+    autoStartOff: "desactivado",
+    autoStartOnlyClaudeCode: "Auto-start solo esta disponible para Claude Code.",
+    autoStartUsage: "Uso: mempunk auto-start [on|off]",
   },
 
   pt: {
@@ -360,6 +376,7 @@ const translations = {
     mempunk cli add <nome>         Adicionar um CLI (claude-code, opencode, gemini-cli)
     mempunk cli remove <nome>      Remover um CLI
     mempunk cli list               Mostrar CLIs ativos
+    mempunk auto-start [on|off]    Auto-executar /mempunk em novas sessoes
     mempunk status                 Mostrar vaults vinculados e CLIs ativos
     mempunk help                   Mostrar esta mensagem
 
@@ -511,6 +528,13 @@ const translations = {
     cliUnlinkingAll: "Desvinculando de {count} CLIs...",
     cliInstallingSkills: "Instalando skills em {count} CLIs...",
     selectCLIs: "Quais CLIs de IA voce vai usar com o mempunk?",
+    autoStartEnabled: "Auto-start ativado — /mempunk sera executado em cada nova sessao.",
+    autoStartDisabled: "Auto-start desativado — /mempunk nao sera executado automaticamente.",
+    autoStartStatus: "Auto-start esta atualmente:",
+    autoStartOn: "ativado",
+    autoStartOff: "desativado",
+    autoStartOnlyClaudeCode: "Auto-start so esta disponivel para Claude Code.",
+    autoStartUsage: "Uso: mempunk auto-start [on|off]",
   },
 
   fr: {
@@ -531,6 +555,7 @@ const translations = {
     mempunk cli add <nom>          Ajouter un CLI (claude-code, opencode, gemini-cli)
     mempunk cli remove <nom>       Supprimer un CLI
     mempunk cli list               Afficher les CLIs actifs
+    mempunk auto-start [on|off]    Auto-executer /mempunk dans nouvelles sessions
     mempunk status                 Afficher les vaults lies et CLIs actifs
     mempunk help                   Afficher ce message
 
@@ -682,6 +707,13 @@ const translations = {
     cliUnlinkingAll: "Dissociation de {count} CLIs...",
     cliInstallingSkills: "Installation des skills pour {count} CLIs...",
     selectCLIs: "Quels CLIs d'IA allez-vous utiliser avec mempunk?",
+    autoStartEnabled: "Auto-start active — /mempunk sera execute a chaque nouvelle session.",
+    autoStartDisabled: "Auto-start desactive — /mempunk ne sera pas execute automatiquement.",
+    autoStartStatus: "Auto-start est actuellement:",
+    autoStartOn: "active",
+    autoStartOff: "desactive",
+    autoStartOnlyClaudeCode: "Auto-start n'est disponible que pour Claude Code.",
+    autoStartUsage: "Utilisation: mempunk auto-start [on|off]",
   },
 };
 
