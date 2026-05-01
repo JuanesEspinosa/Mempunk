@@ -73,21 +73,27 @@ When the user types "/mempunk" or asks to load vault context:
 
 1. For each vault path above, check if it contains a CLAUDE.md file.
 2. If only ONE vault: use it. If MULTIPLE: ask the user which one.
-3. Read the vault's CLAUDE.md and the project index.
-4. Ask which project to work on.
-5. Read that project's overview.md and conventions.md (if it exists).
+3. Read the vault's CLAUDE.md and list the projects in "Proyectos activos".
+4. Ask the user which project to work on — never assume.
+5. Read the project's INDEX.md, then overview.md.
 6. Read the last 3 entries of session-log.md and the backlog.md.
-7. Confirm context with the user before proceeding.
+7. Read conventions.md (if it exists).
+8. Smart Context Check: if session-log is >7 days old, overview is empty, architecture is undefined, or backlog is empty — inform the user and ask if they want you to read the real project repo.
+9. Confirm context with the user before proceeding.
+
+Never read project files before the user confirms which project.
 
 ### /session-end — Session close protocol
 
 When the user types "/session-end" or says they're done:
 
-1. Identify which project was worked on.
-2. Write a structured entry to the project's session-log.md (most recent first):
+1. Write a structured entry to the project's session-log.md (most recent first):
    - What was done, decisions made, current state, next steps, modified files.
-3. If conventions changed, note them in "Decisions made".
-4. Confirm what was logged.
+2. Update backlog.md: mark completed tasks [x], add new ones, reorder.
+3. Update the project's INDEX.md: latest session summary and top 3 backlog.
+4. Write or update daily/YYYY-MM-DD.md with a consolidated summary.
+5. If conventions changed, note them in "Decisions made".
+6. Confirm what was logged.
 ${VAULT_END}`;
 }
 
