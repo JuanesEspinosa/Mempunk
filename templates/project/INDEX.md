@@ -21,3 +21,4 @@ Sin sesiones registradas.
 - [Convenciones](conventions.md)
 - [Decisiones](decisions/)
 - [Session log](session-log.md)
+- [Wiki del proyecto](wiki/index.md)
