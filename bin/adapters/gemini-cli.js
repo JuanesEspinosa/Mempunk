@@ -86,7 +86,9 @@ Once a vault is selected, read its CLAUDE.md and follow the session start protoc
 2. Ask the user: "Encontre estos proyectos: [list]. Con cual trabajamos hoy?"
 3. When the user picks a project, read its INDEX.md
 4. Read the project's overview.md
-5. Read the last 3 entries of the project's session-log.md
+5. Check if [vault-path]/projects/[project]/wiki/state.md exists:
+   - If it EXISTS: read wiki/state.md (compiled project state — replaces reading session-log entries)
+   - If it does NOT exist: read the last 3 entries of the project's session-log.md
 6. Read the project's backlog.md
 
 **Never assume which project — always ask first.**
@@ -98,7 +100,7 @@ After loading the vault context, evaluate if there are evident gaps:
 
 | Signal | Indicates |
 |---|---|
-| Session-log with last entry >7 days old | Vault possibly outdated |
+| wiki/state.md or session-log last updated >7 days ago | Vault possibly outdated |
 | Overview with empty/placeholder sections | Project not fully documented |
 | Architecture not defined | No technical context in vault |
 | Backlog empty or only completed items | No clear work direction |
@@ -171,7 +173,24 @@ If you loaded a vault via /mempunk earlier in this session, use that vault. Othe
 2. Update "Ultima sesion (resumen)" with today's date and a one-line summary
 3. Update "Backlog top 3" to reflect the current top 3 pending tasks from backlog.md
 
-**Step 5: Write daily log**
+**Step 5: Update wiki state** (only if wiki/ exists)
+
+Check if [vault-path]/projects/[project-name]/wiki/state.md exists. If it does:
+1. Rewrite it completely with a compiled synthesis of the current state:
+   - **Actualizado**: today's date (YYYY-MM-DD)
+   - **Version/Release**: current version if known, otherwise keep existing value
+   - **Estado actual**: one or two lines on where the project stands now
+   - **Que se esta construyendo ahora**: active feature/task, or "Idle" if none
+   - **Decisiones vigentes clave**: top 2-3 active decisions that still apply
+   - **Blockers / riesgos activos**: current blockers, or "Ninguno"
+   - **Proximos 3 pasos**: top 3 pending items from the updated backlog
+   - Append one line to the "Historial de estados anteriores" section: \`YYYY-MM-DD — [one-line summary of this session]\`
+2. Append one line to [vault-path]/projects/[project-name]/wiki/log.md:
+   \`## [YYYY-MM-DD] session-end | [one-line session summary]\`
+
+If wiki/state.md does not exist, skip this step entirely.
+
+**Step 6: Write daily log**
 
 1. Create or update the file at [vault-path]/daily/YYYY-MM-DD.md
 2. If the file already exists (previous session today), append below without deleting
@@ -190,7 +209,7 @@ If you loaded a vault via /mempunk earlier in this session, use that vault. Othe
 [2-3 lines of the most important things of the day]
 \`\`\`
 
-**Step 6: Confirm**
+**Step 7: Confirm**
 
 After writing everything, confirm to the user what was logged and for which project.
 
