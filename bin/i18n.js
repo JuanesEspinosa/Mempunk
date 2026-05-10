@@ -1,7 +1,7 @@
 const translations = {
   en: {
     help: `
-  mempunk — Persistent dev brain for Claude Code
+  mempunk — Persistent dev brain for AI coding CLIs (Claude Code, opencode, gemini-cli)
 
   Usage:
     mempunk setup                  Interactive full setup (recommended)
@@ -12,9 +12,13 @@ const translations = {
     mempunk doctor                 Check vault health and integrity
     mempunk log <name>             Open a project's session log
     mempunk backlog <name>         Show a project's backlog
-    mempunk link <path>            Link vault to Claude Code (global config)
-    mempunk unlink                 Remove vault from Claude Code config
-    mempunk status                 Show current linked vault
+    mempunk link <path>            Link vault to your active CLIs
+    mempunk unlink                 Remove vault from your CLIs' config
+    mempunk cli add <name>         Add a CLI (claude-code, opencode, gemini-cli)
+    mempunk cli remove <name>      Remove a CLI
+    mempunk cli list               Show active CLIs
+    mempunk auto-start [on|off]    Auto-run /mempunk on new sessions
+    mempunk status                 Show linked vaults and active CLIs
     mempunk help                   Show this message
 
   Options:
@@ -38,11 +42,12 @@ const translations = {
     selectLanguage: "Select language",
     whereVault: "Where do you want your vault?",
     vaultAlreadyExists: "Vault already exists at",
-    linkExisting: "Link it to Claude Code?",
+    linkExisting: "Link it to {cli}?",
     selectStructure: "Select vault structure",
     selectFolders: "Select folders to include",
-    linkQuestion: "Link vault to Claude Code?",
-    done: "Run 'claude' in any project to start using your vault.",
+    selectCLI: "Which AI CLI will you use with mempunk?",
+    linkQuestion: "Link vault to {cli}?",
+    done: "Open {cli} in any project to start using your vault.",
 
     presetFull: "Full — projects, areas, resources, daily",
     presetStandard: "Standard — projects, resources, daily",
@@ -55,7 +60,7 @@ const translations = {
     folderDaily: "daily     — Session logs written by Claude",
 
     creatingVault: "Creating vault...",
-    linkingVault: "Linking to Claude Code...",
+    linkingVault: "Linking to {cli}...",
     vaultCreated: "Vault created at",
     errorVaultExists: "Error: vault already exists at",
     errorUnknownPreset: "Error: unknown preset",
@@ -67,14 +72,14 @@ const translations = {
     runInitFirst: "Run 'mempunk init' first to create a vault.",
     alreadyLinked: "Already linked:",
     vaultLinked: "Vault linked",
-    linkSuccess: "Claude Code will have access to the vault in every session.",
+    linkSuccess: "{cli} will have access to the vault in every session.",
 
     noVaultLinked: "No vault linked.",
     vaultUnlinked: "Vault unlinked:",
     notLinked: "Vault not linked:",
     unlinkWhich: "Which vault do you want to unlink?",
     unlinkAll: "All vaults",
-    allVaultsUnlinked: "All vaults unlinked from Claude Code.",
+    allVaultsUnlinked: "All vaults unlinked.",
 
     linkedVaults: "Linked vaults:",
     notFound: "not found",
@@ -89,7 +94,7 @@ const translations = {
     statusPending: "pending",
     statusDone: "done",
 
-    promptTitle: "Type this in any Claude Code session:",
+    promptTitle: "Type this in any {cli} session:",
     promptAlt: "Or paste: Read the CLAUDE.md at \"{path}\" and follow the session start protocol.",
 
     installingSkill: "Installing /mempunk and /session-end commands...",
@@ -150,11 +155,34 @@ const translations = {
     availableLangs: "Available:",
 
     structure: "Structure",
+
+    cliAddSuccess: "CLI added:",
+    cliAlreadyActive: "CLI already active:",
+    cliRemoveSuccess: "CLI removed:",
+    cliNotActive: "CLI not active:",
+    cliCannotRemoveLast: "Cannot remove the last active CLI.",
+    cliListTitle: "Active CLIs:",
+    cliNameRequired: "Error: CLI name required. Options: claude-code, opencode, gemini-cli",
+    cliUnknown: "Error: unknown CLI:",
+    cliAvailable: "Available:",
+    cliNotInstalled: "Warning: {cli} does not appear to be installed.",
+    cliLinkingAll: "Linking to {count} CLIs...",
+    cliUnlinkingAll: "Unlinking from {count} CLIs...",
+    cliInstallingSkills: "Installing skills for {count} CLIs...",
+    selectCLIs: "Which AI CLIs will you use with mempunk?",
+    autoStartEnabled: "Auto-start enabled for",
+    autoStartDisabled: "Auto-start disabled for",
+    autoStartStatus: "Auto-start status:",
+    autoStartOn: "enabled",
+    autoStartOff: "disabled",
+    autoStartNotAvailable: "Auto-start is only available for Claude Code and gemini-cli.",
+    autoStartUsage: "Usage: mempunk auto-start [on|off]",
+    autoStartSelectCLI: "Which CLI do you want to configure?",
   },
 
   es: {
     help: `
-  mempunk — Cerebro persistente para Claude Code
+  mempunk — Cerebro persistente para CLIs de IA (Claude Code, opencode, gemini-cli)
 
   Uso:
     mempunk setup                  Setup interactivo completo (recomendado)
@@ -165,9 +193,13 @@ const translations = {
     mempunk doctor                 Verificar salud e integridad del vault
     mempunk log <nombre>           Abrir el session log de un proyecto
     mempunk backlog <nombre>       Ver el backlog de un proyecto
-    mempunk link <ruta>            Vincular vault a Claude Code (config global)
-    mempunk unlink                 Desvincular vault de Claude Code
-    mempunk status                 Mostrar vault vinculado actual
+    mempunk link <ruta>            Vincular vault a tus CLIs activos
+    mempunk unlink                 Desvincular vault de tus CLIs
+    mempunk cli add <nombre>       Agregar un CLI (claude-code, opencode, gemini-cli)
+    mempunk cli remove <nombre>    Quitar un CLI
+    mempunk cli list               Mostrar CLIs activos
+    mempunk auto-start [on|off]    Auto-ejecutar /mempunk en nuevas sesiones
+    mempunk status                 Mostrar vaults vinculados y CLIs activos
     mempunk help                   Mostrar este mensaje
 
   Opciones:
@@ -190,11 +222,12 @@ const translations = {
     selectLanguage: "Selecciona idioma",
     whereVault: "Donde quieres crear tu vault?",
     vaultAlreadyExists: "Ya existe un vault en",
-    linkExisting: "Vincularlo a Claude Code?",
+    linkExisting: "Vincularlo a {cli}?",
     selectStructure: "Selecciona la estructura del vault",
+    selectCLI: "¿Que CLI de IA vas a usar con mempunk?",
     selectFolders: "Selecciona las carpetas a incluir",
-    linkQuestion: "Vincular vault a Claude Code?",
-    done: "Ejecuta 'claude' en cualquier proyecto para usar tu vault.",
+    linkQuestion: "Vincular vault a {cli}?",
+    done: "Abre {cli} en cualquier proyecto para empezar a usar tu vault.",
 
     presetFull: "Full — projects, areas, resources, daily",
     presetStandard: "Standard — projects, resources, daily",
@@ -207,7 +240,7 @@ const translations = {
     folderDaily: "daily     — Logs de sesion por Claude",
 
     creatingVault: "Creando vault...",
-    linkingVault: "Vinculando a Claude Code...",
+    linkingVault: "Vinculando a {cli}...",
     vaultCreated: "Vault creado en",
     errorVaultExists: "Error: ya existe un vault en",
     errorUnknownPreset: "Error: preset desconocido",
@@ -219,14 +252,14 @@ const translations = {
     runInitFirst: "Ejecuta 'mempunk init' primero para crear un vault.",
     alreadyLinked: "Ya vinculado:",
     vaultLinked: "Vault vinculado",
-    linkSuccess: "Claude Code tendra acceso al vault en cada sesion.",
+    linkSuccess: "{cli} tendra acceso al vault en cada sesion.",
 
     noVaultLinked: "No hay vault vinculado.",
     vaultUnlinked: "Vault desvinculado:",
     notLinked: "Vault no vinculado:",
     unlinkWhich: "Cual vault quieres desvincular?",
     unlinkAll: "Todos los vaults",
-    allVaultsUnlinked: "Todos los vaults desvinculados de Claude Code.",
+    allVaultsUnlinked: "Todos los vaults desvinculados.",
 
     linkedVaults: "Vaults vinculados:",
     notFound: "no encontrado",
@@ -241,7 +274,7 @@ const translations = {
     statusPending: "pendientes",
     statusDone: "completadas",
 
-    promptTitle: "Escribe esto en cualquier sesion de Claude Code:",
+    promptTitle: "Escribe esto en cualquier sesion de {cli}:",
     promptAlt: "O pega: Lee el CLAUDE.md en \"{path}\" y sigue el protocolo de inicio de sesion.",
 
     installingSkill: "Instalando /mempunk y /session-end...",
@@ -302,11 +335,34 @@ const translations = {
     availableLangs: "Disponibles:",
 
     structure: "Estructura",
+
+    cliAddSuccess: "CLI agregado:",
+    cliAlreadyActive: "CLI ya activo:",
+    cliRemoveSuccess: "CLI eliminado:",
+    cliNotActive: "CLI no activo:",
+    cliCannotRemoveLast: "No se puede eliminar el ultimo CLI activo.",
+    cliListTitle: "CLIs activos:",
+    cliNameRequired: "Error: nombre de CLI requerido. Opciones: claude-code, opencode, gemini-cli",
+    cliUnknown: "Error: CLI desconocido:",
+    cliAvailable: "Disponibles:",
+    cliNotInstalled: "Advertencia: {cli} no parece estar instalado.",
+    cliLinkingAll: "Vinculando a {count} CLIs...",
+    cliUnlinkingAll: "Desvinculando de {count} CLIs...",
+    cliInstallingSkills: "Instalando skills en {count} CLIs...",
+    selectCLIs: "¿Que CLIs de IA vas a usar con mempunk?",
+    autoStartEnabled: "Auto-start activado para",
+    autoStartDisabled: "Auto-start desactivado para",
+    autoStartStatus: "Estado de auto-start:",
+    autoStartOn: "activado",
+    autoStartOff: "desactivado",
+    autoStartNotAvailable: "Auto-start solo esta disponible para Claude Code y gemini-cli.",
+    autoStartUsage: "Uso: mempunk auto-start [on|off]",
+    autoStartSelectCLI: "Para cual CLI deseas configurar auto-start?",
   },
 
   pt: {
     help: `
-  mempunk — Cérebro persistente para Claude Code
+  mempunk — Cérebro persistente para CLIs de IA (Claude Code, opencode, gemini-cli)
 
   Uso:
     mempunk setup                  Setup interativo completo (recomendado)
@@ -317,9 +373,13 @@ const translations = {
     mempunk doctor                 Verificar saúde e integridade do vault
     mempunk log <nome>             Abrir o session log de um projeto
     mempunk backlog <nome>         Ver o backlog de um projeto
-    mempunk link <caminho>         Vincular vault ao Claude Code (config global)
-    mempunk unlink                 Desvincular vault do Claude Code
-    mempunk status                 Mostrar vault vinculado atual
+    mempunk link <caminho>         Vincular vault aos seus CLIs ativos
+    mempunk unlink                 Desvincular vault dos seus CLIs
+    mempunk cli add <nome>         Adicionar um CLI (claude-code, opencode, gemini-cli)
+    mempunk cli remove <nome>      Remover um CLI
+    mempunk cli list               Mostrar CLIs ativos
+    mempunk auto-start [on|off]    Auto-executar /mempunk em novas sessoes
+    mempunk status                 Mostrar vaults vinculados e CLIs ativos
     mempunk help                   Mostrar esta mensagem
 
   Opções:
@@ -342,11 +402,12 @@ const translations = {
     selectLanguage: "Selecione o idioma",
     whereVault: "Onde você quer criar seu vault?",
     vaultAlreadyExists: "Já existe um vault em",
-    linkExisting: "Vincular ao Claude Code?",
+    linkExisting: "Vincular ao {cli}?",
     selectStructure: "Selecione a estrutura do vault",
+    selectCLI: "Qual CLI de IA voce vai usar com o mempunk?",
     selectFolders: "Selecione as pastas a incluir",
-    linkQuestion: "Vincular vault ao Claude Code?",
-    done: "Execute 'claude' em qualquer projeto para usar seu vault.",
+    linkQuestion: "Vincular vault ao {cli}?",
+    done: "Abra {cli} em qualquer projeto para começar a usar seu vault.",
 
     presetFull: "Full — projects, areas, resources, daily",
     presetStandard: "Standard — projects, resources, daily",
@@ -359,7 +420,7 @@ const translations = {
     folderDaily: "daily     — Logs de sessão pelo Claude",
 
     creatingVault: "Criando vault...",
-    linkingVault: "Vinculando ao Claude Code...",
+    linkingVault: "Vinculando ao {cli}...",
     vaultCreated: "Vault criado em",
     errorVaultExists: "Erro: já existe um vault em",
     errorUnknownPreset: "Erro: preset desconhecido",
@@ -371,14 +432,14 @@ const translations = {
     runInitFirst: "Execute 'mempunk init' primeiro para criar um vault.",
     alreadyLinked: "Já vinculado:",
     vaultLinked: "Vault vinculado",
-    linkSuccess: "Claude Code terá acesso ao vault em cada sessão.",
+    linkSuccess: "{cli} terá acesso ao vault em cada sessão.",
 
     noVaultLinked: "Nenhum vault vinculado.",
     vaultUnlinked: "Vault desvinculado:",
     notLinked: "Vault não vinculado:",
     unlinkWhich: "Qual vault você quer desvincular?",
     unlinkAll: "Todos os vaults",
-    allVaultsUnlinked: "Todos os vaults desvinculados do Claude Code.",
+    allVaultsUnlinked: "Todos os vaults desvinculados.",
 
     linkedVaults: "Vaults vinculados:",
     notFound: "não encontrado",
@@ -393,7 +454,7 @@ const translations = {
     statusPending: "pendentes",
     statusDone: "concluídas",
 
-    promptTitle: "Digite isso em qualquer sessão do Claude Code:",
+    promptTitle: "Digite isso em qualquer sessão do {cli}:",
     promptAlt: "Ou cole: Leia o CLAUDE.md em \"{path}\" e siga o protocolo de início de sessão.",
 
     installingSkill: "Instalando /mempunk e /session-end...",
@@ -454,11 +515,34 @@ const translations = {
     availableLangs: "Disponíveis:",
 
     structure: "Estrutura",
+
+    cliAddSuccess: "CLI adicionado:",
+    cliAlreadyActive: "CLI ja ativo:",
+    cliRemoveSuccess: "CLI removido:",
+    cliNotActive: "CLI nao ativo:",
+    cliCannotRemoveLast: "Nao e possivel remover o ultimo CLI ativo.",
+    cliListTitle: "CLIs ativos:",
+    cliNameRequired: "Erro: nome do CLI necessario. Opcoes: claude-code, opencode, gemini-cli",
+    cliUnknown: "Erro: CLI desconhecido:",
+    cliAvailable: "Disponiveis:",
+    cliNotInstalled: "Aviso: {cli} nao parece estar instalado.",
+    cliLinkingAll: "Vinculando a {count} CLIs...",
+    cliUnlinkingAll: "Desvinculando de {count} CLIs...",
+    cliInstallingSkills: "Instalando skills em {count} CLIs...",
+    selectCLIs: "Quais CLIs de IA voce vai usar com o mempunk?",
+    autoStartEnabled: "Auto-start ativado para",
+    autoStartDisabled: "Auto-start desativado para",
+    autoStartStatus: "Status do auto-start:",
+    autoStartOn: "ativado",
+    autoStartOff: "desativado",
+    autoStartNotAvailable: "Auto-start so esta disponivel para Claude Code e gemini-cli.",
+    autoStartUsage: "Uso: mempunk auto-start [on|off]",
+    autoStartSelectCLI: "Para qual CLI deseja configurar auto-start?",
   },
 
   fr: {
     help: `
-  mempunk — Cerveau persistant pour Claude Code
+  mempunk — Cerveau persistant pour CLI d'IA (Claude Code, opencode, gemini-cli)
 
   Utilisation:
     mempunk setup                  Configuration interactive complete (recommande)
@@ -469,9 +553,13 @@ const translations = {
     mempunk doctor                 Verifier la sante et l'integrite du vault
     mempunk log <nom>              Ouvrir le session log d'un projet
     mempunk backlog <nom>          Voir le backlog d'un projet
-    mempunk link <chemin>          Lier le vault a Claude Code (config globale)
-    mempunk unlink                 Dissocier le vault de Claude Code
-    mempunk status                 Afficher le vault lie actuel
+    mempunk link <chemin>          Lier le vault a vos CLIs actifs
+    mempunk unlink                 Dissocier le vault de vos CLIs
+    mempunk cli add <nom>          Ajouter un CLI (claude-code, opencode, gemini-cli)
+    mempunk cli remove <nom>       Supprimer un CLI
+    mempunk cli list               Afficher les CLIs actifs
+    mempunk auto-start [on|off]    Auto-executer /mempunk dans nouvelles sessions
+    mempunk status                 Afficher les vaults lies et CLIs actifs
     mempunk help                   Afficher ce message
 
   Options:
@@ -494,11 +582,12 @@ const translations = {
     selectLanguage: "Choisissez la langue",
     whereVault: "Ou voulez-vous creer votre vault?",
     vaultAlreadyExists: "Un vault existe deja a",
-    linkExisting: "Le lier a Claude Code?",
+    linkExisting: "Le lier a {cli}?",
     selectStructure: "Choisissez la structure du vault",
+    selectCLI: "Quel CLI d'IA allez-vous utiliser avec mempunk?",
     selectFolders: "Choisissez les dossiers a inclure",
-    linkQuestion: "Lier le vault a Claude Code?",
-    done: "Lancez 'claude' dans n'importe quel projet pour utiliser votre vault.",
+    linkQuestion: "Lier le vault a {cli}?",
+    done: "Ouvrez {cli} dans n'importe quel projet pour commencer a utiliser votre vault.",
 
     presetFull: "Full — projects, areas, resources, daily",
     presetStandard: "Standard — projects, resources, daily",
@@ -511,7 +600,7 @@ const translations = {
     folderDaily: "daily     — Logs de session par Claude",
 
     creatingVault: "Creation du vault...",
-    linkingVault: "Liaison a Claude Code...",
+    linkingVault: "Liaison a {cli}...",
     vaultCreated: "Vault cree a",
     errorVaultExists: "Erreur: un vault existe deja a",
     errorUnknownPreset: "Erreur: preset inconnu",
@@ -523,14 +612,14 @@ const translations = {
     runInitFirst: "Lancez 'mempunk init' d'abord pour creer un vault.",
     alreadyLinked: "Deja lie:",
     vaultLinked: "Vault lie",
-    linkSuccess: "Claude Code aura acces au vault dans chaque session.",
+    linkSuccess: "{cli} aura acces au vault dans chaque session.",
 
     noVaultLinked: "Aucun vault lie.",
     vaultUnlinked: "Vault dissocie:",
     notLinked: "Vault non lie:",
     unlinkWhich: "Quel vault voulez-vous dissocier?",
     unlinkAll: "Tous les vaults",
-    allVaultsUnlinked: "Tous les vaults dissocies de Claude Code.",
+    allVaultsUnlinked: "Tous les vaults dissocies.",
 
     linkedVaults: "Vaults lies:",
     notFound: "non trouve",
@@ -545,7 +634,7 @@ const translations = {
     statusPending: "en attente",
     statusDone: "terminees",
 
-    promptTitle: "Tapez ceci dans n'importe quelle session Claude Code:",
+    promptTitle: "Tapez ceci dans n'importe quelle session {cli}:",
     promptAlt: "Ou collez: Lisez le CLAUDE.md a \"{path}\" et suivez le protocole de debut de session.",
 
     installingSkill: "Installation de /mempunk et /session-end...",
@@ -606,6 +695,29 @@ const translations = {
     availableLangs: "Disponibles:",
 
     structure: "Structure",
+
+    cliAddSuccess: "CLI ajoute:",
+    cliAlreadyActive: "CLI deja actif:",
+    cliRemoveSuccess: "CLI supprime:",
+    cliNotActive: "CLI non actif:",
+    cliCannotRemoveLast: "Impossible de supprimer le dernier CLI actif.",
+    cliListTitle: "CLIs actifs:",
+    cliNameRequired: "Erreur: nom du CLI requis. Options: claude-code, opencode, gemini-cli",
+    cliUnknown: "Erreur: CLI inconnu:",
+    cliAvailable: "Disponibles:",
+    cliNotInstalled: "Attention: {cli} ne semble pas etre installe.",
+    cliLinkingAll: "Liaison a {count} CLIs...",
+    cliUnlinkingAll: "Dissociation de {count} CLIs...",
+    cliInstallingSkills: "Installation des skills pour {count} CLIs...",
+    selectCLIs: "Quels CLIs d'IA allez-vous utiliser avec mempunk?",
+    autoStartEnabled: "Auto-start active pour",
+    autoStartDisabled: "Auto-start desactive pour",
+    autoStartStatus: "Statut auto-start:",
+    autoStartOn: "active",
+    autoStartOff: "desactive",
+    autoStartNotAvailable: "Auto-start n'est disponible que pour Claude Code et gemini-cli.",
+    autoStartUsage: "Utilisation: mempunk auto-start [on|off]",
+    autoStartSelectCLI: "Pour quel CLI configurer auto-start?",
   },
 };
 

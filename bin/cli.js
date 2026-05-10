@@ -9,10 +9,52 @@ import boxen from "boxen";
 import ora from "ora";
 import gradient from "gradient-string";
 import { getTranslations, getAvailableLanguages } from "./i18n.js";
+import { getAdapter, listAdapters } from "./adapters/index.js";
+import { getHomePath } from "./adapters/base.js";
+import { getActiveCLI, setActiveCLI, getActiveCLIs, addCLI, removeCLI } from "./config.js";
 
 // ── Global state ─────────────────────────────────────────────────────────────
 
 let t = getTranslations("en");
+
+// CLI adapter resolved fresh each call so changes to ~/.mempunk/config.json
+// (e.g. during setup) take effect immediately.
+function adapter() {
+  const a = getAdapter(getActiveCLI());
+  if (typeof a.onCorruptConfig === "function") {
+    a.onCorruptConfig((cfgPath, err) => {
+      console.warn(chalk.yellow(`  ${t.warnCorruptConfig} ${cfgPath}`));
+      console.warn(chalk.dim(`  ${err.message}`));
+    });
+  }
+  return a;
+}
+
+// All active CLI adapters (v1.4 multi-CLI).
+function allAdapters() {
+  return getActiveCLIs().map((name) => {
+    const a = getAdapter(name);
+    if (typeof a.onCorruptConfig === "function") {
+      a.onCorruptConfig((cfgPath, err) => {
+        console.warn(chalk.yellow(`  ${t.warnCorruptConfig} ${cfgPath}`));
+        console.warn(chalk.dim(`  ${err.message}`));
+      });
+    }
+    return a;
+  });
+}
+
+function runWrite(fn) {
+  try {
+    fn();
+  } catch (err) {
+    if (err.code === "WRITE_CONFIG_ERROR") {
+      console.error(chalk.red(`  ${t.errorWriteConfig} ${err.cause?.message || err.message}`));
+      process.exit(1);
+    }
+    throw err;
+  }
+}
 
 const PRESETS = {
   full: { folders: ["projects", "areas", "resources", "daily"] },
@@ -35,51 +77,6 @@ function getTemplatesDir() {
   return path.join(__dirname, "..", "templates");
 }
 
-function getHomePath(...segments) {
-  const home = process.env.HOME || process.env.USERPROFILE;
-  return path.join(home, ...segments);
-}
-
-// ── Config ───────────────────────────────────────────────────────────────────
-
-function getClaudeConfigPath() {
-  return getHomePath(".claude.json");
-}
-
-function readClaudeConfig() {
-  const configPath = getClaudeConfigPath();
-  if (!fs.existsSync(configPath)) return {};
-  const raw = fs.readFileSync(configPath, "utf-8");
-  try {
-    return JSON.parse(raw);
-  } catch (err) {
-    console.warn(chalk.yellow(`  ${t.warnCorruptConfig} ${configPath}`));
-    console.warn(chalk.dim(`  ${err.message}`));
-    return {};
-  }
-}
-
-function writeClaudeConfig(config) {
-  const configPath = getClaudeConfigPath();
-  const backup = configPath + ".bak";
-
-  // Backup before writing
-  if (fs.existsSync(configPath)) {
-    fs.copyFileSync(configPath, backup);
-  }
-
-  try {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-  } catch (err) {
-    // Rollback on failure
-    if (fs.existsSync(backup)) {
-      fs.copyFileSync(backup, configPath);
-    }
-    console.error(chalk.red(`  ${t.errorWriteConfig} ${err.message}`));
-    process.exit(1);
-  }
-}
-
 // ── Banner ───────────────────────────────────────────────────────────────────
 
 function showBanner() {
@@ -93,7 +90,7 @@ function showBanner() {
 
   const mempunkGradient = gradient(["#a855f7", "#ec4899", "#f97316"]);
   console.log(mempunkGradient(banner));
-  console.log(chalk.dim("  Persistent dev brain for Claude Code\n"));
+  console.log(chalk.dim("  Persistent dev brain for AI coding CLIs\n"));
 }
 
 // ── Tree display ─────────────────────────────────────────────────────────────
@@ -114,7 +111,7 @@ function showTree(vaultDir, folders) {
 
 function showPrompt(vaultPath) {
   const content =
-    chalk.bold(t.promptTitle) +
+    chalk.bold(t.promptTitle.replace("{cli}", adapter().displayName)) +
     "\n\n" +
     chalk.green("/mempunk") +
     "\n\n" +
@@ -175,6 +172,24 @@ async function setup(lang) {
     t = getTranslations(lang);
   }
 
+  // CLI selection — persisted in ~/.mempunk/config.json. v1.4: multiple CLIs.
+  const { chosenCLIs } = await inquirer.prompt([
+    {
+      type: "checkbox",
+      name: "chosenCLIs",
+      message: t.selectCLIs || t.selectCLI,
+      choices: listAdapters().map((a) => ({
+        name: a.displayName,
+        value: a.name,
+        checked: a.name === "claude-code",
+      })),
+      validate: (input) => input.length > 0 || t.errorSelectOne,
+    },
+  ]);
+  // Set first as primary, store all
+  setActiveCLI(chosenCLIs[0]);
+  for (const cli of chosenCLIs.slice(1)) addCLI(cli);
+
   // 1. Path
   const { vaultPath } = await inquirer.prompt([
     {
@@ -197,7 +212,7 @@ async function setup(lang) {
       {
         type: "confirm",
         name: "shouldLink",
-        message: t.linkExisting,
+        message: t.linkExisting.replace("{cli}", adapter().displayName),
         default: true,
       },
     ]);
@@ -249,7 +264,7 @@ async function setup(lang) {
     {
       type: "confirm",
       name: "shouldLink",
-      message: t.linkQuestion,
+      message: t.linkQuestion.replace("{cli}", adapter().displayName),
       default: true,
     },
   ]);
@@ -263,7 +278,7 @@ async function setup(lang) {
 
   showTree(resolved, folders);
 
-  console.log(chalk.green(`  ✔ ${t.done}\n`));
+  console.log(chalk.green(`  ✔ ${t.done.replace("{cli}", adapter().displayName)}\n`));
 
   showPrompt(normalizePath(resolved));
 }
@@ -364,70 +379,78 @@ function linkVault(vaultPath, showPromptAfter = true) {
     process.exit(1);
   }
 
-  const config = readClaudeConfig();
-  const dirs = config.additionalDirectories || [];
+  const adapters = allAdapters();
 
-  if (dirs.includes(normalized)) {
+  // Check if already linked in all CLIs
+  const allLinked = adapters.every((a) => a.getRegisteredDirs().includes(normalized));
+  if (allLinked) {
     console.log(chalk.yellow(`  ${t.alreadyLinked} ${normalized}\n`));
     if (showPromptAfter) showPrompt(normalized);
     return;
   }
 
+  const cliNames = adapters.map((a) => a.displayName).join(", ");
   const spinner = ora({
-    text: t.linkingVault,
+    text: adapters.length > 1
+      ? t.cliLinkingAll.replace("{count}", adapters.length)
+      : t.linkingVault.replace("{cli}", adapters[0].displayName),
     spinner: "dots",
   }).start();
 
-  config.additionalDirectories = [...dirs, normalized];
-  writeClaudeConfig(config);
+  runWrite(() => {
+    for (const a of adapters) a.addDir(normalized);
+  });
 
   spinner.succeed(chalk.green(`${t.vaultLinked} ${chalk.bold(normalized)}`));
 
-  // Install/update slash commands (multi-vault aware)
+  // Install/update slash commands for all CLIs
   const spinnerSkill = ora({
-    text: t.installingSkill,
+    text: adapters.length > 1
+      ? t.cliInstallingSkills.replace("{count}", adapters.length)
+      : t.installingSkill,
     spinner: "dots",
   }).start();
-  installSlashCommands();
+  for (const a of adapters) a.installSkills();
   spinnerSkill.succeed(chalk.green(t.skillInstalled));
 
-  console.log(chalk.dim(`  ${t.linkSuccess}\n`));
+  console.log(chalk.dim(`  ${t.linkSuccess.replace("{cli}", cliNames)}\n`));
 
   if (showPromptAfter) showPrompt(normalized);
 }
 
 async function unlink(specificPath) {
-  const config = readClaudeConfig();
-  const dirs = config.additionalDirectories || [];
+  const adapters = allAdapters();
 
-  if (dirs.length === 0) {
+  // Aggregate all registered dirs across all CLIs (deduplicated)
+  const allDirs = [...new Set(adapters.flatMap((a) => a.getRegisteredDirs()))];
+
+  if (allDirs.length === 0) {
     console.log(chalk.yellow(`  ${t.noVaultLinked}`));
     return;
   }
 
   // Filter to only Mempunk vaults (dirs with CLAUDE.md)
-  const vaults = dirs.filter((d) => fs.existsSync(path.join(d, "CLAUDE.md")));
-  const nonVaults = dirs.filter((d) => !fs.existsSync(path.join(d, "CLAUDE.md")));
+  const vaults = allDirs.filter((d) => fs.existsSync(path.join(d, "CLAUDE.md")));
 
   if (specificPath) {
-    // Unlink a specific vault by path
     const normalized = normalizePath(path.resolve(specificPath));
-    if (!dirs.includes(normalized)) {
+    if (!allDirs.includes(normalized)) {
       console.log(chalk.yellow(`  ${t.notLinked} ${normalized}`));
       return;
     }
-    config.additionalDirectories = dirs.filter((d) => d !== normalized);
-    if (config.additionalDirectories.length === 0) delete config.additionalDirectories;
-    writeClaudeConfig(config);
+    runWrite(() => {
+      for (const a of adapters) a.removeDir(normalized);
+    });
+    cleanupAutoStartIfNoVaults(adapters);
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(normalized)}`));
     return;
   }
 
   if (vaults.length === 1) {
-    // Only one vault — unlink it directly
-    config.additionalDirectories = nonVaults;
-    if (config.additionalDirectories.length === 0) delete config.additionalDirectories;
-    writeClaudeConfig(config);
+    runWrite(() => {
+      for (const a of adapters) a.removeDir(vaults[0]);
+    });
+    cleanupAutoStartIfNoVaults(adapters);
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(vaults[0])}`));
     return;
   }
@@ -451,26 +474,33 @@ async function unlink(specificPath) {
   ]);
 
   if (selected === "__all__") {
-    config.additionalDirectories = nonVaults;
-    if (config.additionalDirectories.length === 0) delete config.additionalDirectories;
-    writeClaudeConfig(config);
+    runWrite(() => {
+      for (const v of vaults) {
+        for (const a of adapters) a.removeDir(v);
+      }
+    });
+    cleanupAutoStartIfNoVaults(adapters);
     console.log(chalk.green(`  ✔ ${t.allVaultsUnlinked}`));
   } else {
-    config.additionalDirectories = dirs.filter((d) => d !== selected);
-    if (config.additionalDirectories.length === 0) delete config.additionalDirectories;
-    writeClaudeConfig(config);
+    runWrite(() => {
+      for (const a of adapters) a.removeDir(selected);
+    });
+    cleanupAutoStartIfNoVaults(adapters);
     console.log(chalk.green(`  ✔ ${t.vaultUnlinked} ${chalk.dim(selected)}`));
   }
 }
 
 function status() {
-  const config = readClaudeConfig();
-  const dirs = config.additionalDirectories || [];
+  const adapters = allAdapters();
+  const cliNames = adapters.map((a) => a.displayName).join(", ");
+  const dirs = [...new Set(adapters.flatMap((a) => a.getRegisteredDirs()))];
 
   if (dirs.length === 0) {
     console.log(chalk.yellow(`  ${t.noVaultSetup}`));
     return;
   }
+
+  console.log(chalk.dim(`\n  CLIs: ${cliNames}`));
 
   for (const dir of dirs) {
     if (!fs.existsSync(dir)) {
@@ -540,8 +570,7 @@ function status() {
 // ── Project scaffolding ─────────────────────────────────────────────────────
 
 function findVaultPath() {
-  const config = readClaudeConfig();
-  const dirs = config.additionalDirectories || [];
+  const dirs = [...new Set(allAdapters().flatMap((a) => a.getRegisteredDirs()))];
   for (const dir of dirs) {
     if (fs.existsSync(path.join(dir, "CLAUDE.md"))) {
       return dir;
@@ -554,8 +583,7 @@ function findVaultPath() {
 }
 
 async function resolveVaultPath() {
-  const config = readClaudeConfig();
-  const dirs = config.additionalDirectories || [];
+  const dirs = [...new Set(allAdapters().flatMap((a) => a.getRegisteredDirs()))];
   const vaults = dirs.filter((d) => fs.existsSync(path.join(d, "CLAUDE.md")));
 
   // Fallback to cwd
@@ -608,8 +636,9 @@ async function createProject(projectName) {
     spinner: "dots",
   }).start();
 
-  // Create project directory and decisions subdirectory
+  // Create project directory structure
   fs.mkdirSync(path.join(projectDir, "decisions"), { recursive: true });
+  fs.mkdirSync(path.join(projectDir, "wiki", "sources"), { recursive: true });
 
   // Copy and process templates
   const projectTemplateDir = path.join(getTemplatesDir(), "project");
@@ -618,7 +647,7 @@ async function createProject(projectName) {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 
-  const templateFiles = ["overview.md", "backlog.md", "architecture.md", "conventions.md", "session-log.md"];
+  const templateFiles = ["INDEX.md", "overview.md", "backlog.md", "architecture.md", "conventions.md", "session-log.md"];
 
   for (const file of templateFiles) {
     const templatePath = path.join(projectTemplateDir, file);
@@ -626,6 +655,16 @@ async function createProject(projectName) {
       let content = fs.readFileSync(templatePath, "utf-8");
       content = content.replace(/\{PROJECT_NAME\}/g, displayName);
       fs.writeFileSync(path.join(projectDir, file), content);
+    }
+  }
+
+  // Copy wiki templates
+  for (const file of ["state.md", "index.md", "log.md"]) {
+    const templatePath = path.join(projectTemplateDir, "wiki", file);
+    if (fs.existsSync(templatePath)) {
+      let content = fs.readFileSync(templatePath, "utf-8");
+      content = content.replace(/\{PROJECT_NAME\}/g, displayName);
+      fs.writeFileSync(path.join(projectDir, "wiki", file), content);
     }
   }
 
@@ -637,20 +676,73 @@ async function createProject(projectName) {
   // Show project structure
   console.log(chalk.bold(`\n  ${t.structure}:\n`));
   console.log(chalk.dim(`  projects/${projectName}/`));
+  console.log(`  ├── ${chalk.cyan("INDEX.md")}`);
   console.log(`  ├── ${chalk.cyan("overview.md")}`);
   console.log(`  ├── ${chalk.yellow("architecture.md")}`);
   console.log(`  ├── ${chalk.yellow("conventions.md")}`);
   console.log(`  ├── ${chalk.yellow("backlog.md")}`);
   console.log(`  ├── ${chalk.yellow("session-log.md")}`);
-  console.log(`  └── ${chalk.dim("decisions/")}`);
+  console.log(`  ├── ${chalk.dim("decisions/")}`);
+  console.log(`  └── ${chalk.dim("wiki/")}`);
   console.log();
+}
+
+function extractBlock(content, startMarker, endMarker) {
+  if (!content.includes(startMarker) || !content.includes(endMarker)) return null;
+  const startIdx = content.indexOf(startMarker) + startMarker.length;
+  const endIdx = content.indexOf(endMarker);
+  return content.substring(startIdx, endIdx);
+}
+
+function injectBlock(content, startMarker, endMarker, block) {
+  if (!content.includes(startMarker) || !content.includes(endMarker)) return content;
+  const startIdx = content.indexOf(startMarker) + startMarker.length;
+  const endIdx = content.indexOf(endMarker);
+  return content.substring(0, startIdx) + block + content.substring(endIdx);
+}
+
+function syncClaudeMd(vaultPath) {
+  const claudePath = path.join(vaultPath, "CLAUDE.md");
+  if (!fs.existsSync(claudePath)) return false;
+  const templatePath = path.join(getTemplatesDir(), "CLAUDE.md");
+  if (!fs.existsSync(templatePath)) return false;
+
+  const existing = fs.readFileSync(claudePath, "utf-8");
+  const template = fs.readFileSync(templatePath, "utf-8");
+
+  const PREFS_START = "<!-- MEMPUNK:PREFS:START -->";
+  const PREFS_END = "<!-- MEMPUNK:PREFS:END -->";
+  const PROJECTS_START = "<!-- MEMPUNK:PROJECTS:START -->";
+  const PROJECTS_END = "<!-- MEMPUNK:PROJECTS:END -->";
+
+  const projectsBlock = extractBlock(existing, PROJECTS_START, PROJECTS_END);
+
+  let prefsBlock = extractBlock(existing, PREFS_START, PREFS_END);
+  if (prefsBlock === null) {
+    const prefHeading = "## Preferencias";
+    const headingIdx = existing.indexOf(prefHeading);
+    if (headingIdx !== -1) {
+      const afterHeading = existing.indexOf("\n", headingIdx) + 1;
+      const nextSep = existing.indexOf("\n---\n", afterHeading);
+      const end = nextSep !== -1 ? nextSep : existing.length;
+      prefsBlock = "\n" + existing.substring(afterHeading, end) + "\n";
+    }
+  }
+
+  let updated = template;
+  if (projectsBlock !== null) updated = injectBlock(updated, PROJECTS_START, PROJECTS_END, projectsBlock);
+  if (prefsBlock !== null) updated = injectBlock(updated, PREFS_START, PREFS_END, prefsBlock);
+
+  if (updated === existing) return false;
+  fs.writeFileSync(claudePath, updated);
+  return true;
 }
 
 function registerProjectInClaude(vaultPath, projectName, displayName) {
   const claudePath = path.join(vaultPath, "CLAUDE.md");
   let content = fs.readFileSync(claudePath, "utf-8");
 
-  const projectLink = `- [[projects/${projectName}/overview|${displayName}]]`;
+  const projectLink = `- [[projects/${projectName}/INDEX|${displayName}]]`;
 
   const startMarker = "<!-- MEMPUNK:PROJECTS:START -->";
   const endMarker = "<!-- MEMPUNK:PROJECTS:END -->";
@@ -681,101 +773,6 @@ function registerProjectInClaude(vaultPath, projectName, displayName) {
   }
 
   fs.writeFileSync(claudePath, content);
-}
-
-// ── Slash command install ────────────────────────────────────────────────────
-
-function installSlashCommands() {
-  const configPath = normalizePath(getClaudeConfigPath());
-
-  // /mempunk — session start (multi-vault aware)
-  const mempunkDir = getHomePath(".claude", "skills", "mempunk");
-  fs.mkdirSync(mempunkDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(mempunkDir, "SKILL.md"),
-    `---
-name: mempunk
-description: Load Mempunk vault context — persistent dev brain across sessions. Use when the user types /mempunk or asks to load vault context.
-disable-model-invocation: false
-allowed-tools: Read Glob Grep
----
-
-This is the Mempunk session start protocol. The user has one or more Mempunk vaults (persistent dev brains).
-
-**Step 1: Discover vaults**
-
-Read the file at "${configPath}" and parse the JSON. Look at the "additionalDirectories" array. For each directory, check if it contains a CLAUDE.md file. Those are Mempunk vaults.
-
-**Step 2: Select vault**
-
-- If there is only ONE vault: use it automatically.
-- If there are MULTIPLE vaults: present a numbered list to the user showing the vault name (last segment of the path) and full path, then ask which one they want to work with.
-- If there are ZERO vaults: tell the user to run \`mempunk setup\` first.
-
-**Step 3: Load context**
-
-Once a vault is selected, read its CLAUDE.md and follow the session start protocol:
-1. Identify which project(s) the user wants to work on
-2. Read the project's overview.md
-3. Read the project's conventions.md (if it exists) — these are the rules and coding standards for the project
-4. Read the last 3 entries of the project's session-log.md
-5. Read the project's backlog.md
-6. Confirm context with the user before proceeding, mentioning which vault was loaded and any key conventions
-`
-  );
-
-  // /session-end — session close (multi-vault aware)
-  const sessionEndDir = getHomePath(".claude", "skills", "session-end");
-  fs.mkdirSync(sessionEndDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(sessionEndDir, "SKILL.md"),
-    `---
-name: session-end
-description: Close the current session and write the session log. Use when the user types /session-end, says they're done, or wants to close the session.
-disable-model-invocation: false
-allowed-tools: Read Write Glob Grep
----
-
-The user wants to close this session. You MUST write a session log entry before ending.
-
-**Step 1: Identify the active vault**
-
-If you loaded a vault via /mempunk earlier in this session, use that vault. Otherwise, read "${configPath}", parse the JSON, and find Mempunk vaults in "additionalDirectories" (directories that contain CLAUDE.md). If multiple vaults exist and you don't know which was active, ask the user.
-
-**Step 2: Write the session log**
-
-1. Identify which project(s) were worked on in this session
-2. Find the session-log.md file for each project in the active vault
-   - The path is: [vault-path]/projects/[project-name]/session-log.md
-3. Write a new entry AT THE TOP of the file (most recent first), below the frontmatter/header, using this exact format:
-
-\\\`\\\`\\\`markdown
-## Session YYYY-MM-DD HH:MM
-
-### What was done
-- [concise list of changes made]
-
-### Decisions made
-- [architectural or technical decisions, if any]
-
-### Current state
-- [state of the code/feature when session ended]
-
-### Next steps
-- [what's left to do, in priority order]
-
-### Modified files
-- [list of files touched]
-\\\`\\\`\\\`
-
-4. If the project has a conventions.md, check if any conventions were established or changed during this session and note them in "Decisions made"
-5. Use the ACTUAL current date and time for the entry
-6. Be specific — list real file names, real changes, real decisions
-7. After writing the log, confirm to the user what was logged and for which project
-
-IMPORTANT: If you used /mempunk at the start and know which project was active, write the log there. If multiple projects were worked on, write a log entry for each. If no project context exists, ask the user which project this session was for.
-`
-  );
 }
 
 // ── Parse global flags ──────────────────────────────────────────────────────
@@ -1003,6 +1000,10 @@ async function doctor() {
         missingFiles.push("decisions/");
       }
 
+      if (!fs.existsSync(path.join(projectDir, "wiki"))) {
+        missingFiles.push("wiki/");
+      }
+
       if (missingFiles.length > 0) {
         const displayName = project.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
         console.log(`  ${chalk.yellow("!")} ${chalk.bold(displayName)}: ${t.doctorMissingFiles} ${chalk.dim(missingFiles.join(", "))}`);
@@ -1011,22 +1012,23 @@ async function doctor() {
     }
   }
 
-  // 4. Check slash commands installed
-  const mempunkSkill = getHomePath(".claude", "skills", "mempunk", "SKILL.md");
-  const sessionEndSkill = getHomePath(".claude", "skills", "session-end", "SKILL.md");
+  // 4. Check slash commands installed for all active CLIs
+  for (const a of allAdapters()) {
+    const skills = a.verifySkills();
+    const label = allAdapters().length > 1 ? ` (${a.displayName})` : "";
+    if (skills.missing.includes("mempunk")) {
+      console.log(`  ${chalk.yellow("!")} ${t.doctorNoMempunkSkill}${label}`);
+      warnings++;
+    } else {
+      console.log(`  ${chalk.green("✔")} ${t.doctorMempunkSkillOk}${label}`);
+    }
 
-  if (!fs.existsSync(mempunkSkill)) {
-    console.log(`  ${chalk.yellow("!")} ${t.doctorNoMempunkSkill}`);
-    warnings++;
-  } else {
-    console.log(`  ${chalk.green("✔")} ${t.doctorMempunkSkillOk}`);
-  }
-
-  if (!fs.existsSync(sessionEndSkill)) {
-    console.log(`  ${chalk.yellow("!")} ${t.doctorNoSessionEndSkill}`);
-    warnings++;
-  } else {
-    console.log(`  ${chalk.green("✔")} ${t.doctorSessionEndSkillOk}`);
+    if (skills.missing.includes("session-end")) {
+      console.log(`  ${chalk.yellow("!")} ${t.doctorNoSessionEndSkill}${label}`);
+      warnings++;
+    } else {
+      console.log(`  ${chalk.green("✔")} ${t.doctorSessionEndSkillOk}${label}`);
+    }
   }
 
   // Summary
@@ -1106,6 +1108,58 @@ async function syncVault() {
       missing.push("decisions/");
     }
 
+    // Ensure wiki/ directory and templates exist
+    const wikiDir = path.join(projectDir, "wiki");
+    const wikiTemplateFiles = ["state.md", "index.md", "log.md"];
+    if (!fs.existsSync(wikiDir)) {
+      fs.mkdirSync(path.join(wikiDir, "sources"), { recursive: true });
+      for (const file of wikiTemplateFiles) {
+        const templatePath = path.join(projectTemplateDir, "wiki", file);
+        if (fs.existsSync(templatePath)) {
+          let content = fs.readFileSync(templatePath, "utf-8");
+          content = content.replace(/\{PROJECT_NAME\}/g, displayName);
+          fs.writeFileSync(path.join(wikiDir, file), content);
+        }
+      }
+      missing.push("wiki/");
+    } else {
+      // wiki/ exists — fill in any missing template files
+      for (const file of wikiTemplateFiles) {
+        const filePath = path.join(wikiDir, file);
+        if (!fs.existsSync(filePath)) {
+          const templatePath = path.join(projectTemplateDir, "wiki", file);
+          if (fs.existsSync(templatePath)) {
+            let content = fs.readFileSync(templatePath, "utf-8");
+            content = content.replace(/\{PROJECT_NAME\}/g, displayName);
+            fs.writeFileSync(filePath, content);
+            missing.push(`wiki/${file}`);
+          }
+        }
+      }
+      if (!fs.existsSync(path.join(wikiDir, "sources"))) {
+        fs.mkdirSync(path.join(wikiDir, "sources"), { recursive: true });
+        missing.push("wiki/sources/");
+      }
+    }
+
+    // Add wiki link to INDEX.md if missing
+    const indexPath = path.join(projectDir, "INDEX.md");
+    if (fs.existsSync(indexPath)) {
+      let indexContent = fs.readFileSync(indexPath, "utf-8");
+      if (!indexContent.includes("wiki/index.md")) {
+        if (indexContent.includes("- [Session log](session-log.md)")) {
+          indexContent = indexContent.replace(
+            "- [Session log](session-log.md)",
+            "- [Session log](session-log.md)\n- [Wiki del proyecto](wiki/index.md)"
+          );
+        } else {
+          indexContent = indexContent.trimEnd() + "\n- [Wiki del proyecto](wiki/index.md)\n";
+        }
+        fs.writeFileSync(indexPath, indexContent);
+        missing.push("INDEX.md ← wiki link");
+      }
+    }
+
     if (missing.length > 0) {
       console.log(`  ${chalk.green("+")} ${chalk.bold(displayName)}`);
       for (const file of missing) {
@@ -1115,6 +1169,13 @@ async function syncVault() {
     } else {
       console.log(`  ${chalk.dim("✔")} ${chalk.dim(displayName)} ${chalk.dim(`(${t.syncUpToDate})`)}`);
     }
+  }
+
+  // Sync CLAUDE.md protocol sections while preserving user data
+  const claudeUpdated = syncClaudeMd(vaultPath);
+  if (claudeUpdated) {
+    console.log(`  ${chalk.green("+")} ${chalk.bold("CLAUDE.md")} ${chalk.dim("(protocol updated)")}`);
+    totalCreated++;
   }
 
   console.log();
@@ -1214,6 +1275,226 @@ function unregisterProjectFromClaude(vaultPath, projectName) {
   fs.writeFileSync(claudePath, content);
 }
 
+// ── CLI management (v1.4) ───────────────────────────────────────────────────
+
+function cliCommand(subcommand, cliName) {
+  const validNames = listAdapters().map((a) => a.name);
+
+  switch (subcommand) {
+    case "add": {
+      if (!cliName) {
+        console.error(chalk.red(`  ${t.cliNameRequired}`));
+        process.exit(1);
+      }
+      if (!validNames.includes(cliName)) {
+        console.error(chalk.red(`  ${t.cliUnknown} ${cliName}`));
+        console.error(chalk.dim(`  ${t.cliAvailable} ${validNames.join(", ")}`));
+        process.exit(1);
+      }
+      const a = getAdapter(cliName);
+      if (!a.isInstalled()) {
+        console.log(chalk.yellow(`  ${t.cliNotInstalled.replace("{cli}", a.displayName)}`));
+      }
+      if (!addCLI(cliName)) {
+        console.log(chalk.yellow(`  ${t.cliAlreadyActive} ${a.displayName}`));
+        return;
+      }
+      console.log(chalk.green(`  ✔ ${t.cliAddSuccess} ${chalk.bold(a.displayName)}`));
+      // Re-register existing vaults and install skills for the new CLI
+      const primaryDirs = adapter().getRegisteredDirs();
+      if (primaryDirs.length > 0) {
+        runWrite(() => {
+          for (const dir of primaryDirs) a.addDir(dir);
+        });
+        a.installSkills();
+        console.log(chalk.dim(`  ${primaryDirs.length} vault(s) synced to ${a.displayName}`));
+      }
+      return;
+    }
+    case "remove": {
+      if (!cliName) {
+        console.error(chalk.red(`  ${t.cliNameRequired}`));
+        process.exit(1);
+      }
+      if (!validNames.includes(cliName)) {
+        console.error(chalk.red(`  ${t.cliUnknown} ${cliName}`));
+        console.error(chalk.dim(`  ${t.cliAvailable} ${validNames.join(", ")}`));
+        process.exit(1);
+      }
+      const activeCLIs = getActiveCLIs();
+      if (activeCLIs.length <= 1 && activeCLIs.includes(cliName)) {
+        console.log(chalk.yellow(`  ${t.cliCannotRemoveLast}`));
+        return;
+      }
+      const a2 = getAdapter(cliName);
+      if (!removeCLI(cliName)) {
+        console.log(chalk.yellow(`  ${t.cliNotActive} ${a2.displayName}`));
+        return;
+      }
+      console.log(chalk.green(`  ✔ ${t.cliRemoveSuccess} ${chalk.bold(a2.displayName)}`));
+      return;
+    }
+    case "list": {
+      const active = getActiveCLIs();
+      console.log(chalk.bold(`\n  ${t.cliListTitle}\n`));
+      for (const name of active) {
+        const a = getAdapter(name);
+        const installed = a.isInstalled() ? chalk.green("●") : chalk.yellow("○");
+        console.log(`  ${installed} ${chalk.bold(a.displayName)} ${chalk.dim(`(${a.name})`)}`);
+      }
+      console.log();
+      return;
+    }
+    default:
+      console.error(chalk.red(`  ${t.cliNameRequired}`));
+      process.exit(1);
+  }
+}
+
+// ── Auto-start ──────────────────────────────────────────────────────────────
+
+const MEMPUNK_HOOK_MARKER = "mempunk-auto-start";
+const AUTO_START_SUPPORTED = ["claude-code", "gemini-cli"];
+
+const MEMPUNK_HOOK_PROMPT = "The user has mempunk auto-start enabled. Run the /mempunk slash command now to load the vault context.";
+
+// ── Generic settings I/O per CLI ────────────────────────────────────────────
+
+function getSettingsPath(cli) {
+  if (cli === "claude-code") return getHomePath(".claude", "settings.json");
+  if (cli === "gemini-cli") return getHomePath(".gemini", "settings.json");
+  return null;
+}
+
+function readSettings(cli) {
+  const p = getSettingsPath(cli);
+  if (!p || !fs.existsSync(p)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeSettings(cli, settings) {
+  const p = getSettingsPath(cli);
+  if (!p) return;
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(settings, null, 2) + "\n");
+}
+
+// ── Hook detection ──────────────────────────────────────────────────────────
+
+function isMempunkHook(hookGroup) {
+  return hookGroup.matcher === MEMPUNK_HOOK_MARKER ||
+    (hookGroup.hooks && hookGroup.hooks.some((h) => h.prompt && h.prompt.includes("/mempunk")));
+}
+
+function isAutoStartEnabledFor(cli) {
+  const settings = readSettings(cli);
+  if (!settings.hooks || !settings.hooks.SessionStart) return false;
+  return settings.hooks.SessionStart.some(isMempunkHook);
+}
+
+// ── Enable/disable per CLI ──────────────────────────────────────────────────
+
+function enableAutoStartFor(cli) {
+  const settings = readSettings(cli);
+  if (!settings.hooks) settings.hooks = {};
+  if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+
+  if (settings.hooks.SessionStart.some(isMempunkHook)) return;
+
+  settings.hooks.SessionStart.push({
+    matcher: MEMPUNK_HOOK_MARKER,
+    hooks: [{ type: "prompt", prompt: MEMPUNK_HOOK_PROMPT }],
+  });
+
+  writeSettings(cli, settings);
+}
+
+function disableAutoStartFor(cli) {
+  const settings = readSettings(cli);
+  if (!settings.hooks || !settings.hooks.SessionStart) return;
+
+  settings.hooks.SessionStart = settings.hooks.SessionStart.filter((g) => !isMempunkHook(g));
+
+  if (settings.hooks.SessionStart.length === 0) delete settings.hooks.SessionStart;
+  if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
+
+  writeSettings(cli, settings);
+}
+
+// ── Cleanup on unlink ───────────────────────────────────────────────────────
+
+function cleanupAutoStartIfNoVaults(adapters) {
+  const remaining = [...new Set(adapters.flatMap((a) => a.getRegisteredDirs()))];
+  if (remaining.length === 0) {
+    for (const cli of AUTO_START_SUPPORTED) {
+      if (isAutoStartEnabledFor(cli)) disableAutoStartFor(cli);
+    }
+  }
+}
+
+// ── Command ─────────────────────────────────────────────────────────────────
+
+async function autoStart(action) {
+  const activeCLIs = getActiveCLIs();
+  const supportedActive = activeCLIs.filter((c) => AUTO_START_SUPPORTED.includes(c));
+
+  if (supportedActive.length === 0) {
+    console.log(chalk.yellow(`  ${t.autoStartNotAvailable}`));
+    return;
+  }
+
+  // No action → show status for all supported CLIs
+  if (!action) {
+    console.log(`\n  ${t.autoStartStatus}`);
+    for (const cli of supportedActive) {
+      const a = getAdapter(cli);
+      const enabled = isAutoStartEnabledFor(cli);
+      const icon = enabled ? chalk.green("●") : chalk.yellow("○");
+      const label = enabled ? chalk.green(t.autoStartOn) : chalk.yellow(t.autoStartOff);
+      console.log(`  ${icon} ${chalk.bold(a.displayName)}: ${label}`);
+    }
+    console.log(chalk.dim(`\n  ${t.autoStartUsage}`));
+    return;
+  }
+
+  // on/off → ask which CLI if multiple supported are active
+  let targetCLI;
+  if (supportedActive.length === 1) {
+    targetCLI = supportedActive[0];
+  } else {
+    const choices = supportedActive.map((c) => {
+      const a = getAdapter(c);
+      const enabled = isAutoStartEnabledFor(c);
+      const status = enabled ? chalk.green(`(${t.autoStartOn})`) : chalk.yellow(`(${t.autoStartOff})`);
+      return { name: `${a.displayName} ${status}`, value: c };
+    });
+
+    const { selected } = await inquirer.prompt([
+      {
+        type: "rawlist",
+        name: "selected",
+        message: t.autoStartSelectCLI,
+        choices,
+      },
+    ]);
+    targetCLI = selected;
+  }
+
+  const displayName = getAdapter(targetCLI).displayName;
+
+  if (action === "on") {
+    enableAutoStartFor(targetCLI);
+    console.log(chalk.green(`  ✔ ${t.autoStartEnabled} ${chalk.bold(displayName)}`));
+  } else if (action === "off") {
+    disableAutoStartFor(targetCLI);
+    console.log(chalk.green(`  ✔ ${t.autoStartDisabled} ${chalk.bold(displayName)}`));
+  }
+}
+
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 async function showHelp(lang) {
@@ -1278,6 +1559,10 @@ function main() {
       return unlink(rest[0]);
     case "status":
       return status();
+    case "cli":
+      return cliCommand(rest[0], rest[1]);
+    case "auto-start":
+      return autoStart(rest[0]);
     case "help":
     case "--help":
     case "-h":

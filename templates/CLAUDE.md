@@ -24,8 +24,11 @@ vault/
 ├── CLAUDE.md              # Estas aqui. Leer primero siempre.
 ├── projects/              # Un directorio por proyecto activo
 ├── areas/                 # Responsabilidades continuas
+│   └── INDEX.md           # Indice de areas
 ├── resources/             # Conocimiento tecnico reutilizable
+│   └── INDEX.md           # Indice de recursos
 └── daily/                 # Session logs diarios
+    └── INDEX.md           # Indice de logs diarios
 ```
 
 ---
@@ -36,13 +39,15 @@ Cada carpeta en `projects/` sigue esta estructura estandar:
 
 ```
 projects/[nombre-proyecto]/
-├── overview.md          # LEER PRIMERO al trabajar en este proyecto
+├── INDEX.md             # Punto de entrada — leer primero
+├── overview.md          # Descripcion completa del proyecto
 ├── architecture.md      # Stack, decisiones tecnicas, diagramas
 ├── conventions.md       # Reglas, estandares y convenciones de codigo
 ├── backlog.md           # Tareas pendientes priorizadas
 ├── decisions/           # ADRs (Architecture Decision Records)
 │   └── YYYY-MM-DD-titulo.md
-└── session-log.md       # Claude escribe aqui al terminar cada sesion
+├── session-log.md       # Claude escribe aqui al terminar cada sesion
+└── wiki/                # Wiki del proyecto (estado compilado, log, fuentes)
 ```
 
 ---
@@ -60,20 +65,30 @@ projects/[nombre-proyecto]/
 **Al comenzar cualquier sesion, Claude DEBE:**
 
 1. Leer este archivo (`CLAUDE.md`) completo
-2. Identificar en que proyecto(s) se va a trabajar — ver la seccion **Proyectos activos** arriba
-3. Leer el [[overview]] del proyecto relevante (seguir el link directo)
-4. Leer las ultimas **3 entradas** del [[session-log]] de ese proyecto
-5. Leer el [[backlog]] para entender prioridades actuales
-6. Confirmar al usuario: *"Lei el contexto de [proyecto]. Ultimo trabajo fue [resumen]. Continuamos con [X] o hay algo nuevo?"*
+2. Listar los proyectos registrados en la seccion **Proyectos activos** de este CLAUDE.md
+3. Preguntarle al usuario: *"Encontre estos proyectos: [lista]. Con cual trabajamos hoy?"*
+4. Cuando el usuario indique el proyecto, leer su `INDEX.md`
+5. Leer el `overview.md` completo de ese proyecto
+6. Verificar si existe `wiki/state.md` en el proyecto:
+   - Si **existe**: leer `wiki/state.md` (estado compilado — reemplaza leer el session-log)
+   - Si **no existe**: leer las ultimas **3 entradas** del `session-log.md`
+7. Leer el `backlog.md` del proyecto
+8. Leer el `conventions.md` del proyecto (si existe)
+9. **Smart Context Check** — evaluar si hay gaps evidentes (session-log >7 dias, overview vacio, architecture sin definir, backlog vacio). Si hay gaps, informar al usuario y preguntar si quiere que se revise el proyecto real. Si no, continuar.
+10. Confirmar al usuario: *"Lei el contexto de [proyecto]. Ultimo trabajo fue [resumen]. Continuamos con [X] o hay algo nuevo?"*
 
+**Nunca asumir el proyecto — siempre preguntar primero.**
+**Nunca leer archivos de un proyecto antes de que el usuario lo confirme.**
+**Nunca leer el proyecto real sin confirmacion explicita del usuario.**
 **Nunca empezar a escribir codigo sin haber hecho estos pasos.**
 
 ---
 
 ## Protocolo de cierre de sesion
 
-**Al terminar cualquier sesion de trabajo, Claude DEBE escribir en
-el [[session-log]] del proyecto:**
+**Al terminar cualquier sesion de trabajo, Claude DEBE:**
+
+1. Escribir en el `session-log.md` del proyecto:
 
 ```markdown
 ## Sesion YYYY-MM-DD HH:MM
@@ -94,10 +109,109 @@ el [[session-log]] del proyecto:**
 - [lista de archivos tocados]
 ```
 
+2. Actualizar el `backlog.md` del proyecto (ver skill: Backlog inteligente)
+3. Actualizar el `INDEX.md` del proyecto con la ultima sesion y top 3 del backlog
+4. Actualizar `wiki/state.md` si existe — reescribir con estado compilado y agregar linea al `wiki/log.md`
+5. Escribir o actualizar `daily/YYYY-MM-DD.md` (ver skill: Daily consolidado)
+
+---
+
+## Skills automaticos
+
+### ADRs automaticos
+
+Si durante cualquier sesion se toma una decision tecnica que afecte arquitectura, stack, patrones de codigo, o infraestructura — Claude debe crear automaticamente un ADR en `projects/[nombre]/decisions/YYYY-MM-DD-titulo.md` sin esperar a que el usuario lo pida.
+
+Formato del ADR:
+
+```markdown
+# YYYY-MM-DD — [Titulo de la decision]
+
+## Contexto
+[Por que surgio esta decision]
+
+## Decision
+[Que se decidio]
+
+## Alternativas consideradas
+[Que otras opciones habia]
+
+## Consecuencias
+[Que implica esta decision a futuro]
+```
+
+Despues de crear el ADR, actualizar el `INDEX.md` del proyecto con una mencion en la seccion de ultima sesion.
+
+### Captura de conocimiento en resources/
+
+Si Claude resuelve durante la sesion un problema que probablemente se repita (configurar algo en Debian, un patron de NestJS, un workaround de Dokploy, una configuracion de PostgreSQL, etc.), debe guardarlo en `resources/[categoria]/titulo.md` automaticamente.
+
+Categorias: `debian/`, `nestjs/`, `nextjs/`, `electron/`, `dokploy/`, `postgresql/`, `general/`
+
+Antes de resolver un problema tecnico generico, buscar primero en [[resources/INDEX|Resources]] si ya existe una nota relevante.
+
+### Backlog inteligente
+
+Al escribir el session-log al final de cada sesion, Claude tambien debe actualizar el `backlog.md` del proyecto:
+- Marcar como completado `[x]` lo que se hizo en la sesion
+- Agregar al backlog las tareas nuevas que surgieron
+- Reordenar por prioridad si cambio algo relevante
+
+Despues de actualizar el backlog, reflejar el top 3 actualizado en el `INDEX.md` del proyecto.
+
+### Daily consolidado
+
+Al cerrar la sesion, ademas del session-log por proyecto, Claude debe escribir o actualizar `daily/YYYY-MM-DD.md` con este formato:
+
+```markdown
+# YYYY-MM-DD
+
+## Proyectos trabajados
+- **[proyecto]:** [una linea de lo que se hizo]
+
+## Decisiones del dia
+- [decisiones relevantes tomadas]
+
+## Resumen ejecutivo
+[2-3 lineas de lo mas importante del dia]
+```
+
+Si ya existe la entrada del dia (porque hubo otra sesion antes), agregar debajo sin borrar lo anterior.
+
+### Contexto de areas/
+
+- Si el usuario pide algo relacionado con universidad, leer `areas/universidad/INDEX.md` antes de responder
+- Si el usuario pide algo relacionado con infraestructura, VPS, Dokploy, o servidores, leer `areas/infraestructura/INDEX.md` antes de responder
+
+---
+
+## Como navegar este vault
+
+**Regla fundamental:** nunca ir directo a un archivo interno. Siempre entrar por el INDEX.md correspondiente y seguir el enlace desde ahi.
+
+### Para trabajar en un proyecto:
+1. Ir al INDEX.md del proyecto (enlazado en "Proyectos activos" arriba)
+2. Decidir si profundizar → seguir enlace a `overview.md` desde el INDEX
+3. Acceder a backlog, architecture, session-log solo via los enlaces del INDEX
+
+### Para decisiones tecnicas:
+- Crear ADR automaticamente en `projects/[nombre]/decisions/`
+
+### Para problemas tecnicos genericos:
+- Buscar en [[resources/INDEX|Resources]] primero
+- Si no existe una nota relevante, guardar la solucion para futuras sesiones
+
+### Para contexto de areas:
+- Ir a [[areas/INDEX|Areas]] y seguir el enlace al area correspondiente
+
+### Para historial del dia:
+- Ir a [[daily/INDEX|Daily]] y buscar la entrada del dia
+
 ---
 
 ## Preferencias (personalizar)
 
+<!-- MEMPUNK:PREFS:START -->
 ### Stack preferido
 - **Backend:**
 - **Frontend:**
@@ -111,6 +225,7 @@ el [[session-log]] del proyecto:**
 - Respuestas directas y concisas
 - Preguntar antes de hacer cambios destructivos o irreversibles
 - Confirmar entendimiento del contexto al inicio de sesion
+<!-- MEMPUNK:PREFS:END -->
 
 ---
 
@@ -121,3 +236,5 @@ el [[session-log]] del proyecto:**
 3. **Nunca saltarse el protocolo de inicio de sesion**
 4. **Nunca asumir que proyecto es relevante** — preguntar si hay ambiguedad
 5. **Siempre escribir el session-log al terminar**
+6. **Siempre actualizar backlog e INDEX.md al cerrar sesion**
+7. **Siempre crear ADR cuando se tome una decision tecnica relevante**
