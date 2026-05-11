@@ -76,7 +76,10 @@ When the user types "/mempunk" or asks to load vault context:
 3. Read the vault's CLAUDE.md and list the projects in "Proyectos activos".
 4. Ask the user which project to work on — never assume.
 5. Read the project's INDEX.md, then overview.md.
-6. Read the last 3 entries of session-log.md and the backlog.md.
+6. Check if wiki/state.md exists in the project:
+   - If it EXISTS: read wiki/state.md (compiled project state — replaces reading session-log entries)
+   - If it does NOT exist: read the last 3 entries of session-log.md
+   Then read backlog.md.
 7. Read conventions.md (if it exists).
 8. Smart Context Check: if session-log is >7 days old, overview is empty, architecture is undefined, or backlog is empty — inform the user and ask if they want you to read the real project repo.
 9. Confirm context with the user before proceeding.
@@ -91,9 +94,10 @@ When the user types "/session-end" or says they're done:
    - What was done, decisions made, current state, next steps, modified files.
 2. Update backlog.md: mark completed tasks [x], add new ones, reorder.
 3. Update the project's INDEX.md: latest session summary and top 3 backlog.
-4. Write or update daily/YYYY-MM-DD.md with a consolidated summary.
-5. If conventions changed, note them in "Decisions made".
-6. Confirm what was logged.
+4. Update wiki state (only if wiki/ exists): rewrite wiki/state.md with compiled project state and append one line to wiki/log.md.
+5. Write or update daily/YYYY-MM-DD.md with a consolidated summary.
+6. If conventions changed, note them in "Decisions made".
+7. Confirm what was logged.
 ${VAULT_END}`;
 }
 

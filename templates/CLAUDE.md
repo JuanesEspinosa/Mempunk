@@ -46,7 +46,8 @@ projects/[nombre-proyecto]/
 ├── backlog.md           # Tareas pendientes priorizadas
 ├── decisions/           # ADRs (Architecture Decision Records)
 │   └── YYYY-MM-DD-titulo.md
-└── session-log.md       # Claude escribe aqui al terminar cada sesion
+├── session-log.md       # Claude escribe aqui al terminar cada sesion
+└── wiki/                # Wiki del proyecto (estado compilado, log, fuentes)
 ```
 
 ---
@@ -68,7 +69,9 @@ projects/[nombre-proyecto]/
 3. Preguntarle al usuario: *"Encontre estos proyectos: [lista]. Con cual trabajamos hoy?"*
 4. Cuando el usuario indique el proyecto, leer su `INDEX.md`
 5. Leer el `overview.md` completo de ese proyecto
-6. Leer las ultimas **3 entradas** del `session-log.md` de ese proyecto
+6. Verificar si existe `wiki/state.md` en el proyecto:
+   - Si **existe**: leer `wiki/state.md` (estado compilado — reemplaza leer el session-log)
+   - Si **no existe**: leer las ultimas **3 entradas** del `session-log.md`
 7. Leer el `backlog.md` del proyecto
 8. Leer el `conventions.md` del proyecto (si existe)
 9. **Smart Context Check** — evaluar si hay gaps evidentes (session-log >7 dias, overview vacio, architecture sin definir, backlog vacio). Si hay gaps, informar al usuario y preguntar si quiere que se revise el proyecto real. Si no, continuar.
@@ -108,7 +111,8 @@ projects/[nombre-proyecto]/
 
 2. Actualizar el `backlog.md` del proyecto (ver skill: Backlog inteligente)
 3. Actualizar el `INDEX.md` del proyecto con la ultima sesion y top 3 del backlog
-4. Escribir o actualizar `daily/YYYY-MM-DD.md` (ver skill: Daily consolidado)
+4. Actualizar `wiki/state.md` si existe — reescribir con estado compilado y agregar linea al `wiki/log.md`
+5. Escribir o actualizar `daily/YYYY-MM-DD.md` (ver skill: Daily consolidado)
 
 ---
 
@@ -207,6 +211,7 @@ Si ya existe la entrada del dia (porque hubo otra sesion antes), agregar debajo 
 
 ## Preferencias (personalizar)
 
+<!-- MEMPUNK:PREFS:START -->
 ### Stack preferido
 - **Backend:**
 - **Frontend:**
@@ -220,6 +225,7 @@ Si ya existe la entrada del dia (porque hubo otra sesion antes), agregar debajo 
 - Respuestas directas y concisas
 - Preguntar antes de hacer cambios destructivos o irreversibles
 - Confirmar entendimiento del contexto al inicio de sesion
+<!-- MEMPUNK:PREFS:END -->
 
 ---
 

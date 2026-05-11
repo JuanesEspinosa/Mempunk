@@ -124,7 +124,8 @@ vault/
 │       ├── conventions.md # Regras do projeto, padroes de codigo
 │       ├── backlog.md     # Tarefas priorizadas (- [ ] / - [x])
 │       ├── session-log.md # O que Claude fez em cada sessao
-│       └── decisions/     # Architecture Decision Records
+│       ├── decisions/     # Architecture Decision Records
+│       └── wiki/          # Wiki do projeto (estado compilado, log, fontes)
 ├── areas/                 # Responsabilidades continuas (nao projetos)
 │   └── INDEX.md           # Indice de areas
 ├── resources/             # Conhecimento tecnico reutilizavel
@@ -137,7 +138,7 @@ vault/
 
 `mempunk project <nome>` cria essa estrutura e registra o projeto no `CLAUDE.md` com um `[[wikilink]]` direto ao seu `INDEX.md`.
 
-`mempunk sync` adiciona arquivos de template faltantes (como `INDEX.md`, `conventions.md`) a projetos existentes sem sobrescrever.
+`mempunk sync` adiciona arquivos de template faltantes (como `INDEX.md`, `conventions.md`, `wiki/`) a projetos existentes sem sobrescrever.
 
 ## CLIs Suportados
 
@@ -165,6 +166,7 @@ O vault em si (arquivos markdown em `projects/`, `daily/`, etc.) e o mesmo indep
 | Daily consolidado | ✔ | ✔ | ✔ |
 | Captura de conhecimento | ✔ | ✔ | ✔ |
 | `sync` / `doctor` | ✔ | ✔ | ✔ |
+| Wiki (state.md) | ✔ | ✔ | ✔ |
 | Auto-start | ✔ | ✘ | ✔ |
 | Multi-CLI simultaneo | ✔ | ✔ | ✔ |
 
@@ -181,7 +183,7 @@ Instalado globalmente durante o setup no caminho de skills que seu CLI usa (ver 
 3. Le o `CLAUDE.md` do vault e lista os projetos disponiveis
 4. Pergunta em qual projeto voce quer trabalhar — nunca assume
 5. Le o `INDEX.md`, `overview.md` e `conventions.md` do projeto
-6. Le os ultimos 3 session logs e o backlog
+6. Le o estado do projeto — se `wiki/state.md` existir, le isso (estado compilado); caso contrario, le os ultimos 3 session logs
 7. **Smart Context Check** — detecta gaps (session-log antigo, overview vazio, arquitetura sem definir, backlog vazio) e oferece revisar o repo real se necessario
 8. Confirma o contexto antes de continuar
 
@@ -192,9 +194,10 @@ Instalado junto ao `/mempunk`. Ao digitar `/session-end`, o assistente:
 1. Escreve uma entrada estruturada no `session-log.md` do projeto
 2. **Atualiza o backlog** — marca tarefas completadas, adiciona novas, reordena por prioridade
 3. **Atualiza INDEX.md** — reflete a ultima sessao e top 3 do backlog
-4. **Escreve log diario** — cria ou atualiza `daily/YYYY-MM-DD.md` com resumo consolidado
-5. Nota convencoes que foram estabelecidas ou mudaram
-6. Confirma o que foi registrado
+4. **Atualiza estado do wiki** — se `wiki/` existir, reescreve `wiki/state.md` com sintese compilada e adiciona ao `wiki/log.md`
+5. **Escreve log diario** — cria ou atualiza `daily/YYYY-MM-DD.md` com resumo consolidado
+6. Nota convencoes que foram estabelecidas ou mudaram
+7. Confirma o que foi registrado
 
 A proxima sessao retoma exatamente de onde esta terminou.
 

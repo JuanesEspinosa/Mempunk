@@ -636,8 +636,9 @@ async function createProject(projectName) {
     spinner: "dots",
   }).start();
 
-  // Create project directory and decisions subdirectory
+  // Create project directory structure
   fs.mkdirSync(path.join(projectDir, "decisions"), { recursive: true });
+  fs.mkdirSync(path.join(projectDir, "wiki", "sources"), { recursive: true });
 
   // Copy and process templates
   const projectTemplateDir = path.join(getTemplatesDir(), "project");
@@ -657,6 +658,16 @@ async function createProject(projectName) {
     }
   }
 
+  // Copy wiki templates
+  for (const file of ["state.md", "index.md", "log.md"]) {
+    const templatePath = path.join(projectTemplateDir, "wiki", file);
+    if (fs.existsSync(templatePath)) {
+      let content = fs.readFileSync(templatePath, "utf-8");
+      content = content.replace(/\{PROJECT_NAME\}/g, displayName);
+      fs.writeFileSync(path.join(projectDir, "wiki", file), content);
+    }
+  }
+
   // Register project in CLAUDE.md
   registerProjectInClaude(vaultPath, projectName, displayName);
 
@@ -671,8 +682,60 @@ async function createProject(projectName) {
   console.log(`  ├── ${chalk.yellow("conventions.md")}`);
   console.log(`  ├── ${chalk.yellow("backlog.md")}`);
   console.log(`  ├── ${chalk.yellow("session-log.md")}`);
-  console.log(`  └── ${chalk.dim("decisions/")}`);
+  console.log(`  ├── ${chalk.dim("decisions/")}`);
+  console.log(`  └── ${chalk.dim("wiki/")}`);
   console.log();
+}
+
+function extractBlock(content, startMarker, endMarker) {
+  if (!content.includes(startMarker) || !content.includes(endMarker)) return null;
+  const startIdx = content.indexOf(startMarker) + startMarker.length;
+  const endIdx = content.indexOf(endMarker);
+  return content.substring(startIdx, endIdx);
+}
+
+function injectBlock(content, startMarker, endMarker, block) {
+  if (!content.includes(startMarker) || !content.includes(endMarker)) return content;
+  const startIdx = content.indexOf(startMarker) + startMarker.length;
+  const endIdx = content.indexOf(endMarker);
+  return content.substring(0, startIdx) + block + content.substring(endIdx);
+}
+
+function syncClaudeMd(vaultPath) {
+  const claudePath = path.join(vaultPath, "CLAUDE.md");
+  if (!fs.existsSync(claudePath)) return false;
+  const templatePath = path.join(getTemplatesDir(), "CLAUDE.md");
+  if (!fs.existsSync(templatePath)) return false;
+
+  const existing = fs.readFileSync(claudePath, "utf-8");
+  const template = fs.readFileSync(templatePath, "utf-8");
+
+  const PREFS_START = "<!-- MEMPUNK:PREFS:START -->";
+  const PREFS_END = "<!-- MEMPUNK:PREFS:END -->";
+  const PROJECTS_START = "<!-- MEMPUNK:PROJECTS:START -->";
+  const PROJECTS_END = "<!-- MEMPUNK:PROJECTS:END -->";
+
+  const projectsBlock = extractBlock(existing, PROJECTS_START, PROJECTS_END);
+
+  let prefsBlock = extractBlock(existing, PREFS_START, PREFS_END);
+  if (prefsBlock === null) {
+    const prefHeading = "## Preferencias";
+    const headingIdx = existing.indexOf(prefHeading);
+    if (headingIdx !== -1) {
+      const afterHeading = existing.indexOf("\n", headingIdx) + 1;
+      const nextSep = existing.indexOf("\n---\n", afterHeading);
+      const end = nextSep !== -1 ? nextSep : existing.length;
+      prefsBlock = "\n" + existing.substring(afterHeading, end) + "\n";
+    }
+  }
+
+  let updated = template;
+  if (projectsBlock !== null) updated = injectBlock(updated, PROJECTS_START, PROJECTS_END, projectsBlock);
+  if (prefsBlock !== null) updated = injectBlock(updated, PREFS_START, PREFS_END, prefsBlock);
+
+  if (updated === existing) return false;
+  fs.writeFileSync(claudePath, updated);
+  return true;
 }
 
 function registerProjectInClaude(vaultPath, projectName, displayName) {
@@ -937,6 +1000,10 @@ async function doctor() {
         missingFiles.push("decisions/");
       }
 
+      if (!fs.existsSync(path.join(projectDir, "wiki"))) {
+        missingFiles.push("wiki/");
+      }
+
       if (missingFiles.length > 0) {
         const displayName = project.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
         console.log(`  ${chalk.yellow("!")} ${chalk.bold(displayName)}: ${t.doctorMissingFiles} ${chalk.dim(missingFiles.join(", "))}`);
@@ -1041,6 +1108,58 @@ async function syncVault() {
       missing.push("decisions/");
     }
 
+    // Ensure wiki/ directory and templates exist
+    const wikiDir = path.join(projectDir, "wiki");
+    const wikiTemplateFiles = ["state.md", "index.md", "log.md"];
+    if (!fs.existsSync(wikiDir)) {
+      fs.mkdirSync(path.join(wikiDir, "sources"), { recursive: true });
+      for (const file of wikiTemplateFiles) {
+        const templatePath = path.join(projectTemplateDir, "wiki", file);
+        if (fs.existsSync(templatePath)) {
+          let content = fs.readFileSync(templatePath, "utf-8");
+          content = content.replace(/\{PROJECT_NAME\}/g, displayName);
+          fs.writeFileSync(path.join(wikiDir, file), content);
+        }
+      }
+      missing.push("wiki/");
+    } else {
+      // wiki/ exists — fill in any missing template files
+      for (const file of wikiTemplateFiles) {
+        const filePath = path.join(wikiDir, file);
+        if (!fs.existsSync(filePath)) {
+          const templatePath = path.join(projectTemplateDir, "wiki", file);
+          if (fs.existsSync(templatePath)) {
+            let content = fs.readFileSync(templatePath, "utf-8");
+            content = content.replace(/\{PROJECT_NAME\}/g, displayName);
+            fs.writeFileSync(filePath, content);
+            missing.push(`wiki/${file}`);
+          }
+        }
+      }
+      if (!fs.existsSync(path.join(wikiDir, "sources"))) {
+        fs.mkdirSync(path.join(wikiDir, "sources"), { recursive: true });
+        missing.push("wiki/sources/");
+      }
+    }
+
+    // Add wiki link to INDEX.md if missing
+    const indexPath = path.join(projectDir, "INDEX.md");
+    if (fs.existsSync(indexPath)) {
+      let indexContent = fs.readFileSync(indexPath, "utf-8");
+      if (!indexContent.includes("wiki/index.md")) {
+        if (indexContent.includes("- [Session log](session-log.md)")) {
+          indexContent = indexContent.replace(
+            "- [Session log](session-log.md)",
+            "- [Session log](session-log.md)\n- [Wiki del proyecto](wiki/index.md)"
+          );
+        } else {
+          indexContent = indexContent.trimEnd() + "\n- [Wiki del proyecto](wiki/index.md)\n";
+        }
+        fs.writeFileSync(indexPath, indexContent);
+        missing.push("INDEX.md ← wiki link");
+      }
+    }
+
     if (missing.length > 0) {
       console.log(`  ${chalk.green("+")} ${chalk.bold(displayName)}`);
       for (const file of missing) {
@@ -1050,6 +1169,13 @@ async function syncVault() {
     } else {
       console.log(`  ${chalk.dim("✔")} ${chalk.dim(displayName)} ${chalk.dim(`(${t.syncUpToDate})`)}`);
     }
+  }
+
+  // Sync CLAUDE.md protocol sections while preserving user data
+  const claudeUpdated = syncClaudeMd(vaultPath);
+  if (claudeUpdated) {
+    console.log(`  ${chalk.green("+")} ${chalk.bold("CLAUDE.md")} ${chalk.dim("(protocol updated)")}`);
+    totalCreated++;
   }
 
   console.log();
