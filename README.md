@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/mempunk)](https://www.npmjs.com/package/mempunk)
 [![license](https://img.shields.io/npm/l/mempunk)](LICENSE)
 
-Persistent dev brain for AI coding CLIs — a markdown vault that survives between sessions. Works with **Claude Code**, **opencode**, and **gemini-cli**.
+Persistent dev brain for AI coding CLIs — a knowledge vault that compiles and accumulates context across sessions, not just logs it. Works with **Claude Code**, **opencode**, and **gemini-cli**.
 
 ## The Problem
 
@@ -20,16 +20,19 @@ AI coding CLIs have no memory between sessions. Every time you start a new conve
 
 You end up repeating context, re-explaining decisions, and losing momentum. The longer a project runs, the worse it gets.
 
+But there's a deeper issue: even if a CLI *did* remember everything, raw history is inefficient context. Reading 20 session logs to understand where a project stands is nearly as slow as starting from scratch. What you need isn't a log — it's a compiled state that gets more accurate over time, not a pile of entries that keeps growing.
+
 On top of that, if you switch between different AI coding CLIs — Claude Code for some projects, opencode or gemini-cli for others — each tool lives in its own silo. Your context is fragmented across tools.
 
 ## The Solution
 
-Mempunk is a structured markdown vault that acts as your AI's persistent memory. It works in two moments:
+Mempunk gives your AI a structured vault that acts as its persistent memory — and keeps it compiled, not just stored.
 
-- **Session start** (`/mempunk`): the assistant reads the vault, sees your projects, loads the relevant overview, conventions, the last session logs, and the backlog. It picks up where you left off.
-- **Session end** (`/session-end`): the assistant writes what it did, what decisions were made, what's left, and which files were touched. The next session starts with full context.
+- **Session start** (`/mempunk`): the assistant loads the compiled project state from `wiki/state.md` if it exists, or the last session logs otherwise. No re-explaining. No re-deriving. It picks up where you left off.
+- **Session end** (`/session-end`): the assistant writes the session log, updates the backlog, and rewrites the compiled state — a fresh synthesis of everything that's happened so far. The next session starts with a dense, accurate snapshot instead of raw history.
+- **The vault** (always): each project accumulates a `wiki/` — a knowledge base the LLM owns and maintains. Every session makes it more accurate. Every source you add makes it richer.
 
-The vault is just markdown files organized by project. You manage it with a CLI. Your AI assistant navigates it with slash commands. It also works as an Obsidian vault, so you can browse and search everything visually.
+The vault is just markdown files organized by project. You manage it with a CLI. Your AI navigates it with slash commands. It also works as an Obsidian vault, so you can browse and search everything visually.
 
 No database. No server. No API keys. Just files.
 
@@ -138,7 +141,18 @@ vault/
 
 `mempunk project <name>` scaffolds this structure and registers the project in `CLAUDE.md` with a direct `[[wikilink]]` to its `INDEX.md`.
 
-`mempunk sync` adds any missing template files (like `INDEX.md`, `conventions.md`, `wiki/`) to existing projects without overwriting.
+`mempunk sync` adds any missing template files (like `INDEX.md`, `conventions.md`, `wiki/`) to existing projects without overwriting. It also updates `CLAUDE.md` with the latest protocol while preserving your projects list and configured preferences.
+
+## Project Wiki
+
+Each project includes a `wiki/` directory — a lightweight knowledge base the LLM builds and maintains automatically.
+
+- **`wiki/state.md`** — the compiled state of the project. Rewritten by the LLM at the end of every session. It reflects *what's true now* — the current architecture, active decisions, blockers, and next steps — not what happened in order. Reading one compiled file is faster and more accurate than reading N session logs.
+- **`wiki/sources/`** — drop documents here (specs, articles, transcripts, API docs) and ask the LLM to ingest them. The LLM reads each source and integrates the relevant information into the wiki.
+- **`wiki/index.md`** — catalog of all wiki pages with one-line descriptions.
+- **`wiki/log.md`** — append-only record of every session and ingest in `## [YYYY-MM-DD] type | description` format, parseable with standard tools.
+
+The key property: the wiki *compounds*. Every session makes `wiki/state.md` more accurate. Every source you add enriches the context. You never write it yourself — the LLM does all the maintenance.
 
 ## Supported CLIs
 
@@ -212,12 +226,14 @@ The vault's `CLAUDE.md` includes rules that the assistant follows automatically 
 ## Vault Maintenance
 
 ```bash
-# Add missing files to existing projects after updating mempunk
+# Add missing files to existing projects and sync CLAUDE.md protocol
 mempunk sync
 
 # Check vault integrity — ghost projects, missing files, broken registrations
 mempunk doctor
 ```
+
+`mempunk sync` also updates the protocol sections in `CLAUDE.md` with the latest version while preserving your projects list and configured preferences.
 
 ## Multiple Vaults
 
@@ -279,6 +295,20 @@ This installs a `SessionStart` hook in the CLI's `settings.json`. When enabled, 
 ## Obsidian Compatible
 
 All files use `[[wikilinks]]`. Open the vault in Obsidian and the graph view shows connections between `CLAUDE.md`, project overviews, backlogs, architecture docs, conventions, and session logs.
+
+## How it Compares
+
+| | Mempunk | RAG / file uploads | Manual notes |
+|---|---|---|---|
+| Persists between sessions | ✔ | ✘ | ✔ |
+| Knowledge accumulates | ✔ | ✘ | Depends |
+| LLM does the maintenance | ✔ | ✔ | ✘ |
+| Works offline, no infrastructure | ✔ | ✘ | ✔ |
+| Cross-CLI | ✔ | ✘ | ✔ |
+
+**vs RAG / file uploads:** Tools like NotebookLM or ChatGPT file uploads retrieve from raw documents at query time. Nothing accumulates. Ask the same question twice and the LLM does the same work twice. Mempunk compiles context incrementally — each session produces a richer, more accurate snapshot.
+
+**vs manual notes:** A wiki you write yourself works — until the maintenance burden kills it. Updating cross-references across dozens of pages is tedious. People abandon wikis because the cost of maintenance grows faster than the value. Mempunk delegates all of that to the LLM.
 
 ## Languages
 
