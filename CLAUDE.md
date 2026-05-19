@@ -1,178 +1,128 @@
-# CLAUDE.md — Dev Brain (Vault Global)
+# Mempunk
 
-> Este archivo es el punto de entrada para Claude Code en este vault.
-> Leelo completo antes de hacer cualquier accion. Contiene la arquitectura,
-> las reglas de navegacion, y los protocolos de cada proyecto.
+## Qué es Mempunk
 
----
-
-## Que es este vault
-
-Este vault es el cerebro centralizado de todos los proyectos de desarrollo activos.
-No es un repo de codigo — es la memoria persistente entre sesiones de Claude Code.
-
-**Principio fundamental:** Claude Code olvida todo entre sesiones. Este vault es la
-continuidad. Al inicio de cada sesion, Claude lee el contexto relevante aqui.
-Al final, escribe lo que hizo.
+CLI tool que da memoria persistente entre sesiones de Claude Code via SQLite + markdown.
 
 ---
 
 ## Estructura del vault
 
 ```
-Mempunk/
-│
-├── CLAUDE.md                        ← Estas aqui. Leer primero siempre.
-├── .claude/
-│   └── commands/                    ← Slash commands reutilizables
-│
-├── projects/                        ← Un directorio por proyecto activo
-│
-├── areas/                           ← Responsabilidades continuas (no proyectos)
-│   ├── universidad/
-│   └── infraestructura/
-│
-├── resources/                       ← Conocimiento tecnico reutilizable
-│
-└── daily/                           ← Session logs diarios (Claude escribe aqui)
-    └── YYYY-MM-DD.md
+~/Dev-Brain/
+├── projects/
+│   └── <id>/
+│       ├── INDEX.md          → metadatos del proyecto (nombre, fecha, status)
+│       ├── decisions/        → ADRs del proyecto
+│       └── skills/           → stack, patrones y convenciones del proyecto
+├── areas/                    → contexto de áreas de trabajo (no proyectos)
+├── resources/                → links y referencias capturadas
+├── daily/                    → logs diarios narrativos
+└── .mempunk/
+    └── mempunk.db            → base de datos SQLite, no tocar manualmente
 ```
 
 ---
 
-## Estructura interna de cada proyecto
-
-Cada carpeta en `projects/` sigue esta estructura estandar:
+## Comandos disponibles
 
 ```
-projects/[nombre-proyecto]/
-│
-├── overview.md          ← LEER PRIMERO al trabajar en este proyecto
-├── architecture.md      ← Stack, decisiones tecnicas, diagramas
-├── backlog.md           ← Tareas pendientes priorizadas
-├── decisions/           ← ADRs (Architecture Decision Records)
-│   └── YYYY-MM-DD-titulo.md
-└── session-log.md       ← Claude escribe aqui al terminar cada sesion
+mempunk init                                         → crea ~/Dev-Brain/ con la estructura base
+mempunk project add <id> <name>                      → registra un proyecto nuevo
+mempunk project list                                 → lista todos los proyectos
+mempunk backlog add <project_id> "<title>"           → agrega tarea al backlog
+mempunk backlog list <project_id>                    → lista tareas del proyecto
+mempunk backlog list <project_id> --status <valor>   → lista tareas filtradas por status
+mempunk backlog update <id> --status <valor>         → actualiza status de una tarea
+mempunk backlog update <id> --priority <valor>       → actualiza prioridad de una tarea
+mempunk decision add <project_id> "<title>"          → crea una decisión (ADR) con archivo markdown
+mempunk decision add <project_id> "<title>" --tags "t1,t2"  → igual con etiquetas
+mempunk decision list <project_id>                   → lista decisiones del proyecto
+mempunk skill add <project_id> <name>                → crea un skill del proyecto
+mempunk skill list <project_id>                      → lista skills del proyecto
+mempunk skill update <id> --file <path>              → sobreescribe el markdown de un skill
+mempunk resource add <project_id> "<title>" --url <url>  → captura un resource externo con url y contenido
+mempunk resource add <project_id> "<title>" --url <url> --content "<texto>"  → igual con contenido
+mempunk resource list <project_id>                   → lista resources del proyecto
+mempunk daily log <project_id> "<content>"           → agrega una entrada al log diario
+mempunk daily list <project_id>                      → lista los logs diarios del proyecto
+mempunk session log <project_id> "<summary>"         → registra sesión de trabajo
+mempunk session log <project_id> "<summary>" --files "p1,p2"  → igual con archivos tocados
+mempunk session last <project_id>                    → muestra la última sesión registrada
+mempunk search "<query>"                             → búsqueda full-text en el vault
+mempunk search "<query>" --project <project_id>      → búsqueda limitada a un proyecto
+mempunk sync                                         → verifica consistencia vault ↔ BD
+mempunk sync --project <project_id>                  → sync limitado a un proyecto
+mempunk hooks install                                → instala hooks en .claude/hooks/ del proyecto actual
+mempunk hooks install --global                       → instala hooks en ~/.claude/hooks/ (aplica a todos los proyectos)
+mempunk hooks install --check                        → verifica si los hooks de Mempunk están activos
+mempunk hooks uninstall                              → elimina los hooks de Mempunk (local o --global)
 ```
 
 ---
 
-## Protocolo de inicio de sesion
+## Protocolo de inicio de sesión
 
-**Al comenzar cualquier sesion, Claude DEBE:**
+Ejecuta estos pasos en orden antes de hacer cualquier otra cosa:
 
-1. Leer este archivo (`CLAUDE.md`) completo
-2. Identificar en que proyecto(s) se va a trabajar
-3. Leer el `overview.md` del proyecto relevante
-4. Leer las ultimas **3 entradas** del `session-log.md` de ese proyecto
-5. Leer el `backlog.md` para entender prioridades actuales
-6. Confirmar al usuario: *"Lei el contexto de [proyecto]. Ultimo trabajo fue [resumen]. Continuamos con [X] o hay algo nuevo?"*
-
-**Nunca empezar a escribir codigo sin haber hecho estos pasos.**
+1. `mempunk session last <project_id>` → saber qué hizo la sesión anterior
+2. `mempunk skill list <project_id>` → ver qué skills existen y cargar los relevantes leyendo sus `file_path`
+3. `mempunk backlog list <project_id> --status pending` → ver tareas pendientes
+4. **NO** cargar `INDEX.md` completo — usar `mempunk search` si necesitas encontrar algo específico
+5. Si no hay sesión anterior (proyecto nuevo), ejecutar `mempunk sync` para verificar estado inicial
 
 ---
 
-## Protocolo de cierre de sesion
+## Protocolo de saves incrementales
 
-**Al terminar cualquier sesion de trabajo, Claude DEBE escribir en
-`projects/[proyecto]/session-log.md`:**
+Guarda durante la sesión sin esperar al cierre en estos eventos:
 
-```markdown
-## Sesion YYYY-MM-DD HH:MM
+- **Decisión arquitectural tomada** → `mempunk decision add` inmediatamente
+- **Bug importante resuelto** → `mempunk session log` con summary del fix
+- **Tarea completada o iniciada** → `mempunk backlog update` inmediatamente
+- **Skill del proyecto modificado** → `mempunk skill update` inmediatamente
+- **Link o referencia relevante capturada** → `mempunk resource add` inmediatamente
+- **Bloque de trabajo importante terminado** → `mempunk daily log` con resumen del bloque
 
-### Que se hizo
-- [lista concisa de cambios realizados]
+Esto es obligatorio, no opcional. Si la sesión se interrumpe, el contexto importante ya debe estar persistido.
 
-### Decisiones tomadas
-- [decisiones arquitecturales o tecnicas relevantes]
+---
 
-### Estado actual
-- [estado en que quedo el codigo/feature]
+## Protocolo de cierre de sesión
 
-### Proximos pasos
-- [que falta, en orden de prioridad]
+Ejecuta en orden al terminar:
 
-### Archivos modificados
-- [lista de archivos tocados]
+1. `mempunk backlog update` por cada tarea que cambió de estado en la sesión
+2. `mempunk decision add` por cada decisión importante no guardada durante la sesión
+3. `mempunk session log` con summary de lo que se hizo y los archivos tocados
+
+El session-end es una compilación de lo que ya se guardó, no el único momento de guardado.
+
+---
+
+## Cuándo usar mempunk sync
+
+Solo cuando sospeches inconsistencia entre archivos en disco y la base de datos. No ejecutar en cada sesión.
+
+---
+
+## Vault version
+
+Mempunk versiona el vault independientemente del CLI.
+
+Verificar versión:
+
+```
+mempunk vault version
 ```
 
-Este log es critico. Sin el, la proxima sesion empieza desde cero.
+Actualizar vault después de instalar una nueva versión de Mempunk:
 
----
+```
+mempunk vault upgrade
+```
 
-## Proyectos activos
+Versión actual del vault: 2
+Versión mínima requerida por este CLI: 2
 
-<!-- MEMPUNK:PROJECTS:START -->
-*Ninguno registrado aun. Usa `mempunk project <nombre>` para agregar.*
-<!-- MEMPUNK:PROJECTS:END -->
-
----
-
-## Como navegar este vault
-
-### Cuando el usuario pide trabajar en un proyecto:
-1. Ir a `projects/[nombre]/overview.md`
-2. Si no existe el overview, preguntar al usuario y crearlo
-3. Nunca asumir contexto — siempre leer primero
-
-### Cuando el usuario pregunta algo tecnico generico:
-- Buscar en `resources/` si hay una nota relevante
-- Si no existe, considerar crearla para futuras sesiones
-
-### Cuando hay dudas sobre una decision pasada:
-- Revisar `projects/[nombre]/decisions/`
-- Si no hay un ADR, preguntar al usuario antes de asumir
-
-### Cuando se trabaja en algo de universidad:
-- Contexto en `areas/universidad/`
-
----
-
-## Preferencias y configuracion del usuario
-
-### Stack preferido
-- **Backend:** NestJS (TypeScript)
-- **Frontend:** Next.js / React
-- **Desktop:** Electron
-- **Base de datos:** PostgreSQL
-- **Deploy:** Dokploy sobre VPS
-- **OS:** Debian Trixie (hostname: `Juanes`, user: `juanes`)
-- **IDE:** Cursor + Claude Code
-
-### Estilo de codigo
-- TypeScript estricto
-- Modular, con separacion clara de responsabilidades
-- Comentarios en espanol para logica de negocio
-- Nombres de variables/funciones en ingles
-
-### Comunicacion
-- Respuestas directas y concisas
-- Si hay varias opciones, presentar maximo 3 con trade-offs claros
-- Preguntar antes de hacer cambios destructivos o irreversibles
-- Confirmar entendimiento del contexto al inicio de sesion
-
----
-
-## Como crear un nuevo proyecto
-
-Cuando se empiece a trabajar en un proyecto nuevo, Claude debe:
-
-1. Crear la carpeta `projects/[nombre]/`
-2. Crear `overview.md` con la plantilla estandar
-3. Crear `backlog.md` vacio
-4. Crear `session-log.md` vacio
-5. Agregar el proyecto a la seccion "Proyectos activos" de este `CLAUDE.md`
-
----
-
-## Reglas que Claude NO debe romper
-
-1. **Nunca modificar codigo de produccion sin confirmacion explicita del usuario**
-2. **Nunca almacenar credenciales, API keys, o contrasenas en el vault**
-3. **Nunca saltarse el protocolo de inicio de sesion** — aunque el usuario pida ir directo al codigo
-4. **Nunca asumir que proyecto es relevante** — preguntar si hay ambiguedad
-5. **Siempre escribir el session-log al terminar** — aunque el usuario no lo pida
-
----
-
-*Vault inicializado: ver `daily/` para historial de sesiones.*
+Si el vault está desactualizado, algunos comandos pueden comportarse de forma inesperada. Ejecuta `mempunk vault upgrade` antes de continuar.
