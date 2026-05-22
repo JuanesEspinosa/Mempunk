@@ -24,6 +24,9 @@
     "ai-context"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/JuanesEspinosa/Mempunk.git"

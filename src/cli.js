@@ -3,6 +3,7 @@
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -90,6 +91,10 @@ const { values: opts, positionals } = parseArgs({
     content:  { type: 'string' },   // resource add, daily log
     global:   { type: 'boolean' },  // hooks install/uninstall
     check:    { type: 'boolean' },  // hooks install --check
+    yes:      { type: 'boolean' },  // remove --yes
+    v:        { type: 'boolean' },  // -v
+    version:  { type: 'boolean' },  // --version
+    cli:      { type: 'string'  },  // link/unlink --cli <name>
   },
   allowPositionals: true,
   strict: false, // ignorar opciones no declaradas sin lanzar error
@@ -578,9 +583,503 @@ function cmdHooksUninstall() {
   }
 }
 
+// ── Helpers — archivos de config ─────────────────────────────────────────────
+
+const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
+const MEMPUNK_HOOK_MARKER  = 'mempunk-auto-start';
+const MEMPUNK_HOOK_PROMPT  =
+  'The user has mempunk auto-start enabled. Run the /mempunk slash command now to load the vault context.';
+
+function readJsonFile(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return {}; }
+}
+
+function writeJsonFile(filePath, data) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
+}
+
+// ── Definiciones de CLI ───────────────────────────────────────────────────────
+
+const CLAUDE_CONFIG_PATH   = path.join(os.homedir(), '.claude.json');
+const GEMINI_CONFIG_PATH   = path.join(os.homedir(), '.gemini', 'settings.json');
+const OPENCODE_AGENTS_PATH = path.join(os.homedir(), '.config', 'opencode', 'AGENTS.md');
+
+// Markers para el bloque de opencode en AGENTS.md
+const OC_VAULT_START = '<!-- MEMPUNK:VAULTS:START -->';
+const OC_VAULT_END   = '<!-- MEMPUNK:VAULTS:END -->';
+const OC_PATHS_END   = '<!-- MEMPUNK:PATHS:END -->';
+
+function parseOpencodeVaults(content) {
+  const si = content.indexOf(OC_VAULT_START);
+  const ei = content.indexOf(OC_VAULT_END);
+  if (si === -1 || ei === -1 || ei < si) return [];
+  const pi = content.indexOf(OC_PATHS_END);
+  const boundary = pi !== -1 && pi < ei ? pi : ei;
+  return content.substring(si + OC_VAULT_START.length, boundary)
+    .split('\n').map(l => l.trim()).filter(l => l.startsWith('- '))
+    .map(l => l.slice(2).trim()).filter(Boolean);
+}
+
+function renderOpencodeBlock(vaults) {
+  const lines = vaults.map(v => `- ${v}`).join('\n');
+  return `${OC_VAULT_START}
+## Mempunk — persistent dev brain
+
+Vaults:
+
+${lines}
+${OC_PATHS_END}
+
+### /mempunk — Session start protocol
+
+When the user types "/mempunk" or asks to load vault context:
+
+1. For each vault path above, check if it contains a CLAUDE.md file.
+2. If only ONE vault: use it. If MULTIPLE: ask the user which one.
+3. Read the vault's CLAUDE.md and list the projects in "Proyectos activos".
+4. Ask the user which project to work on — never assume.
+5. Read the project's INDEX.md, then overview.md.
+6. Check if wiki/state.md exists: if yes read it; if no read last 3 entries of session-log.md. Then read backlog.md.
+7. Confirm context with the user before proceeding.
+
+Never read project files before the user confirms which project.
+
+### /session-end — Session close protocol
+
+When the user types "/session-end" or says they're done:
+
+1. Write a structured entry to session-log.md (most recent first).
+2. Update backlog.md: mark completed [x], add new tasks.
+3. Update INDEX.md: latest session summary and top 3 backlog.
+4. Update wiki/state.md if it exists, append to wiki/log.md.
+5. Write or update daily/YYYY-MM-DD.md.
+6. Confirm what was logged.
+${OC_VAULT_END}`;
+}
+
+function upsertOpencodeBlock(vaults) {
+  const content = fs.existsSync(OPENCODE_AGENTS_PATH)
+    ? fs.readFileSync(OPENCODE_AGENTS_PATH, 'utf8') : '';
+  const block = renderOpencodeBlock(vaults);
+  let next;
+  if (content.includes(OC_VAULT_START) && content.includes(OC_VAULT_END)) {
+    const si = content.indexOf(OC_VAULT_START);
+    const ei = content.indexOf(OC_VAULT_END) + OC_VAULT_END.length;
+    next = content.slice(0, si) + block + content.slice(ei);
+  } else {
+    const sep = content && !content.endsWith('\n') ? '\n\n' : content ? '\n' : '';
+    next = content + sep + block + '\n';
+  }
+  fs.mkdirSync(path.dirname(OPENCODE_AGENTS_PATH), { recursive: true });
+  fs.writeFileSync(OPENCODE_AGENTS_PATH, next);
+}
+
+function removeOpencodeBlock() {
+  if (!fs.existsSync(OPENCODE_AGENTS_PATH)) return;
+  const content = fs.readFileSync(OPENCODE_AGENTS_PATH, 'utf8');
+  if (!content.includes(OC_VAULT_START)) return;
+  const si = content.indexOf(OC_VAULT_START);
+  const ei = content.indexOf(OC_VAULT_END) + OC_VAULT_END.length;
+  let next = content.slice(0, si) + content.slice(ei);
+  next = next.replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '\n');
+  if (next.trim() === '') { fs.unlinkSync(OPENCODE_AGENTS_PATH); }
+  else { fs.writeFileSync(OPENCODE_AGENTS_PATH, next); }
+}
+
+const CLI_DEFS = {
+  'claude-code': {
+    displayName: 'Claude Code',
+    isInstalled() {
+      return fs.existsSync(CLAUDE_CONFIG_PATH) || fs.existsSync(path.join(os.homedir(), '.claude'));
+    },
+    getRegisteredDirs() {
+      const cfg = readJsonFile(CLAUDE_CONFIG_PATH);
+      return Array.isArray(cfg.additionalDirectories) ? cfg.additionalDirectories : [];
+    },
+    addDir(vaultPath) {
+      const cfg = readJsonFile(CLAUDE_CONFIG_PATH);
+      if (!Array.isArray(cfg.additionalDirectories)) cfg.additionalDirectories = [];
+      if (cfg.additionalDirectories.includes(vaultPath)) return false;
+      cfg.additionalDirectories.push(vaultPath);
+      writeJsonFile(CLAUDE_CONFIG_PATH, cfg);
+      return true;
+    },
+    removeDir(vaultPath) {
+      const cfg = readJsonFile(CLAUDE_CONFIG_PATH);
+      if (!Array.isArray(cfg.additionalDirectories)) return false;
+      const before = cfg.additionalDirectories.length;
+      cfg.additionalDirectories = cfg.additionalDirectories.filter(d => d !== vaultPath);
+      if (cfg.additionalDirectories.length === before) return false;
+      writeJsonFile(CLAUDE_CONFIG_PATH, cfg);
+      return true;
+    },
+  },
+  'gemini-cli': {
+    displayName: 'Gemini CLI',
+    isInstalled() {
+      if (fs.existsSync(path.join(os.homedir(), '.gemini'))) return true;
+      return spawnSync('which', ['gemini'], { stdio: 'ignore' }).status === 0;
+    },
+    getRegisteredDirs() {
+      const cfg = readJsonFile(GEMINI_CONFIG_PATH);
+      return Array.isArray(cfg.context?.includeDirectories) ? cfg.context.includeDirectories : [];
+    },
+    addDir(vaultPath) {
+      const cfg = readJsonFile(GEMINI_CONFIG_PATH);
+      if (!cfg.context) cfg.context = {};
+      if (!Array.isArray(cfg.context.includeDirectories)) cfg.context.includeDirectories = [];
+      if (cfg.context.includeDirectories.includes(vaultPath)) return false;
+      cfg.context.includeDirectories.push(vaultPath);
+      cfg.context.loadMemoryFromIncludeDirectories = true;
+      writeJsonFile(GEMINI_CONFIG_PATH, cfg);
+      return true;
+    },
+    removeDir(vaultPath) {
+      const cfg = readJsonFile(GEMINI_CONFIG_PATH);
+      if (!Array.isArray(cfg.context?.includeDirectories)) return false;
+      const before = cfg.context.includeDirectories.length;
+      cfg.context.includeDirectories = cfg.context.includeDirectories.filter(d => d !== vaultPath);
+      if (cfg.context.includeDirectories.length === before) return false;
+      if (cfg.context.includeDirectories.length === 0) {
+        delete cfg.context.includeDirectories;
+        delete cfg.context.loadMemoryFromIncludeDirectories;
+        if (Object.keys(cfg.context).length === 0) delete cfg.context;
+      }
+      writeJsonFile(GEMINI_CONFIG_PATH, cfg);
+      return true;
+    },
+  },
+  'opencode': {
+    displayName: 'opencode',
+    isInstalled() {
+      if (fs.existsSync(path.dirname(OPENCODE_AGENTS_PATH))) return true;
+      return spawnSync('which', ['opencode'], { stdio: 'ignore' }).status === 0;
+    },
+    getRegisteredDirs() {
+      if (!fs.existsSync(OPENCODE_AGENTS_PATH)) return [];
+      return parseOpencodeVaults(fs.readFileSync(OPENCODE_AGENTS_PATH, 'utf8'));
+    },
+    addDir(vaultPath) {
+      const current = this.getRegisteredDirs();
+      if (current.includes(vaultPath)) return false;
+      upsertOpencodeBlock([...current, vaultPath]);
+      return true;
+    },
+    removeDir(vaultPath) {
+      const current = this.getRegisteredDirs();
+      if (!current.includes(vaultPath)) return false;
+      const next = current.filter(v => v !== vaultPath);
+      if (next.length === 0) { removeOpencodeBlock(); }
+      else { upsertOpencodeBlock(next); }
+      return true;
+    },
+  },
+};
+
+const CLI_ALIASES = {
+  'claude': 'claude-code', 'claude-code': 'claude-code',
+  'gemini': 'gemini-cli',  'gemini-cli':  'gemini-cli',
+  'opencode': 'opencode',
+};
+
+/** Devuelve los CLI keys a operar según --cli flag (default: todos los instalados) */
+function resolveCLIs() {
+  const flag = opts.cli;
+  if (!flag || flag === 'all') return Object.keys(CLI_DEFS);
+  const key = CLI_ALIASES[flag];
+  if (!key) fail(`CLI desconocido: "${flag}". Opciones: claude, gemini, opencode`);
+  return [key];
+}
+
+/** Alias legible para el flag: claude-code→claude, gemini-cli→gemini */
+function cliFlag(key) {
+  return key === 'claude-code' ? 'claude' : key === 'gemini-cli' ? 'gemini' : key;
+}
+
+// ── Handlers — Link / Unlink ──────────────────────────────────────────────────
+
+function cmdLink() {
+  const normalized = VAULT_PATH.replace(/\\/g, '/');
+  const clis = resolveCLIs();
+  let anyLinked = false;
+
+  for (const key of clis) {
+    const def = CLI_DEFS[key];
+    const added = def.addDir(normalized);
+    if (added) {
+      console.log(`Vault vinculado a ${def.displayName}: ${normalized}`);
+      anyLinked = true;
+    } else {
+      console.log(`Vault ya vinculado a ${def.displayName}`);
+    }
+  }
+  if (anyLinked) console.log('Reinicia los CLIs para aplicar el cambio.');
+}
+
+function cmdUnlink() {
+  const normalized = VAULT_PATH.replace(/\\/g, '/');
+  const clis = resolveCLIs();
+
+  for (const key of clis) {
+    const def = CLI_DEFS[key];
+    const removed = def.removeDir(normalized);
+    if (removed) {
+      console.log(`Vault desvinculado de ${def.displayName}`);
+    } else {
+      console.log(`Vault no estaba vinculado a ${def.displayName}`);
+    }
+  }
+}
+
+// ── Handlers — Status ─────────────────────────────────────────────────────────
+
+function cmdStatus() {
+  requireVault();
+  const store = openStore();
+  const projects = store.listProjects();
+  const normalized = VAULT_PATH.replace(/\\/g, '/');
+
+  console.log(`\nVault:     ${VAULT_PATH}`);
+  console.log(`CLI:       v${CLI_VERSION}  |  Vault schema: v${store.getVaultVersion()}`);
+
+  for (const [key, def] of Object.entries(CLI_DEFS)) {
+    if (!def.isInstalled()) continue;
+    const linked = def.getRegisteredDirs().includes(normalized);
+    const hint   = linked ? 'vinculado' : `no vinculado (mempunk link --cli ${cliFlag(key)})`;
+    console.log(`${def.displayName.padEnd(12)}: ${hint}`);
+  }
+  console.log(`Proyectos: ${projects.length}`);
+
+  if (projects.length === 0) {
+    console.log('\n(sin proyectos registrados)\n');
+    return;
+  }
+
+  console.log('');
+  for (const proj of projects) {
+    const pending    = store.listBacklog(proj.id, 'pending').length;
+    const inProgress = store.listBacklog(proj.id, 'in_progress').length;
+    const lastSess   = store.getLastSession(proj.id);
+    const lastDate   = lastSess ? lastSess.ended_at.slice(0, 10) : '—';
+    console.log(`  ${proj.id}  (${proj.name})`);
+    console.log(`    backlog: ${pending} pendiente(s) / ${inProgress} en curso  |  última sesión: ${lastDate}`);
+  }
+  console.log('');
+}
+
+// ── Handlers — Remove ─────────────────────────────────────────────────────────
+
+function cmdRemove(projectId) {
+  if (!projectId) fail('Uso: mempunk remove <project_id> --yes');
+  requireVault();
+
+  if (!opts.yes) {
+    fail(`Operación destructiva. Confirma con: mempunk remove ${projectId} --yes`);
+  }
+
+  const store = openStore();
+  if (!store.listProjects().find(p => p.id === projectId)) {
+    fail(`Proyecto no encontrado: ${projectId}`);
+  }
+
+  store.db.prepare('DELETE FROM backlog       WHERE project_id = ?').run(projectId);
+  store.db.prepare('DELETE FROM decisions     WHERE project_id = ?').run(projectId);
+  store.db.prepare('DELETE FROM project_skills WHERE project_id = ?').run(projectId);
+  store.db.prepare('DELETE FROM session_log   WHERE project_id = ?').run(projectId);
+  store.db.prepare('DELETE FROM resources     WHERE project_id = ?').run(projectId);
+  store.db.prepare('DELETE FROM daily_logs    WHERE project_id = ?').run(projectId);
+  store.db.prepare('DELETE FROM search_index  WHERE project_id = ?').run(projectId);
+  store.db.prepare('DELETE FROM projects      WHERE id = ?').run(projectId);
+
+  const projectDir = path.join(VAULT_PATH, 'projects', projectId);
+  if (fs.existsSync(projectDir)) fs.rmSync(projectDir, { recursive: true, force: true });
+
+  console.log(`Proyecto "${projectId}" eliminado`);
+}
+
+// ── Handlers — Doctor ─────────────────────────────────────────────────────────
+
+function cmdDoctor() {
+  requireVault();
+
+  let issues   = 0;
+  let warnings = 0;
+  const ok   = (msg) => console.log(`  ✓ ${msg}`);
+  const warn = (msg) => { console.log(`  ! ${msg}`); warnings++; };
+  const err  = (msg) => { console.log(`  ✗ ${msg}`); issues++; };
+
+  console.log(`\nVault: ${VAULT_PATH}\n`);
+
+  const dbPath = path.join(VAULT_PATH, '.mempunk', 'mempunk.db');
+  if (fs.existsSync(dbPath)) { ok('Base de datos encontrada'); }
+  else { err('Base de datos no encontrada — ejecuta mempunk init'); }
+
+  const store = openStore(true);
+  const vaultVer = store.getVaultVersion();
+  if (vaultVer < VAULT_VERSION) {
+    warn(`Vault desactualizado (v${vaultVer} → v${VAULT_VERSION}) — ejecuta mempunk vault upgrade`);
+  } else {
+    ok(`Vault v${vaultVer} — actualizado`);
+  }
+
+  const projects = store.listProjects();
+  ok(`${projects.length} proyecto(s) en BD`);
+
+  for (const proj of projects) {
+    const dir = path.join(VAULT_PATH, 'projects', proj.id);
+    if (!fs.existsSync(dir)) {
+      warn(`Proyecto "${proj.id}": directorio no encontrado en disco`);
+    } else {
+      if (!fs.existsSync(path.join(dir, 'decisions'))) warn(`Proyecto "${proj.id}": falta decisions/`);
+      if (!fs.existsSync(path.join(dir, 'skills')))    warn(`Proyecto "${proj.id}": falta skills/`);
+    }
+  }
+
+  const normalized = VAULT_PATH.replace(/\\/g, '/');
+  for (const [key, def] of Object.entries(CLI_DEFS)) {
+    if (!def.isInstalled()) continue;
+    const linked = def.getRegisteredDirs().includes(normalized);
+    if (linked) { ok(`Vault vinculado a ${def.displayName}`); }
+    else { warn(`Vault no vinculado a ${def.displayName} — ejecuta mempunk link --cli ${cliFlag(key)}`); }
+  }
+
+  const HOOK_FILES     = ['on-start.js', 'on-compact.js', 'on-stop.js'];
+  const globalHooksDir = path.join(os.homedir(), '.claude', 'hooks');
+  const localHooksDir  = path.join(process.cwd(), '.claude', 'hooks');
+  const globalOk = HOOK_FILES.every(f => fs.existsSync(path.join(globalHooksDir, f)));
+  const localOk  = HOOK_FILES.every(f => fs.existsSync(path.join(localHooksDir, f)));
+
+  if (globalOk)     { ok('Hooks instalados (global)'); }
+  else if (localOk) { ok('Hooks instalados (local)'); }
+  else { warn('Hooks no instalados — ejecuta mempunk hooks install'); }
+
+  console.log('');
+  if (issues === 0 && warnings === 0) {
+    console.log('  ✓ Todo en orden\n');
+  } else {
+    if (issues   > 0) console.log(`  ✗ ${issues} error(s)`);
+    if (warnings > 0) console.log(`  ! ${warnings} advertencia(s)`);
+    console.log('');
+  }
+}
+
+// ── Handlers — Auto-start ─────────────────────────────────────────────────────
+
+function isMempunkHook(hookGroup) {
+  return hookGroup.matcher === MEMPUNK_HOOK_MARKER ||
+    (hookGroup.hooks && hookGroup.hooks.some(h => h.prompt && h.prompt.includes('/mempunk')));
+}
+
+function cmdAutoStart(action) {
+  const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
+  const enabled  = Array.isArray(settings.hooks?.SessionStart) &&
+    settings.hooks.SessionStart.some(isMempunkHook);
+
+  if (!action) {
+    console.log(`Auto-start: ${enabled ? 'on' : 'off'}`);
+    return;
+  }
+
+  if (action === 'on') {
+    if (enabled) { console.log('Auto-start ya estaba activo'); return; }
+    if (!settings.hooks) settings.hooks = {};
+    if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+    settings.hooks.SessionStart.push({
+      matcher: MEMPUNK_HOOK_MARKER,
+      hooks: [{ type: 'prompt', prompt: MEMPUNK_HOOK_PROMPT }],
+    });
+    writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
+    console.log('Auto-start activado');
+  } else if (action === 'off') {
+    if (!enabled) { console.log('Auto-start ya estaba inactivo'); return; }
+    settings.hooks.SessionStart = settings.hooks.SessionStart.filter(g => !isMempunkHook(g));
+    if (settings.hooks.SessionStart.length === 0) delete settings.hooks.SessionStart;
+    if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
+    writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
+    console.log('Auto-start desactivado');
+  } else {
+    fail(`Acción desconocida: "${action}". Usa: on | off`);
+  }
+}
+
+// ── Handlers — Setup ──────────────────────────────────────────────────────────
+
+function cmdSetup() {
+  if (!fs.existsSync(VAULT_PATH)) {
+    cmdInit();
+  } else {
+    console.log(`Vault existente en ${VAULT_PATH}`);
+  }
+  // Vincular todos los CLIs instalados
+  const origCli = opts.cli;
+  opts.cli = 'all';
+  cmdLink();
+  opts.cli = origCli;
+
+  opts.global = true;
+  cmdHooksInstall();
+  console.log('\nMempunk listo. Reinicia los CLIs para aplicar los cambios.');
+}
+
+// ── Handlers — Log (abrir proyecto en editor) ─────────────────────────────────
+
+function cmdOpenLog(projectId) {
+  if (!projectId) fail('Uso: mempunk log <project_id>');
+  requireVault();
+
+  const store = openStore();
+  if (!store.listProjects().find(p => p.id === projectId)) {
+    fail(`Proyecto no encontrado: ${projectId}`);
+  }
+
+  const projectDir = path.join(VAULT_PATH, 'projects', projectId);
+  if (!fs.existsSync(projectDir)) fail(`Directorio no encontrado: ${projectDir}`);
+
+  const indexFile = path.join(projectDir, 'INDEX.md');
+  const target    = fs.existsSync(indexFile) ? indexFile : projectDir;
+
+  const editor = process.env.VISUAL || process.env.EDITOR;
+  if (editor) {
+    spawnSync(editor, [target], { stdio: 'inherit' });
+  } else {
+    const opener = process.platform === 'win32' ? 'explorer'
+      : process.platform === 'darwin' ? 'open'
+      : 'xdg-open';
+    spawnSync(opener, [target], { stdio: 'ignore', detached: true });
+  }
+  console.log(`Abierto: ${target}`);
+}
+
+// ── Handlers — CLI list ───────────────────────────────────────────────────────
+
+function cmdCliList() {
+  const normalized = VAULT_PATH.replace(/\\/g, '/');
+  console.log('\nCLIs compatibles con Mempunk:\n');
+
+  for (const [key, def] of Object.entries(CLI_DEFS)) {
+    const installed = def.isInstalled();
+    const linked    = installed && def.getRegisteredDirs().includes(normalized);
+    const bullet    = !installed ? '○' : linked ? '●' : '◐';
+    const status    = !installed
+      ? '(no instalado)'
+      : linked
+        ? '(vinculado)'
+        : `(no vinculado — mempunk link --cli ${cliFlag(key)})`;
+    console.log(`  ${bullet} ${def.displayName}  ${status}`);
+  }
+  console.log('');
+}
+
 // ── Router principal ──────────────────────────────────────────────────────────
 
 try {
+  if (opts.v || opts.version) {
+    console.log(`mempunk v${CLI_VERSION}`);
+    process.exit(0);
+  }
+
   switch (command) {
     case 'init':
       cmdInit();
@@ -669,28 +1168,87 @@ try {
       }
       break;
 
+    case 'setup':
+      cmdSetup();
+      break;
+
+    case 'link':
+      cmdLink();
+      break;
+
+    case 'unlink':
+      cmdUnlink();
+      break;
+
+    case 'status':
+      cmdStatus();
+      break;
+
+    case 'remove':
+      cmdRemove(subcommand);
+      break;
+
+    case 'doctor':
+      cmdDoctor();
+      break;
+
+    case 'auto-start':
+      cmdAutoStart(subcommand);
+      break;
+
+    case 'log':
+      cmdOpenLog(subcommand);
+      break;
+
+    case 'cli':
+      switch (subcommand) {
+        case 'list': cmdCliList(); break;
+        default: fail(`Subcomando desconocido: cli ${subcommand ?? ''}. Usa: list`);
+      }
+      break;
+
     case undefined:
       console.log('Uso: mempunk <comando> [opciones]');
       console.log('');
-      console.log('Comandos:');
+      console.log('Setup:');
+      console.log('  setup                             Inicializa, vincula y configura hooks (todo en uno)');
       console.log('  init                              Inicializa el vault en ~/Dev-Brain');
+      console.log('  link       [--cli claude|gemini|opencode]  Vincula el vault (default: todos los instalados)');
+      console.log('  unlink     [--cli claude|gemini|opencode]  Desvincula el vault');
+      console.log('  status                            Dashboard: vault, proyectos y sesiones');
+      console.log('  doctor                            Verifica integridad del vault');
+      console.log('  auto-start on|off                 Activa/desactiva auto-start al iniciar sesión');
+      console.log('  cli      list                     Muestra CLIs vinculados al vault');
+      console.log('  -v                                Muestra la versión del CLI');
+      console.log('');
+      console.log('Proyectos:');
       console.log('  project  add <id> <name>          Crea un proyecto');
       console.log('  project  list                     Lista proyectos activos');
+      console.log('  remove   <id> --yes               Elimina un proyecto (irreversible)');
+      console.log('  log      <id>                     Abre el INDEX.md del proyecto en el editor');
+      console.log('');
+      console.log('Backlog:');
       console.log('  backlog  add <proj> "<title>"     Agrega tarea al backlog');
       console.log('  backlog  list <proj>              Lista tareas del backlog');
       console.log('  backlog  update <id>              Actualiza una tarea');
+      console.log('');
+      console.log('Conocimiento:');
       console.log('  decision add <proj> "<title>"     Crea una decisión (ADR)');
       console.log('  decision list <proj>              Lista decisiones del proyecto');
       console.log('  skill    add <proj> <name>        Crea un skill de proyecto');
       console.log('  skill    list <proj>              Lista skills del proyecto');
       console.log('  skill    update <id>              Actualiza contenido de un skill');
-      console.log('  resource add <proj> "<title>"     Captura un resource externo con url y contenido');
+      console.log('  resource add <proj> "<title>"     Captura un resource externo');
       console.log('  resource list <proj>              Lista resources del proyecto');
-      console.log('  daily    log <proj> "<content>"   Agrega una entrada al log diario');
-      console.log('  daily    list <proj>              Lista los logs diarios del proyecto');
+      console.log('');
+      console.log('Sesiones y logs:');
       console.log('  session  log <proj> "<summary>"   Registra sesión de trabajo');
       console.log('  session  last <proj>              Muestra la última sesión');
+      console.log('  daily    log <proj> "<content>"   Agrega una entrada al log diario');
+      console.log('  daily    list <proj>              Lista los logs diarios del proyecto');
       console.log('  search   "<query>"                Búsqueda full-text en el vault');
+      console.log('');
+      console.log('Mantenimiento:');
       console.log('  sync                              Verifica consistencia vault ↔ BD');
       console.log('  vault    version                  Muestra la versión del vault y del CLI');
       console.log('  vault    upgrade                  Actualiza el vault a la versión más reciente');
