@@ -32,17 +32,11 @@
     "url": "git+https://github.com/JuanesEspinosa/Mempunk.git"
   },
   "files": [
-    "bin/",
     "src/",
     "templates/"
   ],
   "dependencies": {
-    "better-sqlite3": "^12.10.0",
-    "boxen": "^8.0.1",
-    "chalk": "^5.6.2",
-    "gradient-string": "^3.0.0",
-    "inquirer": "^13.4.2",
-    "ora": "^9.4.0"
+    "better-sqlite3": "^12.10.0"
   },
   "devDependencies": {
     "jest": "^30.4.2"
