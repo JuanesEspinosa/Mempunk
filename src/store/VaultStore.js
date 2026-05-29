@@ -107,6 +107,39 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 3,
+    up(db) {
+      // Checkpoints incrementales — guardados automáticamente cada N turnos via Stop hook
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS session_checkpoints (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id   TEXT NOT NULL,
+          session_id   TEXT NOT NULL,
+          turn_count   INTEGER NOT NULL,
+          raw_turns    TEXT NOT NULL,
+          files_found  TEXT,
+          created_at   TEXT DEFAULT (datetime('now')),
+          UNIQUE(project_id, session_id, turn_count)
+        )
+      `);
+
+      // Snapshots completos capturados justo antes de una compactación via PreCompact hook
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS compact_snapshots (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id    TEXT NOT NULL,
+          session_id    TEXT NOT NULL,
+          compact_type  TEXT,
+          message_count INTEGER,
+          raw_turns     TEXT NOT NULL,
+          files_found   TEXT,
+          commands_run  TEXT,
+          created_at    TEXT DEFAULT (datetime('now'))
+        )
+      `);
+    },
+  },
 ];
 
 // Versión más alta que este código conoce — se actualiza al agregar migraciones
@@ -745,6 +778,110 @@ class VaultStore {
          ORDER BY date DESC`
       )
       .all(projectId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Checkpoints de sesión (AutoCheckpoint)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Guarda un checkpoint incremental de la sesión actual.
+   * Usa INSERT OR REPLACE para evitar duplicados por (project_id, session_id, turn_count).
+   *
+   * @param {string}   projectId  - ID del proyecto activo
+   * @param {string}   sessionId  - session_id de Claude Code
+   * @param {number}   turnCount  - Número de turno actual
+   * @param {object[]} rawTurns   - Últimos N mensajes del transcript
+   * @param {string[]} filesFound - Paths detectados en el transcript
+   */
+  addCheckpoint(projectId, sessionId, turnCount, rawTurns, filesFound = []) {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO session_checkpoints
+           (project_id, session_id, turn_count, raw_turns, files_found, created_at)
+         VALUES (?, ?, ?, ?, ?, datetime('now'))`
+      )
+      .run(
+        projectId,
+        sessionId,
+        turnCount,
+        JSON.stringify(rawTurns),
+        JSON.stringify(filesFound)
+      );
+  }
+
+  /**
+   * Retorna el checkpoint más reciente de un proyecto.
+   * @param {string} projectId
+   * @returns {object|undefined}
+   */
+  getLastCheckpoint(projectId) {
+    return this.db
+      .prepare(
+        `SELECT * FROM session_checkpoints
+         WHERE project_id = ?
+         ORDER BY created_at DESC
+         LIMIT 1`
+      )
+      .get(projectId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Compact snapshots (CompactGuard)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Guarda un snapshot completo capturado justo antes de una compactación.
+   *
+   * @param {string}   projectId    - ID del proyecto activo
+   * @param {string}   sessionId    - session_id de Claude Code
+   * @param {string}   compactType  - 'automatic' | 'manual'
+   * @param {number}   messageCount - Número de mensajes en el transcript
+   * @param {object[]} rawTurns     - Últimos 20 mensajes del transcript
+   * @param {string[]} filesFound   - Paths detectados en el transcript
+   * @param {string[]} commandsRun  - Comandos bash detectados en el transcript
+   */
+  addCompactSnapshot(projectId, sessionId, compactType, messageCount, rawTurns, filesFound = [], commandsRun = []) {
+    this.db
+      .prepare(
+        `INSERT INTO compact_snapshots
+           (project_id, session_id, compact_type, message_count, raw_turns, files_found, commands_run, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+      )
+      .run(
+        projectId,
+        sessionId,
+        compactType,
+        messageCount,
+        JSON.stringify(rawTurns),
+        JSON.stringify(filesFound),
+        JSON.stringify(commandsRun)
+      );
+  }
+
+  /**
+   * Retorna el snapshot más reciente entre session_checkpoints y compact_snapshots.
+   * Útil para mostrar el último estado guardado independientemente de su origen.
+   *
+   * @param {string} projectId
+   * @returns {{ source: 'checkpoint'|'compact', ...rest }|undefined}
+   */
+  getLastCompactSnapshot(projectId) {
+    return this.db
+      .prepare(
+        `SELECT 'checkpoint' AS source, id, project_id, session_id,
+                turn_count, NULL AS compact_type, NULL AS message_count,
+                raw_turns, files_found, NULL AS commands_run, created_at
+         FROM session_checkpoints WHERE project_id = ?
+         UNION ALL
+         SELECT 'compact' AS source, id, project_id, session_id,
+                NULL AS turn_count, compact_type, message_count,
+                raw_turns, files_found, commands_run, created_at
+         FROM compact_snapshots WHERE project_id = ?
+         ORDER BY created_at DESC
+         LIMIT 1`
+      )
+      .get(projectId, projectId);
   }
 
   // ---------------------------------------------------------------------------

@@ -273,7 +273,7 @@ describe('mempunk vault', () => {
       env: { ...process.env, MEMPUNK_VAULT: isolated },
       encoding: 'utf8',
     });
-    expect(output).toContain('v2');
+    expect(output).toContain('v3');
 
     // Verificar que vault version ahora dice OK
     const versionOutput = execSync('node src/cli.js vault version', {
