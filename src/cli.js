@@ -401,6 +401,34 @@ function cmdSessionLast(projectId) {
   }
 }
 
+/** Persiste un checkpoint incremental desde un temp JSON file (usado por on-stop.js hook) */
+function cmdSessionSaveCheckpoint(tmpFilePath) {
+  if (!tmpFilePath) fail('Uso interno: mempunk session save-checkpoint <tmp_json_path>');
+  requireVault();
+
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(tmpFilePath, 'utf8'));
+  } catch (err) {
+    fail(`No se pudo leer el archivo temporal: ${err.message}`);
+  } finally {
+    try { fs.unlinkSync(tmpFilePath); } catch (_) {}
+  }
+
+  const { project_id, session_id, turn_count, raw_turns, files_found } = data;
+  if (!project_id || !session_id || turn_count == null) fail('Datos incompletos en el archivo temporal');
+
+  const store = openStore();
+  store.addCheckpoint(
+    project_id,
+    session_id,
+    turn_count,
+    raw_turns ?? '[]',
+    files_found ? JSON.parse(files_found) : [],
+  );
+  // Salida silenciosa — es un hook interno
+}
+
 /** Retorna el último compact_snapshot de un proyecto como JSON (usado por on-start.js hook) */
 function cmdSessionGetCompact(projectId) {
   if (!projectId) fail('Uso interno: mempunk session get-compact <project_id>');
@@ -1180,9 +1208,10 @@ try {
       switch (subcommand) {
         case 'log':          cmdSessionLog(args[0], args[1]); break;
         case 'last':         cmdSessionLast(args[0]); break;
-        case 'save-compact': cmdSessionSaveCompact(args[0]); break;
-        case 'get-compact':  cmdSessionGetCompact(args[0]); break;
-        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last | save-compact | get-compact`);
+        case 'save-compact':    cmdSessionSaveCompact(args[0]); break;
+        case 'get-compact':     cmdSessionGetCompact(args[0]); break;
+        case 'save-checkpoint': cmdSessionSaveCheckpoint(args[0]); break;
+        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last | save-compact | get-compact | save-checkpoint`);
       }
       break;
 
