@@ -401,6 +401,97 @@ function cmdSessionLast(projectId) {
   }
 }
 
+/** Muestra el último snapshot disponible (checkpoint o compact_snapshot) de un proyecto */
+function cmdSessionRecover(projectId) {
+  if (!projectId) fail('Uso: mempunk session recover <project_id>');
+  requireVault();
+
+  const store    = openStore();
+  const snapshot = store.getLastCompactSnapshot(projectId);
+
+  if (!snapshot) {
+    console.log(`No hay snapshots guardados para el proyecto "${projectId}"`);
+    console.log('Los checkpoints se guardan automáticamente cada 5 turnos (hook on-stop).');
+    console.log('Los compact_snapshots se guardan antes de cada compactación (hook on-compact).');
+    return;
+  }
+
+  const fecha   = snapshot.created_at ?? 'desconocida';
+  const tipo    = snapshot.source === 'compact' ? `compact_snapshot (${snapshot.compact_type ?? 'auto'})` : 'checkpoint';
+  const mensajes = snapshot.message_count ?? snapshot.turn_count ?? '?';
+
+  console.log(`Último snapshot disponible: ${fecha} (${tipo})`);
+  console.log(`Session ID: ${snapshot.session_id} | Mensajes: ${mensajes}`);
+
+  const filesFound = tryParseJsonArray(snapshot.files_found);
+  if (filesFound.length > 0) {
+    console.log('\nArchivos tocados:');
+    for (const f of filesFound) console.log(`  - ${f}`);
+  }
+
+  const commandsRun = tryParseJsonArray(snapshot.commands_run);
+  if (commandsRun && commandsRun.length > 0) {
+    console.log('\nComandos corridos:');
+    for (const c of commandsRun) console.log(`  - ${c}`);
+  }
+
+  const rawTurns = tryParseJsonArray(snapshot.raw_turns);
+  if (rawTurns.length > 0) {
+    console.log('\nÚltimos mensajes:');
+    for (const turn of rawTurns.slice(-4)) {
+      const role    = turn.type === 'human' ? 'user' : 'assistant';
+      const content = extractFirstTextContent(turn.message?.content ?? '');
+      if (content) console.log(`  [${role}] ${content.slice(0, 120)}`);
+    }
+  }
+
+  console.log(`\nPara ver checkpoints completos: mempunk session checkpoints ${projectId}`);
+}
+
+/** Muestra la lista de checkpoints de un proyecto */
+function cmdSessionCheckpoints(projectId) {
+  if (!projectId) fail('Uso: mempunk session checkpoints <project_id>');
+  requireVault();
+
+  const store       = openStore();
+  const checkpoints = store.listCheckpoints(projectId);
+
+  if (checkpoints.length === 0) {
+    console.log(`No hay checkpoints para el proyecto "${projectId}"`);
+    return;
+  }
+
+  console.log(`Checkpoints de ${projectId} (más reciente primero):\n`);
+  const COL = { n: 3, fecha: 20, tipo: 20, extra: 12, archivos: 8 };
+  const header = `  ${'#'.padEnd(COL.n)}  ${'Fecha'.padEnd(COL.fecha)}  ${'Tipo'.padEnd(COL.tipo)}  ${'Detalle'.padEnd(COL.extra)}  Archivos`;
+  console.log(header);
+  console.log('  ' + '─'.repeat(header.length - 2));
+
+  checkpoints.forEach((row, i) => {
+    const n       = String(i + 1).padEnd(COL.n);
+    const fecha   = (row.created_at ?? '').slice(0, 19).padEnd(COL.fecha);
+    const tipo    = (row.source === 'compact' ? `compact (${row.compact_type ?? 'auto'})` : 'checkpoint').padEnd(COL.tipo);
+    const extra   = (row.source === 'compact' ? `${row.message_count ?? '?'} msgs` : `turno ${row.turn_count ?? '?'}`).padEnd(COL.extra);
+    const nFiles  = tryParseJsonArray(row.files_found).length;
+    console.log(`  ${n}  ${fecha}  ${tipo}  ${extra}  ${nFiles}`);
+  });
+  console.log('');
+}
+
+function tryParseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  try { return JSON.parse(value ?? '[]'); } catch (_) { return []; }
+}
+
+function extractFirstTextContent(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    const textBlock = content.find((b) => b.type === 'text');
+    return textBlock?.text ?? '';
+  }
+  return '';
+}
+
 /** Persiste un checkpoint incremental desde un temp JSON file (usado por on-stop.js hook) */
 function cmdSessionSaveCheckpoint(tmpFilePath) {
   if (!tmpFilePath) fail('Uso interno: mempunk session save-checkpoint <tmp_json_path>');
@@ -423,7 +514,7 @@ function cmdSessionSaveCheckpoint(tmpFilePath) {
     project_id,
     session_id,
     turn_count,
-    raw_turns ?? '[]',
+    JSON.parse(raw_turns ?? '[]'),
     files_found ? JSON.parse(files_found) : [],
   );
   // Salida silenciosa — es un hook interno
@@ -463,7 +554,7 @@ function cmdSessionSaveCompact(tmpFilePath) {
     session_id,
     compact_type ?? null,
     message_count ?? null,
-    raw_turns ?? '[]',
+    JSON.parse(raw_turns ?? '[]'),
     files_found ? JSON.parse(files_found) : [],
     commands_run ? JSON.parse(commands_run) : [],
   );
@@ -570,7 +661,7 @@ function cmdVaultUpgrade() {
 // ── Handlers — Hooks ──────────────────────────────────────────────────────────
 
 // Archivos que Mempunk instala — el mismo orden se usa en install y uninstall
-const HOOK_FILES = ['on-start.js', 'on-compact.js', 'on-stop.js'];
+const HOOK_FILES = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
 
 // Identificador único en el contenido de cada hook para distinguirlos de otros hooks
 const HOOK_MARKER = '# mempunk-hook';
@@ -617,6 +708,28 @@ function cmdHooksInstall() {
     fs.copyFileSync(path.join(sourceDir, file), dest);
     // Hacer ejecutable el script en sistemas Unix — en Windows no tiene efecto pero no falla
     try { fs.chmodSync(dest, 0o755); } catch (_) {}
+  }
+
+  // Instalar statusline: copiar src/statusline.js a ~/.mempunk/statusline.js
+  const statuslineSrc  = path.join(__cliDir, 'statusline.js');
+  const statuslineDest = path.join(os.homedir(), '.mempunk', 'statusline.js');
+  if (fs.existsSync(statuslineSrc)) {
+    fs.mkdirSync(path.dirname(statuslineDest), { recursive: true });
+    fs.copyFileSync(statuslineSrc, statuslineDest);
+    try { fs.chmodSync(statuslineDest, 0o755); } catch (_) {}
+
+    // Registrar statusline en ~/.claude/settings.json si no está configurado ya
+    const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
+    if (!settings.statusLine) {
+      settings.statusLine = {
+        type:    'command',
+        command: `node ${statuslineDest}`,
+      };
+      writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
+      console.log(`Statusline configurado en ${CLAUDE_SETTINGS_PATH}`);
+    } else {
+      console.log('Statusline ya configurado — no se modificó settings.json');
+    }
   }
 
   console.log(`Hooks instalados en ${targetDir}`);
@@ -1014,7 +1127,7 @@ function cmdDoctor() {
     else { warn(`Vault no vinculado a ${def.displayName} — ejecuta mempunk link --cli ${cliFlag(key)}`); }
   }
 
-  const HOOK_FILES     = ['on-start.js', 'on-compact.js', 'on-stop.js'];
+  const HOOK_FILES     = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
   const globalHooksDir = path.join(os.homedir(), '.claude', 'hooks');
   const localHooksDir  = path.join(process.cwd(), '.claude', 'hooks');
   const globalOk = HOOK_FILES.every(f => fs.existsSync(path.join(globalHooksDir, f)));
@@ -1206,12 +1319,14 @@ try {
 
     case 'session':
       switch (subcommand) {
-        case 'log':          cmdSessionLog(args[0], args[1]); break;
-        case 'last':         cmdSessionLast(args[0]); break;
+        case 'log':             cmdSessionLog(args[0], args[1]); break;
+        case 'last':            cmdSessionLast(args[0]); break;
+        case 'recover':         cmdSessionRecover(args[0]); break;
+        case 'checkpoints':     cmdSessionCheckpoints(args[0]); break;
         case 'save-compact':    cmdSessionSaveCompact(args[0]); break;
         case 'get-compact':     cmdSessionGetCompact(args[0]); break;
         case 'save-checkpoint': cmdSessionSaveCheckpoint(args[0]); break;
-        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last | save-compact | get-compact | save-checkpoint`);
+        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last | recover | checkpoints | save-compact | get-compact | save-checkpoint`);
       }
       break;
 

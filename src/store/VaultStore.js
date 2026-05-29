@@ -826,6 +826,29 @@ class VaultStore {
       .get(projectId);
   }
 
+  /**
+   * Lista todos los checkpoints y compact_snapshots de un proyecto, ordenados por fecha.
+   * Permite mostrar historial completo de guardados para `session checkpoints`.
+   *
+   * @param {string} projectId
+   * @returns {Array<{ source: 'checkpoint'|'compact', ...rest }>}
+   */
+  listCheckpoints(projectId) {
+    return this.db
+      .prepare(
+        `SELECT 'checkpoint' AS source, id, session_id, turn_count,
+                NULL AS compact_type, NULL AS message_count, files_found, created_at
+         FROM session_checkpoints WHERE project_id = ?
+         UNION ALL
+         SELECT 'compact' AS source, id, session_id, NULL AS turn_count,
+                compact_type, message_count, files_found, created_at
+         FROM compact_snapshots WHERE project_id = ?
+         ORDER BY created_at DESC
+         LIMIT 50`
+      )
+      .all(projectId, projectId);
+  }
+
   // ---------------------------------------------------------------------------
   // Compact snapshots (CompactGuard)
   // ---------------------------------------------------------------------------
