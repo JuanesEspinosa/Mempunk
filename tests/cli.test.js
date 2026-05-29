@@ -309,7 +309,7 @@ describe('mempunk vault', () => {
 describe('mempunk hooks', () => {
   const localHooksDir  = path.join(PROJECT_ROOT, '.claude', 'hooks');
   const globalHooksDir = path.join(os.homedir(), '.claude', 'hooks');
-  const HOOK_FILES     = ['on-start.js', 'on-compact.js', 'on-stop.js'];
+  const HOOK_FILES     = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
   const HOOK_MARKER    = '# mempunk-hook';
 
   afterAll(() => {
@@ -323,7 +323,7 @@ describe('mempunk hooks', () => {
     }
   });
 
-  it('hooks install crea los tres archivos en .claude/hooks/', () => {
+  it('hooks install crea los cuatro archivos en .claude/hooks/', () => {
     run('hooks install');
 
     for (const f of HOOK_FILES) {
@@ -338,7 +338,7 @@ describe('mempunk hooks', () => {
     }
   });
 
-  it('hooks install --global crea los tres archivos en ~/.claude/hooks/', () => {
+  it('hooks install --global crea los cuatro archivos en ~/.claude/hooks/', () => {
     run('hooks install --global');
 
     for (const f of HOOK_FILES) {
@@ -363,5 +363,53 @@ describe('mempunk hooks', () => {
 
     // Limpiar el archivo ajeno
     fs.unlinkSync(foreignFile);
+  });
+});
+
+// ── Session recover & checkpoints ─────────────────────────────────────────────
+
+describe('mempunk session recover', () => {
+  it('muestra mensaje cuando no hay snapshots', () => {
+    // Crear proyecto aparte para este test
+    run('project add recov-proj "Recover Project"');
+    const output = run('session recover recov-proj');
+    expect(output).toContain('No hay snapshots');
+  });
+
+  it('muestra el último snapshot con archivos y comandos', () => {
+    // Guardar un compact_snapshot
+    const tmpFile = path.join(os.tmpdir(), `mc-cli-test-${Date.now()}.json`);
+    const turns = [
+      { type: 'human', message: { content: 'agrega JWT' } },
+      { type: 'assistant', message: { content: [{ type: 'text', text: 'Editando auth.ts' }] } },
+    ];
+    fs.writeFileSync(tmpFile, JSON.stringify({
+      project_id: 'recov-proj', session_id: 'sess-clitest', compact_type: 'automatic', message_count: 2,
+      raw_turns: JSON.stringify(turns),
+      files_found: JSON.stringify(['src/auth.ts']),
+      commands_run: JSON.stringify(['npm run test:e2e']),
+    }));
+    run(`session save-compact ${tmpFile}`);
+
+    const output = run('session recover recov-proj');
+    expect(output).toContain('compact_snapshot');
+    expect(output).toContain('src/auth.ts');
+    expect(output).toContain('npm run test:e2e');
+    expect(output).toContain('agrega JWT');
+  });
+});
+
+describe('mempunk session checkpoints', () => {
+  it('muestra mensaje cuando no hay checkpoints', () => {
+    run('project add chk-proj "Checkpoint Project"');
+    const output = run('session checkpoints chk-proj');
+    expect(output).toContain('No hay checkpoints');
+  });
+
+  it('lista checkpoints después de guardar uno', () => {
+    // session recover ya guardó un snapshot para recov-proj
+    const output = run('session checkpoints recov-proj');
+    expect(output).toContain('compact');
+    expect(output).toContain('2 msgs');
   });
 });

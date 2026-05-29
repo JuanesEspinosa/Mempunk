@@ -119,7 +119,7 @@ const MIGRATIONS = [
           turn_count   INTEGER NOT NULL,
           raw_turns    TEXT NOT NULL,
           files_found  TEXT,
-          created_at   TEXT DEFAULT (datetime('now')),
+          created_at   TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
           UNIQUE(project_id, session_id, turn_count)
         )
       `);
@@ -135,7 +135,7 @@ const MIGRATIONS = [
           raw_turns     TEXT NOT NULL,
           files_found   TEXT,
           commands_run  TEXT,
-          created_at    TEXT DEFAULT (datetime('now'))
+          created_at    TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
         )
       `);
     },
@@ -799,7 +799,7 @@ class VaultStore {
       .prepare(
         `INSERT OR REPLACE INTO session_checkpoints
            (project_id, session_id, turn_count, raw_turns, files_found, created_at)
-         VALUES (?, ?, ?, ?, ?, datetime('now'))`
+         VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))`
       )
       .run(
         projectId,
@@ -820,7 +820,7 @@ class VaultStore {
       .prepare(
         `SELECT * FROM session_checkpoints
          WHERE project_id = ?
-         ORDER BY created_at DESC
+         ORDER BY created_at DESC, id DESC
          LIMIT 1`
       )
       .get(projectId);
@@ -843,7 +843,7 @@ class VaultStore {
          SELECT 'compact' AS source, id, session_id, NULL AS turn_count,
                 compact_type, message_count, files_found, created_at
          FROM compact_snapshots WHERE project_id = ?
-         ORDER BY created_at DESC
+         ORDER BY created_at DESC, id DESC
          LIMIT 50`
       )
       .all(projectId, projectId);
@@ -869,7 +869,7 @@ class VaultStore {
       .prepare(
         `INSERT INTO compact_snapshots
            (project_id, session_id, compact_type, message_count, raw_turns, files_found, commands_run, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+         VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))`
       )
       .run(
         projectId,
@@ -901,7 +901,7 @@ class VaultStore {
                 NULL AS turn_count, compact_type, message_count,
                 raw_turns, files_found, commands_run, created_at
          FROM compact_snapshots WHERE project_id = ?
-         ORDER BY created_at DESC
+         ORDER BY created_at DESC, id DESC
          LIMIT 1`
       )
       .get(projectId, projectId);

@@ -631,3 +631,97 @@ describe('Sync', () => {
     expect(result.missing_files.some((f) => f.id === id)).toBe(true);
   });
 });
+
+// ── Session Checkpoints (AutoCheckpoint) ──────────────────────────────────────
+
+describe('Session Checkpoints', () => {
+  const SESSION_A = 'session-a-001';
+  const SESSION_B = 'session-b-002';
+  const TURNS = [{ type: 'human', message: { content: 'hola' } }];
+
+  it('addCheckpoint() guarda el registro en SQLite', () => {
+    store.addCheckpoint(PROJ, SESSION_A, 5, TURNS, ['src/auth.ts']);
+    const row = store.db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get(SESSION_A);
+    expect(row).toBeDefined();
+    expect(row.project_id).toBe(PROJ);
+    expect(row.session_id).toBe(SESSION_A);
+    expect(row.turn_count).toBe(5);
+    expect(JSON.parse(row.files_found)).toContain('src/auth.ts');
+  });
+
+  it('addCheckpoint() upsert no duplica el mismo turn_count', () => {
+    store.addCheckpoint(PROJ, SESSION_A, 5, TURNS, ['src/auth.ts']);
+    store.addCheckpoint(PROJ, SESSION_A, 5, TURNS, ['src/other.ts']);
+    const rows = store.db
+      .prepare('SELECT * FROM session_checkpoints WHERE session_id = ? AND turn_count = 5')
+      .all(SESSION_A);
+    expect(rows.length).toBe(1);
+  });
+
+  it('addCheckpoint() acepta turn_counts distintos como entradas separadas', () => {
+    store.addCheckpoint(PROJ, SESSION_A, 10, TURNS, []);
+    const rows = store.db
+      .prepare('SELECT * FROM session_checkpoints WHERE session_id = ?')
+      .all(SESSION_A);
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('getLastCheckpoint() retorna el más reciente del proyecto', () => {
+    store.addCheckpoint(PROJ, SESSION_B, 3, TURNS, ['src/cli.js']);
+    const last = store.getLastCheckpoint(PROJ);
+    expect(last).toBeDefined();
+    // El más reciente es el de SESSION_B (insertado al final)
+    expect(last.session_id).toBe(SESSION_B);
+    expect(last.turn_count).toBe(3);
+  });
+});
+
+// ── Compact Snapshots (CompactGuard) ─────────────────────────────────────────
+
+describe('Compact Snapshots', () => {
+  const SESSION_C = 'session-c-003';
+  const TURNS = [
+    { type: 'human', message: { content: 'agrega JWT' } },
+    { type: 'assistant', message: { content: [{ type: 'text', text: 'Editando...' }] } },
+  ];
+
+  it('addCompactSnapshot() guarda el registro en SQLite', () => {
+    store.addCompactSnapshot(PROJ, SESSION_C, 'automatic', 12, TURNS, ['src/auth.ts'], ['npm test']);
+    const row = store.db.prepare('SELECT * FROM compact_snapshots WHERE session_id = ?').get(SESSION_C);
+    expect(row).toBeDefined();
+    expect(row.compact_type).toBe('automatic');
+    expect(row.message_count).toBe(12);
+    expect(JSON.parse(row.commands_run)).toContain('npm test');
+    expect(JSON.parse(row.files_found)).toContain('src/auth.ts');
+  });
+
+  it('addCompactSnapshot() guarda raw_turns correctamente', () => {
+    const row = store.db.prepare('SELECT * FROM compact_snapshots WHERE session_id = ?').get(SESSION_C);
+    const stored = JSON.parse(row.raw_turns);
+    expect(stored).toHaveLength(2);
+    expect(stored[0].type).toBe('human');
+  });
+
+  it('getLastCompactSnapshot() retorna el más reciente entre checkpoints y compact_snapshots', () => {
+    // Insertar un snapshot manual más reciente
+    const SESSION_D = 'session-d-004';
+    store.addCompactSnapshot(PROJ, SESSION_D, 'manual', 5, TURNS, [], []);
+
+    const last = store.getLastCompactSnapshot(PROJ);
+    expect(last).toBeDefined();
+    expect(last.source).toMatch(/checkpoint|compact/);
+    // El más reciente debe ser de SESSION_D
+    expect(last.session_id).toBe(SESSION_D);
+    expect(last.source).toBe('compact');
+  });
+
+  it('listCheckpoints() retorna entradas de ambas tablas ordenadas por fecha', () => {
+    const rows = store.listCheckpoints(PROJ);
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+    // Verificar que hay entradas de ambos tipos
+    const sources = new Set(rows.map((r) => r.source));
+    expect(sources.has('checkpoint')).toBe(true);
+    expect(sources.has('compact')).toBe(true);
+  });
+});
