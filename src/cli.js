@@ -401,6 +401,17 @@ function cmdSessionLast(projectId) {
   }
 }
 
+/** Retorna el último compact_snapshot de un proyecto como JSON (usado por on-start.js hook) */
+function cmdSessionGetCompact(projectId) {
+  if (!projectId) fail('Uso interno: mempunk session get-compact <project_id>');
+  requireVault();
+
+  const store    = openStore();
+  const snapshot = store.getLastCompactSnapshot(projectId);
+  // Salida JSON limpia — el hook parsea este stdout
+  process.stdout.write(JSON.stringify(snapshot ?? null));
+}
+
 /** Persiste un compact_snapshot desde un temp JSON file (usado por on-compact.js hook) */
 function cmdSessionSaveCompact(tmpFilePath) {
   if (!tmpFilePath) fail('Uso interno: mempunk session save-compact <tmp_json_path>');
@@ -1170,7 +1181,8 @@ try {
         case 'log':          cmdSessionLog(args[0], args[1]); break;
         case 'last':         cmdSessionLast(args[0]); break;
         case 'save-compact': cmdSessionSaveCompact(args[0]); break;
-        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last | save-compact`);
+        case 'get-compact':  cmdSessionGetCompact(args[0]); break;
+        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last | save-compact | get-compact`);
       }
       break;
 
