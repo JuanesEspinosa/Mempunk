@@ -53,17 +53,31 @@ mempunk search "<query>"                             → búsqueda full-text en 
 mempunk search "<query>" --project <project_id>      → búsqueda limitada a un proyecto
 mempunk sync                                         → verifica consistencia vault ↔ BD
 mempunk sync --project <project_id>                  → sync limitado a un proyecto
-mempunk hooks install                                → instala hooks en .claude/hooks/ del proyecto actual
-mempunk hooks install --global                       → instala hooks en ~/.claude/hooks/ (aplica a todos los proyectos)
-mempunk hooks install --check                        → verifica si los hooks de Mempunk están activos
-mempunk hooks uninstall                              → elimina los hooks de Mempunk (local o --global)
+mempunk session recover <project_id>                 → muestra el último snapshot disponible (checkpoint o compact)
+mempunk session checkpoints <project_id>             → lista todos los checkpoints y compact_snapshots del proyecto
+mempunk hooks install                                → instala hooks + agentes en .claude/ del proyecto actual
+mempunk hooks install --global                       → instala hooks + agentes en ~/.claude/ (aplica a todos los proyectos)
+mempunk hooks install --check                        → verifica hooks, agentes y statusline instalados
+mempunk hooks uninstall                              → elimina hooks y agentes de Mempunk (local o --global)
 ```
 
 ---
 
-## Protocolo de inicio de sesión
+## Agentes disponibles
 
-Ejecuta estos pasos en orden antes de hacer cualquier otra cosa:
+Si los agentes están instalados (`mempunk hooks install`), úsalos en vez de los protocolos manuales:
+
+- **`@mempunk-loader`** — carga el contexto del proyecto al inicio de sesión (reemplaza el protocolo manual)
+- **`@mempunk-saver`** — guarda decisiones, session logs y actualizaciones al vault en background
+
+El agente saver se activa automáticamente cuando detectas una decisión técnica o tarea completada.
+Para guardado explícito: `SAVE decision: project=<id> title="<decisión>"` o `SAVE session: project=<id> summary="<resumen>"`.
+
+---
+
+## Protocolo de inicio de sesión (sin agentes)
+
+Si los agentes no están instalados, ejecuta estos pasos en orden:
 
 1. `mempunk session last <project_id>` → saber qué hizo la sesión anterior
 2. `mempunk skill list <project_id>` → ver qué skills existen y cargar los relevantes leyendo sus `file_path`
@@ -122,7 +136,7 @@ Actualizar vault después de instalar una nueva versión de Mempunk:
 mempunk vault upgrade
 ```
 
-Versión actual del vault: 2
+Versión actual del vault: 3
 Versión mínima requerida por este CLI: 2
 
 Si el vault está desactualizado, algunos comandos pueden comportarse de forma inesperada. Ejecuta `mempunk vault upgrade` antes de continuar.

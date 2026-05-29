@@ -661,16 +661,25 @@ function cmdVaultUpgrade() {
 // ── Handlers — Hooks ──────────────────────────────────────────────────────────
 
 // Archivos que Mempunk instala — el mismo orden se usa en install y uninstall
-const HOOK_FILES = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
+const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
+const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md'];
 
-// Identificador único en el contenido de cada hook para distinguirlos de otros hooks
-const HOOK_MARKER = '# mempunk-hook';
+// Identificadores únicos para distinguir archivos de Mempunk de otros del usuario
+const HOOK_MARKER  = '# mempunk-hook';
+const AGENT_MARKER = '# mempunk-agent';
 
-/** Devuelve el directorio destino según --global */
+/** Devuelve el directorio destino de hooks según --global */
 function hooksTargetDir() {
   return opts.global
     ? path.join(os.homedir(), '.claude', 'hooks')
     : path.join(process.cwd(), '.claude', 'hooks');
+}
+
+/** Devuelve el directorio destino de agentes según --global */
+function agentsTargetDir() {
+  return opts.global
+    ? path.join(os.homedir(), '.claude', 'agents')
+    : path.join(process.cwd(), '.claude', 'agents');
 }
 
 function cmdHooksInstall() {
@@ -686,18 +695,17 @@ function cmdHooksInstall() {
 
   // Modo --check: solo informar si están instalados, sin modificar nada
   if (opts.check) {
-    const installed = HOOK_FILES.filter((f) => fs.existsSync(path.join(targetDir, f)));
-    if (installed.length === HOOK_FILES.length) {
-      console.log(`Hooks instalados en ${targetDir}`);
-    } else if (installed.length === 0) {
-      console.log(`Hooks no instalados en ${targetDir}`);
-    } else {
-      console.log(`Hooks parcialmente instalados en ${targetDir}:`);
-      HOOK_FILES.forEach((f) => {
-        const status = installed.includes(f) ? '✓' : '✗';
-        console.log(`  ${status} ${f}`);
-      });
-    }
+    const agentsDir    = agentsTargetDir();
+    const hooksOk      = HOOK_FILES.filter((f) => fs.existsSync(path.join(targetDir, f)));
+    const agentsOk     = AGENT_FILES.filter((f) => fs.existsSync(path.join(agentsDir, f)));
+
+    console.log(`Hooks (${targetDir}):`);
+    HOOK_FILES.forEach((f) => console.log(`  ${hooksOk.includes(f) ? '✓' : '✗'} ${f}`));
+    console.log(`Agentes (${agentsDir}):`);
+    AGENT_FILES.forEach((f) => console.log(`  ${agentsOk.includes(f) ? '✓' : '✗'} ${f}`));
+
+    const statuslineOk = fs.existsSync(path.join(os.homedir(), '.mempunk', 'statusline.js'));
+    console.log(`Statusline: ${statuslineOk ? '✓' : '✗'}`);
     return;
   }
 
@@ -732,6 +740,20 @@ function cmdHooksInstall() {
     }
   }
 
+  // Instalar agentes: copiar src/agents/*.md a .claude/agents/ (local o global)
+  const agentSrcDir  = path.join(__cliDir, 'agents');
+  const agentDestDir = agentsTargetDir();
+
+  if (fs.existsSync(agentSrcDir)) {
+    fs.mkdirSync(agentDestDir, { recursive: true });
+    for (const file of AGENT_FILES) {
+      const src = path.join(agentSrcDir, file);
+      if (!fs.existsSync(src)) continue;
+      fs.copyFileSync(src, path.join(agentDestDir, file));
+    }
+    console.log(`Agentes instalados en ${agentDestDir}`);
+  }
+
   console.log(`Hooks instalados en ${targetDir}`);
 }
 
@@ -763,6 +785,22 @@ function cmdHooksUninstall() {
   } else {
     console.log(`No se encontraron hooks de Mempunk en ${targetDir}`);
   }
+
+  // Eliminar agentes de Mempunk (solo los marcados con # mempunk-agent)
+  const agentDir = agentsTargetDir();
+  let agentsRemoved = 0;
+  for (const file of AGENT_FILES) {
+    const filePath = path.join(agentDir, file);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      if (content.includes(AGENT_MARKER)) {
+        fs.unlinkSync(filePath);
+        agentsRemoved++;
+      }
+    } catch (_) {}
+  }
+  if (agentsRemoved > 0) console.log(`Agentes eliminados de ${agentDir}`);
 }
 
 // ── Helpers — archivos de config ─────────────────────────────────────────────
@@ -1127,15 +1165,24 @@ function cmdDoctor() {
     else { warn(`Vault no vinculado a ${def.displayName} — ejecuta mempunk link --cli ${cliFlag(key)}`); }
   }
 
-  const HOOK_FILES     = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
-  const globalHooksDir = path.join(os.homedir(), '.claude', 'hooks');
-  const localHooksDir  = path.join(process.cwd(), '.claude', 'hooks');
-  const globalOk = HOOK_FILES.every(f => fs.existsSync(path.join(globalHooksDir, f)));
-  const localOk  = HOOK_FILES.every(f => fs.existsSync(path.join(localHooksDir, f)));
+  const HOOK_FILES_DOC  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
+  const AGENT_FILES_DOC = ['mempunk-saver.md', 'mempunk-loader.md'];
+  const globalHooksDir  = path.join(os.homedir(), '.claude', 'hooks');
+  const localHooksDir   = path.join(process.cwd(), '.claude', 'hooks');
+  const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
+  const localAgentsDir  = path.join(process.cwd(), '.claude', 'agents');
 
-  if (globalOk)     { ok('Hooks instalados (global)'); }
-  else if (localOk) { ok('Hooks instalados (local)'); }
+  const globalHooksOk  = HOOK_FILES_DOC.every(f => fs.existsSync(path.join(globalHooksDir, f)));
+  const localHooksOk   = HOOK_FILES_DOC.every(f => fs.existsSync(path.join(localHooksDir, f)));
+  const globalAgentsOk = AGENT_FILES_DOC.every(f => fs.existsSync(path.join(globalAgentsDir, f)));
+  const localAgentsOk  = AGENT_FILES_DOC.every(f => fs.existsSync(path.join(localAgentsDir, f)));
+
+  if (globalHooksOk)     { ok('Hooks instalados (global)'); }
+  else if (localHooksOk) { ok('Hooks instalados (local)'); }
   else { warn('Hooks no instalados — ejecuta mempunk hooks install'); }
+
+  if (globalAgentsOk || localAgentsOk) { ok(`Agentes instalados (${globalAgentsOk ? 'global' : 'local'})`); }
+  else { warn('Agentes no instalados — ejecuta mempunk hooks install'); }
 
   console.log('');
   if (issues === 0 && warnings === 0) {

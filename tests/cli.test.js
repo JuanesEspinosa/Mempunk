@@ -307,19 +307,23 @@ describe('mempunk vault', () => {
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 describe('mempunk hooks', () => {
-  const localHooksDir  = path.join(PROJECT_ROOT, '.claude', 'hooks');
-  const globalHooksDir = path.join(os.homedir(), '.claude', 'hooks');
-  const HOOK_FILES     = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
-  const HOOK_MARKER    = '# mempunk-hook';
+  const localHooksDir   = path.join(PROJECT_ROOT, '.claude', 'hooks');
+  const globalHooksDir  = path.join(os.homedir(), '.claude', 'hooks');
+  const localAgentsDir  = path.join(PROJECT_ROOT, '.claude', 'agents');
+  const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
+  const HOOK_FILES      = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
+  const AGENT_FILES     = ['mempunk-saver.md', 'mempunk-loader.md'];
+  const HOOK_MARKER     = '# mempunk-hook';
+  const AGENT_MARKER    = '# mempunk-agent';
 
   afterAll(() => {
-    // Limpiar hooks locales instalados durante los tests
     for (const f of HOOK_FILES) {
       try { fs.unlinkSync(path.join(localHooksDir, f)); } catch (_) {}
-    }
-    // Limpiar hooks globales instalados durante los tests
-    for (const f of HOOK_FILES) {
       try { fs.unlinkSync(path.join(globalHooksDir, f)); } catch (_) {}
+    }
+    for (const f of AGENT_FILES) {
+      try { fs.unlinkSync(path.join(localAgentsDir, f)); } catch (_) {}
+      try { fs.unlinkSync(path.join(globalAgentsDir, f)); } catch (_) {}
     }
   });
 
@@ -347,22 +351,54 @@ describe('mempunk hooks', () => {
   });
 
   it('hooks uninstall elimina solo los hooks de Mempunk, no otros archivos', () => {
-    // Crear un archivo ajeno en el directorio de hooks locales
     const foreignFile = path.join(localHooksDir, 'other-hook.js');
     fs.writeFileSync(foreignFile, '#!/usr/bin/env node\n// some other hook\n', 'utf8');
 
     run('hooks uninstall');
 
-    // Los hooks de Mempunk deben haberse eliminado
     for (const f of HOOK_FILES) {
       expect(fs.existsSync(path.join(localHooksDir, f))).toBe(false);
     }
-
-    // El archivo ajeno debe seguir intacto
     expect(fs.existsSync(foreignFile)).toBe(true);
-
-    // Limpiar el archivo ajeno
     fs.unlinkSync(foreignFile);
+  });
+
+  it('hooks install crea los dos archivos de agentes en .claude/agents/', () => {
+    run('hooks install');
+    for (const f of AGENT_FILES) {
+      expect(fs.existsSync(path.join(localAgentsDir, f))).toBe(true);
+    }
+  });
+
+  it('los agentes instalados contienen el marcador # mempunk-agent', () => {
+    for (const f of AGENT_FILES) {
+      const content = fs.readFileSync(path.join(localAgentsDir, f), 'utf8');
+      expect(content).toContain(AGENT_MARKER);
+    }
+  });
+
+  it('hooks install --check muestra estado de hooks, agentes y statusline', () => {
+    const output = run('hooks install --check');
+    expect(output).toContain('on-start.js');
+    expect(output).toContain('mempunk-saver.md');
+    expect(output).toContain('mempunk-loader.md');
+    expect(output).toContain('Statusline');
+    // Todos deben mostrar ✓ tras la instalación anterior
+    expect(output).toContain('✓ mempunk-saver.md');
+    expect(output).toContain('✓ mempunk-loader.md');
+  });
+
+  it('hooks uninstall elimina los agentes de Mempunk pero no otros archivos en agents/', () => {
+    const foreignAgent = path.join(localAgentsDir, 'other-agent.md');
+    fs.writeFileSync(foreignAgent, '---\nname: other\n---\nOther agent\n', 'utf8');
+
+    run('hooks uninstall');
+
+    for (const f of AGENT_FILES) {
+      expect(fs.existsSync(path.join(localAgentsDir, f))).toBe(false);
+    }
+    expect(fs.existsSync(foreignAgent)).toBe(true);
+    fs.unlinkSync(foreignAgent);
   });
 });
 
