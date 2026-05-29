@@ -808,7 +808,7 @@ function cmdHooksUninstall() {
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 const MEMPUNK_HOOK_MARKER  = 'mempunk-auto-start';
 const MEMPUNK_HOOK_PROMPT  =
-  'The user has mempunk auto-start enabled. Run the /mempunk slash command now to load the vault context.';
+  'The user has mempunk auto-start enabled. Use @mempunk-loader to load the vault context for the current project.';
 
 function readJsonFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -1183,6 +1183,19 @@ function cmdDoctor() {
 
   if (globalAgentsOk || localAgentsOk) { ok(`Agentes instalados (${globalAgentsOk ? 'global' : 'local'})`); }
   else { warn('Agentes no instalados — ejecuta mempunk hooks install'); }
+
+  // Revisar hooks.log por errores recientes (últimas 50 líneas)
+  const hooksLogPath = path.join(VAULT_PATH, '.mempunk', 'hooks.log');
+  if (fs.existsSync(hooksLogPath)) {
+    const logLines = fs.readFileSync(hooksLogPath, 'utf8').split('\n').filter(Boolean);
+    const recentErrors = logLines.slice(-50).filter(l => l.includes(' Error'));
+    if (recentErrors.length > 0) {
+      warn(`hooks.log contiene ${recentErrors.length} error(es) reciente(s) — revisa: ${hooksLogPath}`);
+      recentErrors.slice(-3).forEach(l => console.log(`    ${l}`));
+    } else {
+      ok('hooks.log sin errores recientes');
+    }
+  }
 
   console.log('');
   if (issues === 0 && warnings === 0) {
