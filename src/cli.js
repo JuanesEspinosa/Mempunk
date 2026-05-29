@@ -401,6 +401,36 @@ function cmdSessionLast(projectId) {
   }
 }
 
+/** Persiste un compact_snapshot desde un temp JSON file (usado por on-compact.js hook) */
+function cmdSessionSaveCompact(tmpFilePath) {
+  if (!tmpFilePath) fail('Uso interno: mempunk session save-compact <tmp_json_path>');
+  requireVault();
+
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(tmpFilePath, 'utf8'));
+  } catch (err) {
+    fail(`No se pudo leer el archivo temporal: ${err.message}`);
+  } finally {
+    try { fs.unlinkSync(tmpFilePath); } catch (_) {}
+  }
+
+  const { project_id, session_id, compact_type, message_count, raw_turns, files_found, commands_run } = data;
+  if (!project_id || !session_id) fail('Datos incompletos en el archivo temporal');
+
+  const store = openStore();
+  store.addCompactSnapshot(
+    project_id,
+    session_id,
+    compact_type ?? null,
+    message_count ?? null,
+    raw_turns ?? '[]',
+    files_found ? JSON.parse(files_found) : [],
+    commands_run ? JSON.parse(commands_run) : [],
+  );
+  // Salida silenciosa — es un hook interno
+}
+
 // ── Handlers — Búsqueda ───────────────────────────────────────────────────────
 
 function cmdSearch(query) {
@@ -1137,9 +1167,10 @@ try {
 
     case 'session':
       switch (subcommand) {
-        case 'log':  cmdSessionLog(args[0], args[1]); break;
-        case 'last': cmdSessionLast(args[0]); break;
-        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last`);
+        case 'log':          cmdSessionLog(args[0], args[1]); break;
+        case 'last':         cmdSessionLast(args[0]); break;
+        case 'save-compact': cmdSessionSaveCompact(args[0]); break;
+        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last | save-compact`);
       }
       break;
 
