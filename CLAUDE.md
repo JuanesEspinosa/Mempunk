@@ -69,6 +69,7 @@ Si los agentes están instalados (`mempunk hooks install`), úsalos en vez de lo
 
 - **`@mempunk-loader`** — carga el contexto del proyecto al inicio de sesión (reemplaza el protocolo manual)
 - **`@mempunk-saver`** — guarda decisiones, session logs y actualizaciones al vault en background
+- **`@mempunk-recover`** — recupera contexto de una sesión cerrada manualmente (complementa el hook automático)
 
 El agente saver se activa automáticamente cuando detectas una decisión técnica o tarea completada.
 Para guardado explícito: `SAVE decision: project=<id> title="<decisión>"` o `SAVE session: project=<id> summary="<resumen>"`.

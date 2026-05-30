@@ -312,7 +312,7 @@ describe('mempunk hooks', () => {
   const localAgentsDir  = path.join(PROJECT_ROOT, '.claude', 'agents');
   const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
   const HOOK_FILES      = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
-  const AGENT_FILES     = ['mempunk-saver.md', 'mempunk-loader.md'];
+  const AGENT_FILES     = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
   const HOOK_MARKER     = '# mempunk-hook';
   const AGENT_MARKER    = '# mempunk-agent';
 
@@ -363,7 +363,7 @@ describe('mempunk hooks', () => {
     fs.unlinkSync(foreignFile);
   });
 
-  it('hooks install crea los dos archivos de agentes en .claude/agents/', () => {
+  it('hooks install crea los tres archivos de agentes en .claude/agents/', () => {
     run('hooks install');
     for (const f of AGENT_FILES) {
       expect(fs.existsSync(path.join(localAgentsDir, f))).toBe(true);
@@ -380,12 +380,15 @@ describe('mempunk hooks', () => {
   it('hooks install --check muestra estado de hooks, agentes y statusline', () => {
     const output = run('hooks install --check');
     expect(output).toContain('on-start.js');
+    expect(output).toContain('on-start.js');
     expect(output).toContain('mempunk-saver.md');
     expect(output).toContain('mempunk-loader.md');
+    expect(output).toContain('mempunk-recover.md');
     expect(output).toContain('Statusline');
     // Todos deben mostrar ✓ tras la instalación anterior
     expect(output).toContain('✓ mempunk-saver.md');
     expect(output).toContain('✓ mempunk-loader.md');
+    expect(output).toContain('✓ mempunk-recover.md');
   });
 
   it('hooks uninstall elimina los agentes de Mempunk pero no otros archivos en agents/', () => {

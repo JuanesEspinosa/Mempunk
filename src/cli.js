@@ -662,7 +662,7 @@ function cmdVaultUpgrade() {
 
 // Archivos que Mempunk instala — el mismo orden se usa en install y uninstall
 const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
-const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md'];
+const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
 
 // Identificadores únicos para distinguir archivos de Mempunk de otros del usuario
 const HOOK_MARKER  = '# mempunk-hook';
@@ -1166,7 +1166,7 @@ function cmdDoctor() {
   }
 
   const HOOK_FILES_DOC  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
-  const AGENT_FILES_DOC = ['mempunk-saver.md', 'mempunk-loader.md'];
+  const AGENT_FILES_DOC = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
   const globalHooksDir  = path.join(os.homedir(), '.claude', 'hooks');
   const localHooksDir   = path.join(process.cwd(), '.claude', 'hooks');
   const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
