@@ -48,7 +48,7 @@ describe('mempunk init', () => {
 // ── Project ───────────────────────────────────────────────────────────────────
 
 describe('mempunk project add', () => {
-  it('crea la carpeta del proyecto, subcarpetas e INDEX.md', () => {
+  it('crea la carpeta del proyecto con scaffold completo desde templates', () => {
     const output = run('project add myproj "Mi Proyecto"');
 
     const projectDir = path.join(TEMP_VAULT, 'projects', 'myproj');
@@ -56,9 +56,54 @@ describe('mempunk project add', () => {
     expect(fs.existsSync(path.join(projectDir, 'decisions'))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, 'skills'))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, 'INDEX.md'))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, 'overview.md'))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, 'architecture.md'))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, 'conventions.md'))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, 'wiki', 'state.md'))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, 'wiki', 'log.md'))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, 'wiki', 'index.md'))).toBe(true);
+
+    // No debe crear backlog.md ni session-log.md (viven en SQLite en v2)
+    expect(fs.existsSync(path.join(projectDir, 'backlog.md'))).toBe(false);
+    expect(fs.existsSync(path.join(projectDir, 'session-log.md'))).toBe(false);
 
     // El output debe mencionar el nombre del proyecto
     expect(output).toContain('Mi Proyecto');
+  });
+
+  it('reemplaza {PROJECT_NAME} en los templates con el nombre real', () => {
+    const indexContent = fs.readFileSync(
+      path.join(TEMP_VAULT, 'projects', 'myproj', 'INDEX.md'), 'utf8'
+    );
+    expect(indexContent).toContain('Mi Proyecto');
+    expect(indexContent).not.toContain('{PROJECT_NAME}');
+  });
+
+  it('auto-activa el proyecto recién creado', () => {
+    const activeFile = path.join(TEMP_VAULT, '.mempunk', 'active-project.json');
+    expect(fs.existsSync(activeFile)).toBe(true);
+    const active = JSON.parse(fs.readFileSync(activeFile, 'utf8'));
+    expect(active.project_id).toBe('myproj');
+  });
+});
+
+describe('mempunk project activate', () => {
+  it('escribe active-project.json con el proyecto indicado', () => {
+    run('project activate myproj');
+    const activeFile = path.join(TEMP_VAULT, '.mempunk', 'active-project.json');
+    expect(fs.existsSync(activeFile)).toBe(true);
+    const active = JSON.parse(fs.readFileSync(activeFile, 'utf8'));
+    expect(active.project_id).toBe('myproj');
+  });
+
+  it('falla si el proyecto no existe en la BD', () => {
+    const result = spawnSync('node', ['src/cli.js', 'project', 'activate', 'no-existe'], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT },
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('no-existe');
   });
 });
 
@@ -133,6 +178,17 @@ describe('mempunk sync', () => {
   it('retorna mensaje de vault sincronizado cuando no hay inconsistencias', () => {
     const output = run('sync');
     expect(output).toContain('sincronizado');
+  });
+
+  it('reporta archivos de scaffold faltantes cuando se borra uno', () => {
+    run('project add scaffold-test "Scaffold Test"');
+    const wikiState = path.join(TEMP_VAULT, 'projects', 'scaffold-test', 'wiki', 'state.md');
+    fs.unlinkSync(wikiState);
+
+    const output = run('sync');
+    expect(output).toContain('scaffold faltantes');
+    expect(output).toContain('scaffold-test');
+    expect(output).toContain('wiki/state.md');
   });
 });
 
@@ -311,50 +367,48 @@ describe('mempunk hooks', () => {
   const globalHooksDir  = path.join(os.homedir(), '.claude', 'hooks');
   const localAgentsDir  = path.join(PROJECT_ROOT, '.claude', 'agents');
   const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
-  const HOOK_FILES      = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
-  const AGENT_FILES     = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
-  const HOOK_MARKER     = '# mempunk-hook';
-  const AGENT_MARKER    = '# mempunk-agent';
+  const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
+  const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
+  const HOOK_MARKER  = '# mempunk-hook';
+  const AGENT_MARKER = '# mempunk-agent';
 
   afterAll(() => {
     for (const f of HOOK_FILES) {
-      try { fs.unlinkSync(path.join(localHooksDir, f)); } catch (_) {}
+      try { fs.unlinkSync(path.join(localHooksDir,  f)); } catch (_) {}
       try { fs.unlinkSync(path.join(globalHooksDir, f)); } catch (_) {}
     }
     for (const f of AGENT_FILES) {
-      try { fs.unlinkSync(path.join(localAgentsDir, f)); } catch (_) {}
+      try { fs.unlinkSync(path.join(localAgentsDir,  f)); } catch (_) {}
       try { fs.unlinkSync(path.join(globalAgentsDir, f)); } catch (_) {}
     }
   });
 
-  it('hooks install crea los cuatro archivos en .claude/hooks/', () => {
+  it('hooks install (sin flag) instala en ~/.claude/hooks/ globalmente', () => {
     run('hooks install');
-
-    for (const f of HOOK_FILES) {
-      expect(fs.existsSync(path.join(localHooksDir, f))).toBe(true);
-    }
-  });
-
-  it('los hooks instalados localmente contienen el marcador # mempunk-hook', () => {
-    for (const f of HOOK_FILES) {
-      const content = fs.readFileSync(path.join(localHooksDir, f), 'utf8');
-      expect(content).toContain(HOOK_MARKER);
-    }
-  });
-
-  it('hooks install --global crea los cuatro archivos en ~/.claude/hooks/', () => {
-    run('hooks install --global');
-
     for (const f of HOOK_FILES) {
       expect(fs.existsSync(path.join(globalHooksDir, f))).toBe(true);
     }
   });
 
-  it('hooks uninstall elimina solo los hooks de Mempunk, no otros archivos', () => {
+  it('los hooks instalados globalmente contienen el marcador # mempunk-hook', () => {
+    for (const f of HOOK_FILES) {
+      const content = fs.readFileSync(path.join(globalHooksDir, f), 'utf8');
+      expect(content).toContain(HOOK_MARKER);
+    }
+  });
+
+  it('hooks install --local instala en .claude/hooks/ del proyecto actual', () => {
+    run('hooks install --local');
+    for (const f of HOOK_FILES) {
+      expect(fs.existsSync(path.join(localHooksDir, f))).toBe(true);
+    }
+  });
+
+  it('hooks uninstall --local elimina solo los hooks de Mempunk, no otros archivos', () => {
     const foreignFile = path.join(localHooksDir, 'other-hook.js');
     fs.writeFileSync(foreignFile, '#!/usr/bin/env node\n// some other hook\n', 'utf8');
 
-    run('hooks uninstall');
+    run('hooks uninstall --local');
 
     for (const f of HOOK_FILES) {
       expect(fs.existsSync(path.join(localHooksDir, f))).toBe(false);
@@ -363,16 +417,16 @@ describe('mempunk hooks', () => {
     fs.unlinkSync(foreignFile);
   });
 
-  it('hooks install crea los tres archivos de agentes en .claude/agents/', () => {
-    run('hooks install');
+  it('hooks install (sin flag) instala agentes en ~/.claude/agents/ globalmente', () => {
+    // La primera llamada a hooks install ya los instaló globalmente
     for (const f of AGENT_FILES) {
-      expect(fs.existsSync(path.join(localAgentsDir, f))).toBe(true);
+      expect(fs.existsSync(path.join(globalAgentsDir, f))).toBe(true);
     }
   });
 
-  it('los agentes instalados contienen el marcador # mempunk-agent', () => {
+  it('los agentes instalados globalmente contienen el marcador # mempunk-agent', () => {
     for (const f of AGENT_FILES) {
-      const content = fs.readFileSync(path.join(localAgentsDir, f), 'utf8');
+      const content = fs.readFileSync(path.join(globalAgentsDir, f), 'utf8');
       expect(content).toContain(AGENT_MARKER);
     }
   });
@@ -380,22 +434,28 @@ describe('mempunk hooks', () => {
   it('hooks install --check muestra estado de hooks, agentes y statusline', () => {
     const output = run('hooks install --check');
     expect(output).toContain('on-start.js');
-    expect(output).toContain('on-start.js');
     expect(output).toContain('mempunk-saver.md');
     expect(output).toContain('mempunk-loader.md');
     expect(output).toContain('mempunk-recover.md');
     expect(output).toContain('Statusline');
-    // Todos deben mostrar ✓ tras la instalación anterior
+    // Todos deben mostrar ✓ tras la instalación global anterior
     expect(output).toContain('✓ mempunk-saver.md');
     expect(output).toContain('✓ mempunk-loader.md');
     expect(output).toContain('✓ mempunk-recover.md');
   });
 
-  it('hooks uninstall elimina los agentes de Mempunk pero no otros archivos en agents/', () => {
+  it('hooks install --local instala agentes en .claude/agents/ del proyecto actual', () => {
+    run('hooks install --local');
+    for (const f of AGENT_FILES) {
+      expect(fs.existsSync(path.join(localAgentsDir, f))).toBe(true);
+    }
+  });
+
+  it('hooks uninstall --local elimina agentes de Mempunk pero no otros archivos en agents/', () => {
     const foreignAgent = path.join(localAgentsDir, 'other-agent.md');
     fs.writeFileSync(foreignAgent, '---\nname: other\n---\nOther agent\n', 'utf8');
 
-    run('hooks uninstall');
+    run('hooks uninstall --local');
 
     for (const f of AGENT_FILES) {
       expect(fs.existsSync(path.join(localAgentsDir, f))).toBe(false);
@@ -450,5 +510,111 @@ describe('mempunk session checkpoints', () => {
     const output = run('session checkpoints recov-proj');
     expect(output).toContain('compact');
     expect(output).toContain('2 msgs');
+  });
+});
+
+// ── Doctor — proyecto activo ──────────────────────────────────────────────────
+
+describe('mempunk doctor — proyecto activo', () => {
+  it('advierte cuando no hay active-project.json', () => {
+    const activeFile = path.join(TEMP_VAULT, '.mempunk', 'active-project.json');
+    try { fs.unlinkSync(activeFile); } catch (_) {}
+
+    const output = run('doctor');
+    expect(output).toMatch(/Sin proyecto activo|active-project/);
+  });
+
+  it('muestra el proyecto activo cuando active-project.json existe', () => {
+    // Crear el proyecto si no existe, luego activarlo
+    run('project add doctor-proj "Doctor Test Project"');
+    const output = run('doctor');
+    expect(output).toContain('Proyecto activo: doctor-proj');
+  });
+});
+
+// ── Auto-start — verifica agentes ─────────────────────────────────────────────
+
+describe('mempunk auto-start — advertencia sin agentes', () => {
+  it('emite warning en stderr si los agentes no están instalados', () => {
+    // Usar un vault + HOME temporal para que no haya agentes instalados
+    const NO_AGENTS_VAULT = path.join(os.tmpdir(), `mempunk-noagents-${Date.now()}`);
+    const NO_AGENTS_HOME  = path.join(os.tmpdir(), `mempunk-home-${Date.now()}`);
+    try {
+      execSync('node src/cli.js init', {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, MEMPUNK_VAULT: NO_AGENTS_VAULT, HOME: NO_AGENTS_HOME, USERPROFILE: NO_AGENTS_HOME },
+        encoding: 'utf8',
+      });
+      const result = spawnSync('node', ['src/cli.js', 'auto-start', 'on'], {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, MEMPUNK_VAULT: NO_AGENTS_VAULT, HOME: NO_AGENTS_HOME, USERPROFILE: NO_AGENTS_HOME },
+        encoding: 'utf8',
+      });
+      expect(result.stderr).toContain('mempunk hooks install');
+      expect(result.stdout).toContain('Auto-start activado');
+    } finally {
+      fs.rmSync(NO_AGENTS_VAULT, { recursive: true, force: true });
+      fs.rmSync(NO_AGENTS_HOME,  { recursive: true, force: true });
+    }
+  });
+});
+
+// ── Setup ─────────────────────────────────────────────────────────────────────
+
+describe('mempunk setup', () => {
+  // Vault temporal exclusivo para los tests de setup (no reutilizar el global)
+  const SETUP_VAULT = path.join(os.tmpdir(), `mempunk-setup-test-${Date.now()}`);
+
+  function runSetup(args) {
+    return execSync(`node src/cli.js ${args}`, {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env, MEMPUNK_VAULT: SETUP_VAULT },
+      encoding: 'utf8',
+    });
+  }
+
+  afterAll(() => {
+    fs.rmSync(SETUP_VAULT, { recursive: true, force: true });
+  });
+
+  it('--setup-mode manual: crea setup.json con mode=manual', () => {
+    runSetup('setup --setup-mode manual');
+    const setupJson = path.join(SETUP_VAULT, '.mempunk', 'setup.json');
+    expect(fs.existsSync(setupJson)).toBe(true);
+    const config = JSON.parse(fs.readFileSync(setupJson, 'utf8'));
+    expect(config.mode).toBe('manual');
+    expect(config.cli).toBe('claude-code');
+  });
+
+  it('--setup-mode manual: instala vault-skills en el vault', () => {
+    const skillsDir = path.join(SETUP_VAULT, 'vault-skills');
+    expect(fs.existsSync(skillsDir)).toBe(true);
+    expect(fs.existsSync(path.join(skillsDir, 'session-start.md'))).toBe(true);
+    expect(fs.existsSync(path.join(skillsDir, 'session-end.md'))).toBe(true);
+  });
+
+  it('--setup-mode vault-skills: crea setup.json con mode=vault-skills y cli=other', () => {
+    // Usar un vault diferente para no confundir estados
+    const VS_VAULT = path.join(os.tmpdir(), `mempunk-vs-test-${Date.now()}`);
+    try {
+      execSync('node src/cli.js setup --setup-mode vault-skills', {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, MEMPUNK_VAULT: VS_VAULT },
+        encoding: 'utf8',
+      });
+      const config = JSON.parse(
+        fs.readFileSync(path.join(VS_VAULT, '.mempunk', 'setup.json'), 'utf8')
+      );
+      expect(config.mode).toBe('vault-skills');
+      expect(config.cli).toBe('other');
+      // vault-skills presentes
+      expect(fs.existsSync(path.join(VS_VAULT, 'vault-skills', 'session-start.md'))).toBe(true);
+    } finally {
+      fs.rmSync(VS_VAULT, { recursive: true, force: true });
+    }
+  });
+
+  it('--setup-mode inválido: falla con error descriptivo', () => {
+    expect(() => runSetup('setup --setup-mode banana')).toThrow();
   });
 });

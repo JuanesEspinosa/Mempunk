@@ -40,11 +40,10 @@ Because the vault is CLI-agnostic, you can use the same vault with Claude Code, 
 
 ```bash
 npm install -g mempunk
-mempunk init
-mempunk hooks install   # optional: automatic session saves on compaction
+mempunk setup
 ```
 
-`init` creates `~/Dev-Brain/` with the full vault structure and initializes the SQLite database.
+`setup` asks which AI CLI you use and configures everything: creates `~/Dev-Brain/`, links it to your CLI, and installs hooks + agents (Claude Code) or vault-skills protocols (Gemini CLI / opencode).
 
 ## Vault Structure
 
@@ -72,18 +71,18 @@ mempunk hooks install   # optional: automatic session saves on compaction
 
 ## Session Flow
 
-### Session start (`vault-skills/session-start.md`)
+### Session start
 
-When a new session begins, the assistant:
+**With agents (Claude Code, auto mode):** invoke `@mempunk-loader`. It lists your projects, asks which one to work on, activates it, and returns a compact context summary. If you enabled `auto-start`, it runs automatically when you open Claude Code.
 
-1. Runs `mempunk session last <project_id>` to know what the previous session did
-2. Runs `mempunk skill list <project_id>` and reads all relevant skill files — stack, patterns, conventions
-3. Reads project state — if `wiki/state.md` exists, reads it (compiled state); otherwise reads the last 3 session log entries
-4. Runs `mempunk backlog list <project_id> --status pending` to load pending tasks
-5. **Smart Context Check** — detects gaps (stale session log, empty skills, missing wiki state) and offers to read the actual project repo if needed
+**Without agents (manual mode / Gemini CLI / opencode):** follow `vault-skills/session-start.md`. The assistant:
+
+1. Runs `mempunk project activate <id>` to set the active project
+2. Runs `mempunk session last <project_id>` to know what the previous session did
+3. Runs `mempunk skill list <project_id>` and reads all relevant skill files
+4. Reads project state — `wiki/state.md` if it exists, otherwise the last 3 session log entries
+5. Runs `mempunk backlog list <project_id> --status pending`
 6. Confirms context before proceeding
-
-If hooks are installed (`mempunk hooks install`), steps 1–4 run automatically at session start.
 
 ### Incremental saves (during session)
 
@@ -141,8 +140,8 @@ The next session picks up exactly where this one left off.
 | `mempunk search "<query>" --project <id>` | Search within a single project | `mempunk search "auth" --project api` |
 | `mempunk sync` | Check consistency between disk and DB | `mempunk sync` |
 | `mempunk sync --project <id>` | Sync check for one project | `mempunk sync --project api` |
-| `mempunk hooks install` | Install lifecycle hooks in `.claude/hooks/` | `mempunk hooks install` |
-| `mempunk hooks install --global` | Install hooks globally in `~/.claude/hooks/` | `mempunk hooks install --global` |
+| `mempunk hooks install` | Install hooks + agents globally in `~/.claude/` | `mempunk hooks install` |
+| `mempunk hooks install --local` | Install hooks in `.claude/` of the current project | `mempunk hooks install --local` |
 | `mempunk hooks uninstall` | Remove Mempunk hooks | `mempunk hooks uninstall` |
 
 ## Vault Maintenance
@@ -201,9 +200,7 @@ mempunk vault upgrade
 
 ## Languages
 
-Available: **English** (default), **Español**, **Português**, **Français**
-
-Use `--lang es`, `--lang pt`, or `--lang fr` with any command, or select interactively during setup.
+Documentation available in: **English** (default), **Español**, **Português**, **Français**
 
 ## License
 

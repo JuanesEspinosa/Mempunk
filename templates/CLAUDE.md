@@ -62,57 +62,56 @@ projects/[nombre-proyecto]/
 
 ## Protocolo de inicio de sesion
 
+> **Primero: verifica si tienes agentes instalados.**
+> Ejecuta `mempunk hooks install --check` o busca `@mempunk-loader` en tus agentes.
+
+### Camino A — Con agentes (Claude Code modo automatico)
+
+Si el agente `@mempunk-loader` esta disponible, **invocalo directamente**.
+El agente maneja la seleccion de proyecto, activacion y carga de contexto completa.
+No sigas el protocolo manual — seria redundante.
+
+Si configuraste `auto-start`, el agente ya se habra invocado automaticamente al
+abrir esta sesion. Solo confirma el proyecto y continua.
+
+### Camino B — Sin agentes (modo manual, Gemini CLI, opencode)
+
 **Al comenzar cualquier sesion, Claude DEBE:**
 
 1. Leer este archivo (`CLAUDE.md`) completo
 2. Listar los proyectos registrados en la seccion **Proyectos activos** de este CLAUDE.md
 3. Preguntarle al usuario: *"Encontre estos proyectos: [lista]. Con cual trabajamos hoy?"*
-4. Cuando el usuario indique el proyecto, leer su `INDEX.md`
-5. Leer el `overview.md` completo de ese proyecto
-6. Verificar si existe `wiki/state.md` en el proyecto:
+4. Ejecutar `mempunk project activate <id>` para activar el proyecto elegido
+5. Leer el `INDEX.md` del proyecto
+6. Leer el `overview.md` completo de ese proyecto
+7. Verificar si existe `wiki/state.md` en el proyecto:
    - Si **existe**: leer `wiki/state.md` (estado compilado — reemplaza leer el session-log)
    - Si **no existe**: leer las ultimas **3 entradas** del `session-log.md`
-7. Leer el `backlog.md` del proyecto
-8. Leer el `conventions.md` del proyecto (si existe)
-9. **Smart Context Check** — evaluar si hay gaps evidentes (session-log >7 dias, overview vacio, architecture sin definir, backlog vacio). Si hay gaps, informar al usuario y preguntar si quiere que se revise el proyecto real. Si no, continuar.
+8. Leer las tareas pendientes: `mempunk backlog list <id> --status pending`
+9. Leer el `conventions.md` del proyecto (si existe)
 10. Confirmar al usuario: *"Lei el contexto de [proyecto]. Ultimo trabajo fue [resumen]. Continuamos con [X] o hay algo nuevo?"*
 
 **Nunca asumir el proyecto — siempre preguntar primero.**
 **Nunca leer archivos de un proyecto antes de que el usuario lo confirme.**
-**Nunca leer el proyecto real sin confirmacion explicita del usuario.**
 **Nunca empezar a escribir codigo sin haber hecho estos pasos.**
 
 ---
 
 ## Protocolo de cierre de sesion
 
+> Si tienes `@mempunk-saver` disponible, puedes usarlo para el guardado.
+> De lo contrario, sigue el protocolo manual.
+
+### Cierre manual
+
 **Al terminar cualquier sesion de trabajo, Claude DEBE:**
 
-1. Escribir en el `session-log.md` del proyecto:
-
-```markdown
-## Sesion YYYY-MM-DD HH:MM
-
-### Que se hizo
-- [lista concisa de cambios realizados]
-
-### Decisiones tomadas
-- [decisiones arquitecturales o tecnicas relevantes]
-
-### Estado actual
-- [estado en que quedo el codigo/feature]
-
-### Proximos pasos
-- [que falta, en orden de prioridad]
-
-### Archivos modificados
-- [lista de archivos tocados]
-```
-
-2. Actualizar el `backlog.md` del proyecto (ver skill: Backlog inteligente)
-3. Actualizar el `INDEX.md` del proyecto con la ultima sesion y top 3 del backlog
-4. Actualizar `wiki/state.md` si existe — reescribir con estado compilado y agregar linea al `wiki/log.md`
-5. Escribir o actualizar `daily/YYYY-MM-DD.md` (ver skill: Daily consolidado)
+1. Actualizar tareas que cambiaron de estado: `mempunk backlog update <id> --status done`
+2. Registrar decisiones tecnicas tomadas: `mempunk decision add <project_id> "<titulo>"`
+3. Registrar la sesion: `mempunk session log <project_id> "<resumen>" --files "arch1,arch2"`
+4. Actualizar el `INDEX.md` del proyecto con la ultima sesion y top 3 del backlog
+5. Actualizar `wiki/state.md` si existe — reescribir con estado compilado y agregar linea al `wiki/log.md`
+6. Escribir o actualizar `daily/YYYY-MM-DD.md` (ver skill: Daily consolidado)
 
 ---
 

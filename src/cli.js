@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { parseArgs } from 'node:util';
+import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
@@ -89,12 +90,14 @@ const { values: opts, positionals } = parseArgs({
     files:    { type: 'string' },   // session log
     url:      { type: 'string' },    // resource add
     content:  { type: 'string' },   // resource add, daily log
-    global:   { type: 'boolean' },  // hooks install/uninstall
-    check:    { type: 'boolean' },  // hooks install --check
-    yes:      { type: 'boolean' },  // remove --yes
-    v:        { type: 'boolean' },  // -v
-    version:  { type: 'boolean' },  // --version
-    cli:      { type: 'string'  },  // link/unlink --cli <name>
+    global:       { type: 'boolean' },  // hooks install/uninstall (deprecated alias — global es el default)
+    local:        { type: 'boolean' },  // hooks install/uninstall --local → instala en .claude/ del proyecto actual
+    check:        { type: 'boolean' },  // hooks install --check
+    yes:          { type: 'boolean' },  // remove --yes
+    v:            { type: 'boolean' },  // -v
+    version:      { type: 'boolean' },  // --version
+    cli:          { type: 'string'  },  // link/unlink --cli <name>
+    'setup-mode': { type: 'string'  },  // setup --setup-mode auto|manual|vault-skills
   },
   allowPositionals: true,
   strict: false, // ignorar opciones no declaradas sin lanzar error
@@ -134,24 +137,38 @@ function cmdProjectAdd(id, name) {
   // Crear subcarpetas estándar del proyecto
   fs.mkdirSync(path.join(projectPath, 'decisions'), { recursive: true });
   fs.mkdirSync(path.join(projectPath, 'skills'),    { recursive: true });
+  fs.mkdirSync(path.join(projectPath, 'wiki'),      { recursive: true });
 
-  // INDEX.md con frontmatter básico para que el vault lo pueda identificar
-  const now = new Date().toISOString();
-  const indexContent = [
-    '---',
-    `name: ${name}`,
-    `created_at: ${now}`,
-    'status: active',
-    '---',
-    '',
-  ].join('\n');
-  fs.writeFileSync(path.join(projectPath, 'INDEX.md'), indexContent, 'utf8');
+  // Copiar templates reemplazando {PROJECT_NAME} — no copiar backlog.md ni session-log.md
+  // (en v2 ambos viven en SQLite, no en disco)
+  const templateDir = path.join(__cliDir, '..', 'templates', 'project');
+  const templateFiles = [
+    ['INDEX.md',           'INDEX.md'],
+    ['overview.md',        'overview.md'],
+    ['architecture.md',    'architecture.md'],
+    ['conventions.md',     'conventions.md'],
+    ['wiki/state.md',      'wiki/state.md'],
+    ['wiki/log.md',        'wiki/log.md'],
+    ['wiki/index.md',      'wiki/index.md'],
+  ];
+
+  for (const [src, dest] of templateFiles) {
+    const srcPath  = path.join(templateDir, src);
+    const destPath = path.join(projectPath, dest);
+    if (!fs.existsSync(srcPath)) continue;
+    const content = fs.readFileSync(srcPath, 'utf8').replaceAll('{PROJECT_NAME}', name);
+    fs.writeFileSync(destPath, content, 'utf8');
+  }
 
   // Registrar en SQLite
   const store = openStore();
   store.addProject(id, name, projectPath);
 
-  console.log(`Proyecto ${name} creado en ${projectPath}`);
+  // Auto-activar el proyecto recién creado
+  _writeActiveProject(id);
+
+  console.log(`Proyecto "${name}" creado en ${projectPath}`);
+  console.log(`Proyecto activo: ${id}`);
 }
 
 function cmdProjectList() {
@@ -162,6 +179,27 @@ function cmdProjectList() {
     ['id', 'name', 'status', 'updated_at'],
     rows.map((r) => [r.id, r.name, r.status, r.updated_at])
   );
+}
+
+/** Escribe active-project.json — compartido por cmdProjectActivate y cmdProjectAdd */
+function _writeActiveProject(projectId) {
+  const mempunkDir  = path.join(VAULT_PATH, '.mempunk');
+  const activeFile  = path.join(mempunkDir, 'active-project.json');
+  fs.mkdirSync(mempunkDir, { recursive: true });
+  fs.writeFileSync(activeFile, JSON.stringify({ project_id: projectId }), 'utf8');
+}
+
+function cmdProjectActivate(id) {
+  if (!id) fail('Uso: mempunk project activate <project_id>');
+  requireVault();
+
+  const store = openStore();
+  if (!store.listProjects().find((p) => p.id === id)) {
+    fail(`Proyecto no encontrado: "${id}". Usa mempunk project list para ver los disponibles.`);
+  }
+
+  _writeActiveProject(id);
+  console.log(`Proyecto activo: ${id}`);
 }
 
 // ── Handlers — Backlog ────────────────────────────────────────────────────────
@@ -583,6 +621,9 @@ function cmdSearch(query) {
 
 // ── Handlers — Sync ───────────────────────────────────────────────────────────
 
+// Archivos de scaffold que deben existir en cada proyecto
+const SCAFFOLD_FILES = ['INDEX.md', 'wiki/state.md', 'wiki/log.md', 'wiki/index.md'];
+
 function cmdSync() {
   requireVault();
 
@@ -599,7 +640,22 @@ function cmdSync() {
     );
   }
 
-  if (missing_files.length === 0 && unregistered_files.length === 0) {
+  // Verificar archivos de scaffold para cada proyecto registrado
+  const projects = opts.project
+    ? store.listProjects().filter((p) => p.id === opts.project)
+    : store.listProjects();
+
+  const missingScaffold = [];
+  for (const proj of projects) {
+    for (const file of SCAFFOLD_FILES) {
+      const fullPath = path.join(VAULT_PATH, 'projects', proj.id, file);
+      if (!fs.existsSync(fullPath)) {
+        missingScaffold.push({ project_id: proj.id, file });
+      }
+    }
+  }
+
+  if (missing_files.length === 0 && unregistered_files.length === 0 && missingScaffold.length === 0) {
     console.log('Vault sincronizado correctamente');
     return;
   }
@@ -617,6 +673,14 @@ function cmdSync() {
     printTable(
       ['type', 'file_path'],
       unregistered_files.map((f) => [f.type, f.file_path])
+    );
+  }
+
+  if (missingScaffold.length > 0) {
+    console.log('\nArchivos de scaffold faltantes:');
+    printTable(
+      ['project_id', 'archivo'],
+      missingScaffold.map((f) => [f.project_id, f.file])
     );
   }
 }
@@ -668,18 +732,18 @@ const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.m
 const HOOK_MARKER  = '# mempunk-hook';
 const AGENT_MARKER = '# mempunk-agent';
 
-/** Devuelve el directorio destino de hooks según --global */
+/** Devuelve el directorio destino de hooks. Global por defecto; --local para scope de proyecto. */
 function hooksTargetDir() {
-  return opts.global
-    ? path.join(os.homedir(), '.claude', 'hooks')
-    : path.join(process.cwd(), '.claude', 'hooks');
+  return opts.local
+    ? path.join(process.cwd(), '.claude', 'hooks')
+    : path.join(os.homedir(), '.claude', 'hooks');
 }
 
-/** Devuelve el directorio destino de agentes según --global */
+/** Devuelve el directorio destino de agentes. Global por defecto; --local para scope de proyecto. */
 function agentsTargetDir() {
-  return opts.global
-    ? path.join(os.homedir(), '.claude', 'agents')
-    : path.join(process.cwd(), '.claude', 'agents');
+  return opts.local
+    ? path.join(process.cwd(), '.claude', 'agents')
+    : path.join(os.homedir(), '.claude', 'agents');
 }
 
 function cmdHooksInstall() {
@@ -1197,6 +1261,25 @@ function cmdDoctor() {
     }
   }
 
+  // Verificar proyecto activo (.mempunk/active-project.json)
+  const activeFile = path.join(VAULT_PATH, '.mempunk', 'active-project.json');
+  if (fs.existsSync(activeFile)) {
+    try {
+      const { project_id } = JSON.parse(fs.readFileSync(activeFile, 'utf8'));
+      ok(`Proyecto activo: ${project_id}`);
+    } catch (_) {
+      warn('active-project.json existe pero no es JSON válido — ejecuta mempunk project activate <id>');
+    }
+  } else {
+    // Tomar un proyecto real de la BD para el ejemplo; si no hay ninguno, usar uno inventado
+    const exampleId = store.listProjects()[0]?.id ?? 'cuidado-gatos';
+    warn(
+      'Sin proyecto activo — los hooks no pueden guardar checkpoints\n' +
+      `    Solución: mempunk project activate <id>\n` +
+      `    Ejemplo:  mempunk project activate ${exampleId}`
+    );
+  }
+
   console.log('');
   if (issues === 0 && warnings === 0) {
     console.log('  ✓ Todo en orden\n');
@@ -1226,6 +1309,21 @@ function cmdAutoStart(action) {
 
   if (action === 'on') {
     if (enabled) { console.log('Auto-start ya estaba activo'); return; }
+
+    // Advertir si los agentes no están instalados — auto-start los necesita
+    const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
+    const localAgentsDir  = path.join(process.cwd(), '.claude', 'agents');
+    const agentsOk = AGENT_FILES.some((f) =>
+      fs.existsSync(path.join(globalAgentsDir, f)) ||
+      fs.existsSync(path.join(localAgentsDir,  f))
+    );
+    if (!agentsOk) {
+      process.stderr.write(
+        '! Auto-start requiere que los agentes estén instalados.\n' +
+        '  Ejecuta primero: mempunk hooks install\n'
+      );
+    }
+
     if (!settings.hooks) settings.hooks = {};
     if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
     settings.hooks.SessionStart.push({
@@ -1248,21 +1346,131 @@ function cmdAutoStart(action) {
 
 // ── Handlers — Setup ──────────────────────────────────────────────────────────
 
-function cmdSetup() {
+/** Copia vault-skills al directorio del vault */
+function _installVaultSkills() {
+  const srcDir  = path.join(__cliDir, '..', 'vault-skills');
+  const destDir = path.join(VAULT_PATH, 'vault-skills');
+  if (!fs.existsSync(srcDir)) return;
+  fs.mkdirSync(destDir, { recursive: true });
+  for (const file of fs.readdirSync(srcDir)) {
+    if (file.endsWith('.md')) {
+      fs.copyFileSync(path.join(srcDir, file), path.join(destDir, file));
+    }
+  }
+}
+
+/**
+ * Setup interactivo.
+ * Modos válidos: 'auto' | 'manual' | 'vault-skills'
+ *   auto         → Claude Code + hooks + agentes
+ *   manual       → Claude Code + vault-skills (sin hooks)
+ *   vault-skills → Gemini / opencode + vault-skills (sin hooks)
+ *
+ * Pasa --setup-mode <modo> para saltear las preguntas (CI / tests).
+ */
+async function cmdSetup() {
+  // ── Step 1: Vault ────────────────────────────────────────────────────────
   if (!fs.existsSync(VAULT_PATH)) {
     cmdInit();
+    console.log(`✓ Vault creado en ${VAULT_PATH}`);
   } else {
-    console.log(`Vault existente en ${VAULT_PATH}`);
+    console.log(`✓ Vault existente en ${VAULT_PATH}`);
   }
-  // Vincular todos los CLIs instalados
-  const origCli = opts.cli;
-  opts.cli = 'all';
-  cmdLink();
-  opts.cli = origCli;
 
-  opts.global = true;
-  cmdHooksInstall();
-  console.log('\nMempunk listo. Reinicia los CLIs para aplicar los cambios.');
+  // ── Step 2: Determinar modo ──────────────────────────────────────────────
+  let mode = opts['setup-mode'] ?? null;
+
+  if (!mode) {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+    console.log('\n¿Qué AI CLI usas principalmente?');
+    console.log('  1. Claude Code');
+    console.log('  2. Gemini CLI / opencode / otra\n');
+    const cliAnswer = (await rl.question('Elige (1 o 2): ')).trim();
+    const isClaudeCode = cliAnswer !== '2';
+
+    if (isClaudeCode) {
+      console.log('\n¿Cómo quieres que funcione Mempunk?');
+      console.log('  1. Automático — hooks + agentes  (recomendado)');
+      console.log('     Los hooks guardan checkpoints solos y @mempunk-loader');
+      console.log('     carga el contexto al inicio de cada sesión.');
+      console.log('  2. Manual — solo vault-skills');
+      console.log('     Corres los protocolos tú mismo al inicio/fin de sesión.\n');
+      const modeAnswer = (await rl.question('Elige (1 o 2): ')).trim();
+      mode = modeAnswer === '2' ? 'manual' : 'auto';
+    } else {
+      mode = 'vault-skills';
+    }
+
+    rl.close();
+  }
+
+  // Validar modo si vino por flag
+  if (!['auto', 'manual', 'vault-skills'].includes(mode)) {
+    fail(`--setup-mode inválido: "${mode}". Usa: auto | manual | vault-skills`);
+  }
+
+  // ── Step 3: Vincular vault a los CLIs correspondientes ───────────────────
+  const normalized = VAULT_PATH.replace(/\\/g, '/');
+
+  if (mode === 'auto' || mode === 'manual') {
+    const added = CLI_DEFS['claude-code'].addDir(normalized);
+    console.log(`✓ Vault ${added ? 'vinculado' : 'ya vinculado'} a Claude Code`);
+  } else {
+    let anyLinked = false;
+    for (const key of ['gemini-cli', 'opencode']) {
+      const def = CLI_DEFS[key];
+      if (def.isInstalled()) {
+        const added = def.addDir(normalized);
+        console.log(`✓ Vault ${added ? 'vinculado' : 'ya vinculado'} a ${def.displayName}`);
+        anyLinked = true;
+      }
+    }
+    if (!anyLinked) {
+      console.log('! No se detectó Gemini CLI ni opencode instalados. Vincula manualmente con:');
+      console.log('    mempunk link --cli gemini   (o opencode)');
+    }
+  }
+
+  // ── Step 4: Instalar hooks+agentes o vault-skills ────────────────────────
+  if (mode === 'auto') {
+    cmdHooksInstall();
+    cmdAutoStart('on');
+  } else {
+    _installVaultSkills();
+    console.log(`✓ vault-skills instalados en ${path.join(VAULT_PATH, 'vault-skills')}`);
+  }
+
+  // ── Step 5: Guardar configuración de setup ───────────────────────────────
+  const mempunkDir  = path.join(VAULT_PATH, '.mempunk');
+  const setupConfig = {
+    mode,
+    cli: mode === 'vault-skills' ? 'other' : 'claude-code',
+    created_at: new Date().toISOString(),
+  };
+  fs.mkdirSync(mempunkDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(mempunkDir, 'setup.json'),
+    JSON.stringify(setupConfig, null, 2) + '\n',
+  );
+
+  // ── Step 6: Resumen final ────────────────────────────────────────────────
+  const line = '─'.repeat(52);
+  console.log(`\n${line}`);
+  console.log('Próximo paso:');
+  console.log('  mempunk project add <id> "<nombre del proyecto>"');
+  if (mode === 'auto') {
+    console.log('\nAl iniciar Claude Code: @mempunk-loader se ejecuta automáticamente.');
+  } else {
+    const skillPath = path.join(VAULT_PATH, 'vault-skills', 'session-start.md');
+    console.log('\nPara cargar contexto al inicio de sesión:');
+    console.log(`  Lee ${skillPath}`);
+  }
+  if (mode !== 'auto') {
+    console.log('\nSi migras a Claude Code en el futuro:');
+    console.log('  mempunk setup --setup-mode auto');
+  }
+  console.log(`${line}\n`);
 }
 
 // ── Handlers — Log (abrir proyecto en editor) ─────────────────────────────────
@@ -1316,6 +1524,7 @@ function cmdCliList() {
 
 // ── Router principal ──────────────────────────────────────────────────────────
 
+(async () => {
 try {
   if (opts.v || opts.version) {
     console.log(`mempunk v${CLI_VERSION}`);
@@ -1329,9 +1538,10 @@ try {
 
     case 'project':
       switch (subcommand) {
-        case 'add':  cmdProjectAdd(args[0], args[1]); break;
-        case 'list': cmdProjectList(); break;
-        default: fail(`Subcomando desconocido: project ${subcommand ?? ''}. Usa: add | list`);
+        case 'add':      cmdProjectAdd(args[0], args[1]); break;
+        case 'list':     cmdProjectList(); break;
+        case 'activate': cmdProjectActivate(args[0]); break;
+        default: fail(`Subcomando desconocido: project ${subcommand ?? ''}. Usa: add | list | activate`);
       }
       break;
 
@@ -1416,7 +1626,7 @@ try {
       break;
 
     case 'setup':
-      cmdSetup();
+      await cmdSetup();
       break;
 
     case 'link':
@@ -1499,10 +1709,10 @@ try {
       console.log('  sync                              Verifica consistencia vault ↔ BD');
       console.log('  vault    version                  Muestra la versión del vault y del CLI');
       console.log('  vault    upgrade                  Actualiza el vault a la versión más reciente');
-      console.log('  hooks    install                  Instala hooks en .claude/hooks/');
-      console.log('  hooks    install --global         Instala hooks globalmente');
+      console.log('  hooks    install                  Instala hooks globalmente en ~/.claude/hooks/');
+      console.log('  hooks    install --local          Instala hooks en .claude/hooks/ del proyecto actual');
       console.log('  hooks    install --check          Verifica si los hooks están activos');
-      console.log('  hooks    uninstall                Elimina hooks de Mempunk');
+      console.log('  hooks    uninstall                Elimina hooks de Mempunk (global por defecto)');
       break;
 
     default:
@@ -1512,3 +1722,4 @@ try {
   // Capturar errores inesperados de VaultStore o del sistema de archivos
   fail(err.message);
 }
+})();
