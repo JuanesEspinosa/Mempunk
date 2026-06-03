@@ -732,6 +732,17 @@ const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.m
 const HOOK_MARKER  = '# mempunk-hook';
 const AGENT_MARKER = '# mempunk-agent';
 
+// Mapeo hook file → evento de Claude Code
+const HOOK_EVENT_MAP = {
+  'on-start.js':   'SessionStart',
+  'on-stop.js':    'Stop',
+  'on-compact.js': 'PreCompact',
+  'on-prompt.js':  'UserPromptSubmit',
+};
+
+// Flag file para auto-start — vive dentro del vault para ser aislable en tests
+const AUTO_START_FLAG = path.join(VAULT_PATH, '.mempunk', 'auto-start.flag');
+
 /** Devuelve el directorio destino de hooks. Global por defecto; --local para scope de proyecto. */
 function hooksTargetDir() {
   return opts.local
@@ -744,6 +755,60 @@ function agentsTargetDir() {
   return opts.local
     ? path.join(process.cwd(), '.claude', 'agents')
     : path.join(os.homedir(), '.claude', 'agents');
+}
+
+/** Registra hooks de Mempunk en settings.json como command hooks. */
+function _registerHooksInSettings(hooksDir) {
+  const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
+  if (!settings.hooks) settings.hooks = {};
+
+  // Limpiar entradas antiguas de tipo prompt (formato legacy) antes de escribir
+  for (const event of Object.values(HOOK_EVENT_MAP)) {
+    if (Array.isArray(settings.hooks[event])) {
+      settings.hooks[event] = settings.hooks[event].filter(
+        (g) => !(g.hooks?.some((h) => h.prompt?.includes('mempunk-auto-start')))
+      );
+    }
+  }
+
+  for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
+    const command = `node ${path.join(hooksDir, file)}`;
+    if (!settings.hooks[event]) settings.hooks[event] = [];
+
+    // No duplicar si ya existe la entrada exacta
+    const alreadyRegistered = settings.hooks[event].some((g) =>
+      g.hooks?.some((h) => h.type === 'command' && h.command === command)
+    );
+    if (!alreadyRegistered) {
+      settings.hooks[event].push({
+        matcher: '',
+        hooks: [{ type: 'command', command }],
+      });
+    }
+
+    // Limpiar arrays vacíos
+    if (settings.hooks[event].length === 0) delete settings.hooks[event];
+  }
+
+  writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
+}
+
+/** Elimina hooks de Mempunk de settings.json. */
+function _unregisterHooksFromSettings(hooksDir) {
+  const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
+  if (!settings.hooks) return;
+
+  for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
+    if (!Array.isArray(settings.hooks[event])) continue;
+    const command = `node ${path.join(hooksDir, file)}`;
+    settings.hooks[event] = settings.hooks[event].filter(
+      (g) => !g.hooks?.some((h) => h.type === 'command' && h.command === command)
+    );
+    if (settings.hooks[event].length === 0) delete settings.hooks[event];
+  }
+
+  if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
+  writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
 }
 
 function cmdHooksInstall() {
@@ -775,12 +840,18 @@ function cmdHooksInstall() {
 
   fs.mkdirSync(targetDir, { recursive: true });
 
+  // package.json ESM necesario para que Node.js trate los hooks como módulos ESM
+  fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify({ type: 'module' }) + '\n');
+
   for (const file of HOOK_FILES) {
     const dest = path.join(targetDir, file);
     fs.copyFileSync(path.join(sourceDir, file), dest);
     // Hacer ejecutable el script en sistemas Unix — en Windows no tiene efecto pero no falla
     try { fs.chmodSync(dest, 0o755); } catch (_) {}
   }
+
+  // Registrar hooks en settings.json como command hooks
+  _registerHooksInSettings(targetDir);
 
   // Instalar statusline: copiar src/statusline.js a ~/.mempunk/statusline.js
   const statuslineSrc  = path.join(__cliDir, 'statusline.js');
@@ -865,6 +936,9 @@ function cmdHooksUninstall() {
     } catch (_) {}
   }
   if (agentsRemoved > 0) console.log(`Agentes eliminados de ${agentDir}`);
+
+  // Eliminar registros de settings.json
+  _unregisterHooksFromSettings(targetDir);
 }
 
 // ── Helpers — archivos de config ─────────────────────────────────────────────
@@ -1292,15 +1366,11 @@ function cmdDoctor() {
 
 // ── Handlers — Auto-start ─────────────────────────────────────────────────────
 
-function isMempunkHook(hookGroup) {
-  return hookGroup.matcher === MEMPUNK_HOOK_MARKER ||
-    (hookGroup.hooks && hookGroup.hooks.some(h => h.prompt && h.prompt.includes('mempunk-auto-start')));
-}
+// Auto-start se controla via flag file leído por on-start.js en cada SessionStart.
+// No escribe en settings.json — los hooks ya están registrados por cmdHooksInstall.
 
 function cmdAutoStart(action) {
-  const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
-  const enabled  = Array.isArray(settings.hooks?.SessionStart) &&
-    settings.hooks.SessionStart.some(isMempunkHook);
+  const enabled = fs.existsSync(AUTO_START_FLAG);
 
   if (!action) {
     console.log(`Auto-start: ${enabled ? 'on' : 'off'}`);
@@ -1310,34 +1380,21 @@ function cmdAutoStart(action) {
   if (action === 'on') {
     if (enabled) { console.log('Auto-start ya estaba activo'); return; }
 
-    // Advertir si los agentes no están instalados — auto-start los necesita
-    const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
-    const localAgentsDir  = path.join(process.cwd(), '.claude', 'agents');
-    const agentsOk = AGENT_FILES.some((f) =>
-      fs.existsSync(path.join(globalAgentsDir, f)) ||
-      fs.existsSync(path.join(localAgentsDir,  f))
-    );
-    if (!agentsOk) {
+    // Advertir si los hooks no están instalados — on-start.js los necesita
+    const globalHooksDir = path.join(os.homedir(), '.claude', 'hooks');
+    if (!fs.existsSync(path.join(globalHooksDir, 'on-start.js'))) {
       process.stderr.write(
-        '! Auto-start requiere que los agentes estén instalados.\n' +
+        '! Auto-start requiere que los hooks estén instalados.\n' +
         '  Ejecuta primero: mempunk hooks install\n'
       );
     }
 
-    if (!settings.hooks) settings.hooks = {};
-    if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
-    settings.hooks.SessionStart.push({
-      matcher: '',
-      hooks: [{ type: 'prompt', prompt: MEMPUNK_HOOK_PROMPT }],
-    });
-    writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
+    fs.mkdirSync(path.dirname(AUTO_START_FLAG), { recursive: true });
+    fs.writeFileSync(AUTO_START_FLAG, '');
     console.log('Auto-start activado');
   } else if (action === 'off') {
     if (!enabled) { console.log('Auto-start ya estaba inactivo'); return; }
-    settings.hooks.SessionStart = settings.hooks.SessionStart.filter(g => !isMempunkHook(g));
-    if (settings.hooks.SessionStart.length === 0) delete settings.hooks.SessionStart;
-    if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
-    writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
+    fs.unlinkSync(AUTO_START_FLAG);
     console.log('Auto-start desactivado');
   } else {
     fail(`Acción desconocida: "${action}". Usa: on | off`);

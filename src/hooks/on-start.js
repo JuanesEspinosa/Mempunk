@@ -3,6 +3,7 @@
 
 // Evento: SessionStart — al inicio de cada sesión de Claude Code.
 // - Inicializa session-touched.json y persiste el proyecto activo (siempre).
+// - Si auto-start.flag existe y source !== "compact": inyecta instrucción @mempunk-loader.
 // - Si source === "compact": restaura contexto del último compact_snapshot e inyecta additionalContext.
 
 import { spawnSync } from 'node:child_process';
@@ -21,6 +22,9 @@ const [CLI_BIN, ...CLI_ARGS_PREFIX] = (process.env.MEMPUNK_CLI ?? 'mempunk').spl
 
 // Límite de additionalContext que Claude Code acepta en SessionStart
 const MAX_CONTEXT_CHARS = 8000;
+
+// Flag file que indica si auto-start está activo (vive dentro del vault para ser aislable en tests)
+const AUTO_START_FLAG = path.join(MEMPUNK_DIR, 'auto-start.flag');
 
 function log(message) {
   try {
@@ -138,12 +142,24 @@ try {
     log(`Proyecto activo registrado: ${process.env.CLAUDE_PROJECT_ID}`);
   }
 
-  // ── CompactRestore: solo cuando Claude Code indica source="compact" ─────────
+  // ── Auto-start: inyectar instrucción @mempunk-loader en sesiones normales ────
 
   if (source !== 'compact') {
-    log(`SessionStart source=${source ?? 'startup'} — sin restauración`);
+    if (fs.existsSync(AUTO_START_FLAG)) {
+      log(`SessionStart source=${source ?? 'startup'} — auto-start activo, inyectando @mempunk-loader`);
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: 'mempunk-auto-start: El usuario tiene auto-start activado. Invoca @mempunk-loader para cargar el contexto del vault del proyecto actual antes de responder.',
+        },
+      }));
+    } else {
+      log(`SessionStart source=${source ?? 'startup'} — sin restauración ni auto-start`);
+    }
     process.exit(0);
   }
+
+  // ── CompactRestore: solo cuando Claude Code indica source="compact" ─────────
 
   const projectId = getProjectId();
   if (!projectId) {
