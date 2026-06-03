@@ -181,10 +181,10 @@ describe('on-start.js (CompactRestore)', () => {
     expect(out.hookSpecificOutput.additionalContext).toContain('src/auth.ts');
   });
 
-  it('retorna stdout vacío cuando source=startup', () => {
+  it('retorna {} cuando source=startup sin auto-start', () => {
     const r = runHook('on-start.js', { session_id: 'sess-startup', source: 'startup' });
     expect(r.status).toBe(0);
-    expect(r.stdout.trim()).toBe('');
+    expect(JSON.parse(r.stdout)).toEqual({});
   });
 
   it('inicializa session-touched.json en ambos casos', () => {

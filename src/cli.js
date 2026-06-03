@@ -777,21 +777,23 @@ function _registerHooksInSettings(hooksDir) {
     });
   }
 
+  // Usar ruta absoluta al ejecutable node para evitar problemas de PATH en Windows (nvm4w, etc.)
+  const nodeExe = process.execPath;
+
   for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
     const scriptPath = path.join(hooksDir, file);
     if (!settings.hooks[event]) settings.hooks[event] = [];
 
-    // No duplicar si ya existe entrada con node + este script en args
+    // No duplicar si ya existe entrada con este script en args (independiente del command usado)
     const alreadyRegistered = settings.hooks[event].some((g) =>
       g.hooks?.some((h) =>
-        h.type === 'command' && h.command === 'node' &&
-        Array.isArray(h.args) && h.args[0] === scriptPath
+        h.type === 'command' && Array.isArray(h.args) && h.args[0] === scriptPath
       )
     );
     if (!alreadyRegistered) {
       settings.hooks[event].push({
         matcher: '',
-        hooks: [{ type: 'command', command: 'node', args: [scriptPath] }],
+        hooks: [{ type: 'command', command: nodeExe, args: [scriptPath] }],
       });
     }
 
@@ -811,8 +813,7 @@ function _unregisterHooksFromSettings(hooksDir) {
     const scriptPath = path.join(hooksDir, file);
     settings.hooks[event] = settings.hooks[event].filter(
       (g) => !g.hooks?.some(
-        (h) => h.type === 'command' && h.command === 'node' &&
-               Array.isArray(h.args) && h.args[0] === scriptPath
+        (h) => h.type === 'command' && Array.isArray(h.args) && h.args[0] === scriptPath
       )
     );
     if (settings.hooks[event].length === 0) delete settings.hooks[event];

@@ -155,6 +155,7 @@ try {
       }));
     } else {
       log(`SessionStart source=${source ?? 'startup'} — sin restauración ni auto-start`);
+      process.stdout.write('{}');
     }
     process.exit(0);
   }
