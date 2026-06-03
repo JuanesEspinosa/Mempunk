@@ -757,36 +757,44 @@ function agentsTargetDir() {
     : path.join(os.homedir(), '.claude', 'agents');
 }
 
-/** Registra hooks de Mempunk en settings.json como command hooks. */
+/** Registra hooks de Mempunk en settings.json como command hooks.
+ *  Usa formato command+args separados para compatibilidad con Windows. */
 function _registerHooksInSettings(hooksDir) {
   const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
   if (!settings.hooks) settings.hooks = {};
 
-  // Limpiar entradas antiguas de tipo prompt (formato legacy) antes de escribir
+  // Limpiar entradas legacy (type:prompt o command-string-unico) de Mempunk
   for (const event of Object.values(HOOK_EVENT_MAP)) {
-    if (Array.isArray(settings.hooks[event])) {
-      settings.hooks[event] = settings.hooks[event].filter(
-        (g) => !(g.hooks?.some((h) => h.prompt?.includes('mempunk-auto-start')))
+    if (!Array.isArray(settings.hooks[event])) continue;
+    settings.hooks[event] = settings.hooks[event].filter((g) => {
+      if (!g.hooks) return true;
+      const isMempunkLegacy = g.hooks.some(
+        (h) => h.prompt?.includes('mempunk-auto-start') ||
+               (h.type === 'command' && typeof h.command === 'string' &&
+                h.command.includes('mempunk') && !h.args)
       );
-    }
+      return !isMempunkLegacy;
+    });
   }
 
   for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
-    const command = `node ${path.join(hooksDir, file)}`;
+    const scriptPath = path.join(hooksDir, file);
     if (!settings.hooks[event]) settings.hooks[event] = [];
 
-    // No duplicar si ya existe la entrada exacta
+    // No duplicar si ya existe entrada con node + este script en args
     const alreadyRegistered = settings.hooks[event].some((g) =>
-      g.hooks?.some((h) => h.type === 'command' && h.command === command)
+      g.hooks?.some((h) =>
+        h.type === 'command' && h.command === 'node' &&
+        Array.isArray(h.args) && h.args[0] === scriptPath
+      )
     );
     if (!alreadyRegistered) {
       settings.hooks[event].push({
         matcher: '',
-        hooks: [{ type: 'command', command }],
+        hooks: [{ type: 'command', command: 'node', args: [scriptPath] }],
       });
     }
 
-    // Limpiar arrays vacíos
     if (settings.hooks[event].length === 0) delete settings.hooks[event];
   }
 
@@ -800,9 +808,12 @@ function _unregisterHooksFromSettings(hooksDir) {
 
   for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
     if (!Array.isArray(settings.hooks[event])) continue;
-    const command = `node ${path.join(hooksDir, file)}`;
+    const scriptPath = path.join(hooksDir, file);
     settings.hooks[event] = settings.hooks[event].filter(
-      (g) => !g.hooks?.some((h) => h.type === 'command' && h.command === command)
+      (g) => !g.hooks?.some(
+        (h) => h.type === 'command' && h.command === 'node' &&
+               Array.isArray(h.args) && h.args[0] === scriptPath
+      )
     );
     if (settings.hooks[event].length === 0) delete settings.hooks[event];
   }
