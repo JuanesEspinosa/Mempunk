@@ -1,10 +1,18 @@
 {
   "name": "mempunk",
-  "version": "1.6.1",
+  "version": "2.0.0",
   "description": "Persistent dev brain for AI coding CLIs (Claude Code, opencode, gemini-cli) — memory vault across sessions",
   "type": "module",
   "bin": {
-    "mempunk": "bin/cli.js"
+    "mempunk": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {}
   },
   "keywords": [
     "claude-code",
@@ -16,19 +24,21 @@
     "ai-context"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/JuanesEspinosa/Mempunk.git"
   },
   "files": [
-    "bin/",
+    "src/",
     "templates/"
   ],
   "dependencies": {
-    "boxen": "^8.0.1",
-    "chalk": "^5.6.2",
-    "gradient-string": "^3.0.0",
-    "inquirer": "^13.4.2",
-    "ora": "^9.4.0"
+    "better-sqlite3": "^12.10.0"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2"
   }
 }

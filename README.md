@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/mempunk)](https://www.npmjs.com/package/mempunk)
 [![license](https://img.shields.io/npm/l/mempunk)](LICENSE)
 
-Persistent dev brain for AI coding CLIs — a knowledge vault that compiles and accumulates context across sessions, not just logs it. Works with **Claude Code**, **opencode**, and **gemini-cli**.
+Persistent memory between Claude Code sessions.
 
 ## The Problem
 
@@ -26,295 +26,274 @@ On top of that, if you switch between different AI coding CLIs — Claude Code f
 
 ## The Solution
 
-Mempunk gives your AI a structured vault that acts as its persistent memory — and keeps it compiled, not just stored.
+Mempunk gives your AI a structured vault backed by SQLite and markdown files — and keeps it compiled, not just stored.
 
-- **Session start** (`/mempunk`): the assistant loads the compiled project state from `wiki/state.md` if it exists, or the last session logs otherwise. No re-explaining. No re-deriving. It picks up where you left off.
-- **Session end** (`/session-end`): the assistant writes the session log, updates the backlog, and rewrites the compiled state — a fresh synthesis of everything that's happened so far. The next session starts with a dense, accurate snapshot instead of raw history.
+- **Session start** (`vault-skills/session-start.md`): the assistant loads the compiled project state from `wiki/state.md` if it exists, or the last session logs otherwise. No re-explaining. No re-deriving. It picks up where you left off.
+- **Session end** (`vault-skills/session-end.md`): the assistant writes the session log, updates the backlog, and rewrites the compiled state — a fresh synthesis of everything that's happened so far. The next session starts with a dense, accurate snapshot instead of raw history.
 - **The vault** (always): each project accumulates a `wiki/` — a knowledge base the LLM owns and maintains. Every session makes it more accurate. Every source you add makes it richer.
 
-The vault is just markdown files organized by project. You manage it with a CLI. Your AI navigates it with slash commands. It also works as an Obsidian vault, so you can browse and search everything visually.
+The vault is markdown files organized by project, with SQLite as the structured backend. You manage it with a CLI. Your AI navigates it with the protocols defined in `vault-skills/`. It also works as an Obsidian vault, so you can browse and search everything visually.
 
-No database. No server. No API keys. Just files.
-
-And because the vault is CLI-agnostic, you can use the same vault with Claude Code, opencode, and gemini-cli simultaneously. Switch between CLIs without losing context.
+Because the vault is CLI-agnostic, you can use the same vault with Claude Code, opencode, and gemini-cli simultaneously. Switch between CLIs without losing context.
 
 ## Quick Start
 
 ```bash
-# 1. Run setup (asks which CLI you'll use, creates and links a vault)
-npx mempunk
-
-# 2. Add a project
-npx mempunk project my-app
-
-# 3. In any session of your chosen CLI, type:
-/mempunk
-
-# 4. When you're done, type:
-/session-end
+npm install -g mempunk
+mempunk setup
 ```
 
-## CLI Reference
-
-### Vault management
-
-```
-mempunk setup                  Interactive full setup (recommended)
-mempunk init [path] [options]  Create a new vault
-mempunk link <path>            Link a vault to your CLI (supports multiple)
-mempunk unlink [path]          Unlink a vault (interactive if multiple)
-mempunk status                 Show all linked vaults and their projects
-mempunk cli add <name>         Add a CLI (claude-code, opencode, gemini-cli)
-mempunk cli remove <name>      Remove a CLI
-mempunk cli list               Show active CLIs
-mempunk auto-start [on|off]    Auto-run /mempunk on new sessions
-mempunk -v                     Show version
-```
-
-### Project management
-
-```
-mempunk project <name>         Add a new project to the vault
-mempunk remove <name>          Remove a project from the vault
-mempunk backlog <name>         Show a project's backlog in the terminal
-mempunk log <name>             Open a project's session log in your editor
-mempunk sync                   Add missing template files to existing projects
-mempunk doctor                 Check vault health and integrity
-```
-
-> All project commands ask which vault to use when multiple are linked.
-
-### Options
-
-```
---lang <code>      Language: en, es, pt, fr (default: en)
---preset <name>    Preset: full, standard, minimal
---projects         Include projects folder
---areas            Include areas folder
---resources        Include resources folder
---daily            Include daily folder
-```
-
-### Examples
-
-```bash
-mempunk setup --lang es
-mempunk init ./vault --preset full
-mempunk init ./vault --projects --resources --daily
-mempunk project my-saas
-mempunk remove my-saas
-mempunk backlog my-saas
-mempunk log my-saas
-mempunk sync
-mempunk doctor
-mempunk status
-mempunk cli add opencode
-mempunk cli add gemini-cli
-mempunk cli list
-mempunk cli remove opencode
-```
+`setup` asks which AI CLI you use and configures everything: creates `~/Dev-Brain/`, links it to your CLI, and installs hooks + agents (Claude Code) or vault-skills protocols (Gemini CLI / opencode).
 
 ## Vault Structure
 
 ```
-vault/
-├── CLAUDE.md              # Entry point — Claude reads this first
+~/Dev-Brain/
 ├── projects/
-│   └── my-project/
-│       ├── INDEX.md       # Quick entry point — status, top 3 backlog, links
-│       ├── overview.md    # What the project is, stack, repo, status
-│       ├── architecture.md # Technical decisions and diagrams
-│       ├── conventions.md # Project rules, coding standards, patterns
-│       ├── backlog.md     # Prioritized tasks (- [ ] / - [x])
-│       ├── session-log.md # What Claude did each session
-│       ├── decisions/     # Architecture Decision Records
-│       └── wiki/          # LLM-maintained wiki (state, log, sources)
-├── areas/                 # Ongoing responsibilities (not projects)
-│   └── INDEX.md           # Area index
-├── resources/             # Reusable technical knowledge
-│   └── INDEX.md           # Resource index by category
-└── daily/                 # Daily consolidated logs
-    └── INDEX.md           # Daily index
+│   └── <id>/
+│       ├── INDEX.md        metadata (name, created_at, status)
+│       ├── decisions/      architecture decision records (ADRs)
+│       ├── skills/         stack, patterns, conventions — loaded each session
+│       └── wiki/           LLM-maintained knowledge base
+│           ├── state.md    compiled project state — rewritten each session
+│           ├── log.md      append-only session history
+│           ├── index.md    catalog of all wiki pages
+│           └── sources/    documents for the LLM to ingest
+├── areas/                  ongoing responsibilities, not projects
+├── resources/              links and references
+├── daily/                  narrative daily logs
+└── .mempunk/
+    ├── mempunk.db          SQLite database — do not edit manually
+    └── hooks.log           lifecycle hook execution log
 ```
 
-`CLAUDE.md` links directly to each project's `INDEX.md` — never to internal files. Each `INDEX.md` then links to the project's internal files. This keeps the Obsidian graph clean (tree, not spider web).
+`wiki/state.md` is the central differentiator. It's the *compiled state* of the project — what's true now, not what happened in order. The LLM rewrites it at the end of every session. Reading one compiled file is faster and more accurate than reading N session logs. Every session makes it more precise. Every source you add enriches it. You never write it yourself.
 
-`mempunk project <name>` scaffolds this structure and registers the project in `CLAUDE.md` with a direct `[[wikilink]]` to its `INDEX.md`.
+## Session Flow
 
-`mempunk sync` adds any missing template files (like `INDEX.md`, `conventions.md`, `wiki/`) to existing projects without overwriting. It also updates `CLAUDE.md` with the latest protocol while preserving your projects list and configured preferences.
+### Session start
 
-## Project Wiki
+**With agents (Claude Code, auto mode):** invoke `@mempunk-loader`. It lists your projects, asks which one to work on, activates it, and returns a compact context summary. If you enabled `auto-start`, it runs automatically when you open Claude Code.
 
-Each project includes a `wiki/` directory — a lightweight knowledge base the LLM builds and maintains automatically.
+**Without agents (manual mode / Gemini CLI / opencode):** follow `vault-skills/session-start.md`. The assistant:
 
-- **`wiki/state.md`** — the compiled state of the project. Rewritten by the LLM at the end of every session. It reflects *what's true now* — the current architecture, active decisions, blockers, and next steps — not what happened in order. Reading one compiled file is faster and more accurate than reading N session logs.
-- **`wiki/sources/`** — drop documents here (specs, articles, transcripts, API docs) and ask the LLM to ingest them. The LLM reads each source and integrates the relevant information into the wiki.
-- **`wiki/index.md`** — catalog of all wiki pages with one-line descriptions.
-- **`wiki/log.md`** — append-only record of every session and ingest in `## [YYYY-MM-DD] type | description` format, parseable with standard tools.
+1. Runs `mempunk project activate <id>` to set the active project
+2. Runs `mempunk session last <project_id>` to know what the previous session did
+3. Runs `mempunk skill list <project_id>` and reads all relevant skill files
+4. Reads project state — `wiki/state.md` if it exists, otherwise the last 3 session log entries
+5. Runs `mempunk backlog list <project_id> --status pending`
+6. Confirms context before proceeding
 
-The key property: the wiki *compounds*. Every session makes `wiki/state.md` more accurate. Every source you add enriches the context. You never write it yourself — the LLM does all the maintenance.
+### Incremental saves (during session)
 
-## Supported CLIs
+The assistant saves context immediately when it happens — not only at session end:
 
-mempunk supports using multiple CLIs simultaneously with the same vault. During `setup`, select one or more CLIs. You can add more later with `mempunk cli add <name>`. Each CLI gets its own native registration:
+- **Architectural decision made** → `mempunk decision add` immediately
+- **Important bug fixed** → `mempunk session log` with the fix summary
+- **Task completed or started** → `mempunk backlog update` immediately
+- **Project skill modified** → `mempunk skill update` immediately
+- **Relevant link captured** → `mempunk resource add` immediately
+- **Important work block finished** → `mempunk daily log` with a block summary
 
-| CLI | Vault registration | Skills location |
-|---|---|---|
-| **Claude Code** | `~/.claude.json` → `additionalDirectories[]` | `~/.claude/skills/<name>/SKILL.md` |
-| **opencode** | `~/.config/opencode/AGENTS.md` (markers) | `~/.config/opencode/skills/<name>/SKILL.md` |
-| **gemini-cli** | `~/.gemini/settings.json` → `context.includeDirectories[]` | `~/.gemini/skills/<name>/SKILL.md` |
+If a session is interrupted, the important context is already persisted.
 
-The vault itself (markdown files in `projects/`, `daily/`, etc.) is the same regardless of CLI — it's portable. When you `link` or `unlink` a vault, the operation applies to all active CLIs at once. Your active CLIs are persisted in `~/.mempunk/config.json`.
+### Session end (`vault-skills/session-end.md`)
 
-### Feature compatibility
+When a session ends, the assistant:
+
+1. Runs `mempunk backlog update` for each task that changed status during the session
+2. Runs `mempunk decision add` for each important decision not yet saved
+3. Runs `mempunk session log` with a summary and the list of files touched
+4. Updates `wiki/state.md` — rewrites it as a compiled synthesis of the current project state
+5. Appends to `wiki/log.md`
+6. Creates or appends to `daily/YYYY-MM-DD.md`
+
+The next session picks up exactly where this one left off.
+
+## Lifecycle Hooks (Claude Code)
+
+When hooks are installed (`mempunk hooks install`), Mempunk automatically responds to Claude Code session events:
+
+| Hook | Event | Behavior |
+|------|-------|----------|
+| `on-prompt.js` | Before each turn | **ContextWarning** — alerts at 70%, 80%, and 84% context usage |
+| `on-stop.js` | After each response | **AutoCheckpoint** — saves an incremental checkpoint every 5 turns |
+| `on-compact.js` | Before context compaction | **CompactGuard** — captures a full snapshot before Claude compacts |
+| `on-start.js` | Session start | **CompactRestore** — restores context from the last snapshot after compaction |
+
+AutoCheckpoint interval is configurable via the `MEMPUNK_CHECKPOINT_INTERVAL` environment variable (default: 5).
+
+Hooks also install a **statusline** integration — a real-time context bar in Claude Code's status line:
+
+```
+🟢 ███░░░░░░ 32% | claude-sonnet | $0.12
+```
+
+The emoji indicates pressure level: 🟢 below 70%, ⚠️ at 70–80%, 🔶 at 80–84%, 🚨 above 84%.
+
+To recover context from a previous session or after an interruption:
+
+```bash
+mempunk session recover <project_id>     # show latest available snapshot
+mempunk session checkpoints <project_id> # list all saved checkpoints
+```
+
+## Agents (Claude Code)
+
+Three sub-agents are installed alongside hooks:
+
+| Agent | Model | Purpose |
+|-------|-------|---------|
+| `@mempunk-loader` | Sonnet | Loads project context at session start — lists projects, activates one, returns compact summary |
+| `@mempunk-saver` | Haiku (background) | Saves decisions, session logs, and backlog updates mid-session without interrupting the conversation |
+| `@mempunk-recover` | Sonnet | Recovers context from a closed or interrupted session manually |
+
+`@mempunk-loader` replaces the manual session-start protocol. If `auto-start` is enabled (`mempunk auto-start on`), it runs automatically each time Claude Code opens.
+
+`@mempunk-saver` is triggered when you write structured save commands:
+
+```
+SAVE decision: project=<id> title="Use JWT for auth"
+SAVE session: project=<id> summary="Implemented login endpoint"
+```
+
+## Commands
+
+### Setup & Configuration
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mempunk setup` | Interactive setup: init + link + hooks install | `mempunk setup` |
+| `mempunk init` | Create vault structure and initialize DB | `mempunk init` |
+| `mempunk link [--cli <name>]` | Link vault to Claude Code, opencode, or gemini-cli | `mempunk link --cli opencode` |
+| `mempunk unlink [--cli <name>]` | Unlink from a CLI | `mempunk unlink` |
+| `mempunk status` | Dashboard: vault info, projects, backlog counts, last session | `mempunk status` |
+| `mempunk cli list` | List compatible CLIs and their link status | `mempunk cli list` |
+| `mempunk auto-start on\|off` | Toggle automatic `@mempunk-loader` on session start | `mempunk auto-start on` |
+
+### Projects
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mempunk project add <id> <name>` | Register a new project | `mempunk project add api "Backend API"` |
+| `mempunk project list` | List all projects | `mempunk project list` |
+| `mempunk project activate <id>` | Set the active project | `mempunk project activate api` |
+| `mempunk log <id>` | Open project INDEX.md in editor | `mempunk log api` |
+| `mempunk remove <id> --yes` | Delete a project (DB + disk, irreversible) | `mempunk remove api --yes` |
+
+### Backlog
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mempunk backlog add <project_id> "<title>"` | Add a task to the backlog | `mempunk backlog add api "Add auth middleware"` |
+| `mempunk backlog add ... --priority <1\|2\|3>` | Add task with priority (default: 2) | `mempunk backlog add api "Fix CORS" --priority 1` |
+| `mempunk backlog list <project_id>` | List all backlog tasks | `mempunk backlog list api` |
+| `mempunk backlog list ... --status <value>` | Filter by status | `mempunk backlog list api --status pending` |
+| `mempunk backlog update <id> --status <value>` | Update task status | `mempunk backlog update bl_123 --status done` |
+| `mempunk backlog update <id> --priority <value>` | Update task priority | `mempunk backlog update bl_123 --priority 1` |
+
+### Decisions, Skills & Resources
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mempunk decision add <project_id> "<title>"` | Create an ADR with markdown file | `mempunk decision add api "Use JWT for auth"` |
+| `mempunk decision add ... --tags "t1,t2"` | Add decision with tags | `mempunk decision add api "Use JWT" --tags "auth,security"` |
+| `mempunk decision list <project_id>` | List project decisions | `mempunk decision list api` |
+| `mempunk skill add <project_id> <name>` | Create a project skill file | `mempunk skill add api stack` |
+| `mempunk skill list <project_id>` | List project skills | `mempunk skill list api` |
+| `mempunk skill update <id> --file <path>` | Overwrite skill content from a file | `mempunk skill update sk_123 --file stack.md` |
+| `mempunk resource add <project_id> "<title>"` | Capture an external resource | `mempunk resource add api "JWT spec" --url https://jwt.io` |
+| `mempunk resource list <project_id>` | List project resources | `mempunk resource list api` |
+
+### Sessions & Logs
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mempunk session log <project_id> "<summary>"` | Record a work session | `mempunk session log api "Implemented login endpoint"` |
+| `mempunk session log ... --files "p1,p2"` | Record session with touched files | `mempunk session log api "Fix" --files "src/auth.js"` |
+| `mempunk session last <project_id>` | Show the last recorded session | `mempunk session last api` |
+| `mempunk session recover <project_id>` | Show latest snapshot (checkpoint or compact) | `mempunk session recover api` |
+| `mempunk session checkpoints <project_id>` | List all saved checkpoints and compact snapshots | `mempunk session checkpoints api` |
+| `mempunk daily log <project_id> "<content>"` | Add an entry to the daily log | `mempunk daily log api "Finished auth module"` |
+| `mempunk daily list <project_id>` | List daily log entries | `mempunk daily list api` |
+
+### Search
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mempunk search "<query>"` | Full-text search across the vault | `mempunk search "refresh token"` |
+| `mempunk search "<query>" --project <id>` | Search within a single project | `mempunk search "auth" --project api` |
+
+### Hooks & Agents
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mempunk hooks install` | Install hooks + agents globally in `~/.claude/` | `mempunk hooks install` |
+| `mempunk hooks install --local` | Install hooks in `.claude/` of the current project | `mempunk hooks install --local` |
+| `mempunk hooks install --check` | Verify hooks, agents, and statusline are installed | `mempunk hooks install --check` |
+| `mempunk hooks uninstall` | Remove Mempunk hooks | `mempunk hooks uninstall` |
+
+## Vault Maintenance
+
+```bash
+# Check consistency between files on disk and the database
+mempunk sync
+
+# Check vault integrity — missing files, unregistered files
+mempunk doctor
+
+# Show vault schema version and CLI version
+mempunk vault version
+
+# Apply pending schema migrations
+mempunk vault upgrade
+```
+
+`mempunk vault upgrade` is safe to run at any time. It only applies missing migrations and never modifies existing data.
+
+## Compatibility
 
 | Feature | Claude Code | opencode | gemini-cli |
 |---|:---:|:---:|:---:|
 | Vault link/unlink | ✔ | ✔ | ✔ |
 | Multi-vault | ✔ | ✔ | ✔ |
-| `/mempunk` skill | ✔ | ✔ | ✔ |
-| `/session-end` skill | ✔ | ✔ | ✔ |
+| Session start protocol | ✔ | ✔ | ✔ |
+| Session end protocol | ✔ | ✔ | ✔ |
 | Smart Context Check | ✔ | ✔ | ✔ |
 | Auto ADRs | ✔ | ✔ | ✔ |
-| Backlog inteligente | ✔ | ✔ | ✔ |
-| Daily consolidado | ✔ | ✔ | ✔ |
+| Intelligent backlog | ✔ | ✔ | ✔ |
+| Consolidated daily log | ✔ | ✔ | ✔ |
 | Knowledge capture | ✔ | ✔ | ✔ |
 | `sync` / `doctor` | ✔ | ✔ | ✔ |
-| Wiki (state.md) | ✔ | ✔ | ✔ |
-| Auto-start | ✔ | ✘ | ✔ |
-| Simultaneous multi-CLI | ✔ | ✔ | ✔ |
+| Wiki (`state.md`) | ✔ | ✔ | ✔ |
+| Lifecycle hooks (AutoCheckpoint, CompactGuard) | ✔ | ✘ | ✘ |
+| Statusline (context usage bar) | ✔ | ✘ | ✘ |
+| Agents (`@mempunk-loader`, `@mempunk-saver`) | ✔ | ✘ | ✘ |
+| Multi-CLI simultaneous | ✔ | ✔ | ✔ |
 
-> Skills, ADRs, backlog updates, and daily logs are vault-level features — they work in any CLI that reads the vault's `CLAUDE.md`. Auto-start requires session hooks, which opencode does not support.
-
-## Session Flow
-
-### Start: `/mempunk`
-
-Installed globally during setup at the path your CLI uses for skills (see table above). When you type `/mempunk`, the assistant will:
-
-1. Discover all linked vaults automatically
-2. If multiple vaults exist, ask which one to use
-3. Read the vault's `CLAUDE.md` and list available projects
-4. Ask which project you want to work on — never assumes
-5. Read the project's `INDEX.md`, `overview.md`, `conventions.md`
-6. Read project state — if `wiki/state.md` exists, reads it (compiled state); otherwise reads the last 3 session logs
-7. **Smart Context Check** — detect gaps (stale session log, empty overview, undefined architecture, empty backlog) and offer to read the real project repo if needed
-8. Confirm context before proceeding
-
-### End: `/session-end`
-
-Installed alongside `/mempunk`. When you type `/session-end`, the assistant will:
-
-1. Write a structured entry to the project's `session-log.md`
-2. **Update backlog** — mark completed tasks, add new ones, reorder by priority
-3. **Update INDEX.md** — reflect latest session and top 3 backlog items
-4. **Update wiki state** — if `wiki/` exists, rewrites `wiki/state.md` with a compiled synthesis and appends to `wiki/log.md`
-5. **Write daily log** — create or append to `daily/YYYY-MM-DD.md` with a consolidated summary
-6. Note any conventions that were established or changed
-7. Confirm what was logged
-
-The next session picks up exactly where this one left off.
-
-### Automatic skills
-
-The vault's `CLAUDE.md` includes rules that the assistant follows automatically during any session:
-
-- **Auto ADRs** — When a technical decision is made (architecture, stack, patterns), an ADR is created in `decisions/` without being asked
-- **Knowledge capture** — When a reusable technical problem is solved, the solution is saved in `resources/` by category
-- **Area context** — When the user asks about university or infrastructure, the assistant reads the relevant `areas/` INDEX first
-
-## Vault Maintenance
-
-```bash
-# Add missing files to existing projects and sync CLAUDE.md protocol
-mempunk sync
-
-# Check vault integrity — ghost projects, missing files, broken registrations
-mempunk doctor
-```
-
-`mempunk sync` also updates the protocol sections in `CLAUDE.md` with the latest version while preserving your projects list and configured preferences.
-
-## Multiple Vaults
-
-You can link multiple vaults and switch between them at session start:
-
-```bash
-mempunk link ./work-vault
-mempunk link ./personal-vault
-
-# /mempunk will ask which vault to use
-
-mempunk unlink ./personal-vault   # Unlink a specific vault
-mempunk unlink                    # Interactive selection if multiple
-mempunk status                    # Shows all linked vaults
-```
-
-## Multiple CLIs
-
-Use the same vault with different AI coding CLIs at the same time:
-
-```bash
-# Add a second CLI
-mempunk cli add opencode
-
-# Add a third
-mempunk cli add gemini-cli
-
-# link/unlink now registers in all active CLIs at once
-mempunk link ./my-vault    # Registers in Claude Code, opencode, AND gemini-cli
-
-# See which CLIs are active
-mempunk cli list
-
-# Remove one
-mempunk cli remove gemini-cli
-```
-
-`doctor` checks skills for all active CLIs. `status` aggregates vaults from all CLIs.
-
-## Auto-start
-
-Automatically load your vault context at the beginning of every new Claude Code session:
-
-```bash
-# Enable
-mempunk auto-start on
-
-# Disable
-mempunk auto-start off
-
-# Check status
-mempunk auto-start
-```
-
-This installs a `SessionStart` hook in the CLI's `settings.json`. When enabled, `/mempunk` runs automatically on every new session — no need to type it manually. If multiple supported CLIs are active, the command asks which one to configure.
-
-> **Note:** Auto-start is available for **Claude Code** and **gemini-cli**. opencode does not support session hooks. If you unlink all vaults, hooks are automatically removed.
-
-## Obsidian Compatible
-
-All files use `[[wikilinks]]`. Open the vault in Obsidian and the graph view shows connections between `CLAUDE.md`, project overviews, backlogs, architecture docs, conventions, and session logs.
+> Session protocols, ADRs, backlog updates, and daily logs are vault-level features — they work in any CLI that reads the vault's `CLAUDE.md`. Lifecycle hooks and agents require Claude Code's sub-agent and hook infrastructure.
 
 ## How it Compares
 
-| | Mempunk | RAG / file uploads | Manual notes |
-|---|---|---|---|
-| Persists between sessions | ✔ | ✘ | ✔ |
-| Knowledge accumulates | ✔ | ✘ | Depends |
-| LLM does the maintenance | ✔ | ✔ | ✘ |
-| Works offline, no infrastructure | ✔ | ✘ | ✔ |
-| Cross-CLI | ✔ | ✘ | ✔ |
+| | Mempunk | RAG / file uploads | Manual notes | Engram |
+|---|:---:|:---:|:---:|:---:|
+| Persists between sessions | ✔ | ✘ | ✔ | Partial |
+| Knowledge accumulates | ✔ | ✘ | Depends | ✘ |
+| LLM does the maintenance | ✔ | ✔ | ✘ | ✔ |
+| Works offline, no infrastructure | ✔ | ✘ | ✔ | ✘ |
+| Cross-CLI | ✔ | ✘ | ✔ | ✘ |
+| Auto-saves during session | ✔ | ✘ | ✘ | ✘ |
+| Survives context compaction | ✔ | ✘ | ✘ | ✘ |
 
 **vs RAG / file uploads:** Tools like NotebookLM or ChatGPT file uploads retrieve from raw documents at query time. Nothing accumulates. Ask the same question twice and the LLM does the same work twice. Mempunk compiles context incrementally — each session produces a richer, more accurate snapshot.
 
 **vs manual notes:** A wiki you write yourself works — until the maintenance burden kills it. Updating cross-references across dozens of pages is tedious. People abandon wikis because the cost of maintenance grows faster than the value. Mempunk delegates all of that to the LLM.
 
+**vs Engram:** Engram uses SQLite-only storage with no human-readable layer. Mempunk keeps markdown as the human layer with SQLite as the structured backend. The vault is portable, readable in any text editor, and works as an Obsidian vault.
+
 ## Languages
 
-Available: **English** (default), **Español**, **Português**, **Français**
-
-Use `--lang es`, `--lang pt`, or `--lang fr` with any command, or select interactively during setup.
+Documentation available in: **English** (default), **Español**, **Português**, **Français**
 
 ## License
 
