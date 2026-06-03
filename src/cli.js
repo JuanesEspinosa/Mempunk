@@ -872,7 +872,7 @@ function cmdHooksUninstall() {
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
 const MEMPUNK_HOOK_MARKER  = 'mempunk-auto-start';
 const MEMPUNK_HOOK_PROMPT  =
-  'The user has mempunk auto-start enabled. Use @mempunk-loader to load the vault context for the current project.';
+  'mempunk-auto-start: The user has mempunk auto-start enabled. Use @mempunk-loader to load the vault context for the current project.';
 
 function readJsonFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -1294,7 +1294,7 @@ function cmdDoctor() {
 
 function isMempunkHook(hookGroup) {
   return hookGroup.matcher === MEMPUNK_HOOK_MARKER ||
-    (hookGroup.hooks && hookGroup.hooks.some(h => h.prompt && h.prompt.includes('/mempunk')));
+    (hookGroup.hooks && hookGroup.hooks.some(h => h.prompt && h.prompt.includes('mempunk-auto-start')));
 }
 
 function cmdAutoStart(action) {
@@ -1327,7 +1327,7 @@ function cmdAutoStart(action) {
     if (!settings.hooks) settings.hooks = {};
     if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
     settings.hooks.SessionStart.push({
-      matcher: MEMPUNK_HOOK_MARKER,
+      matcher: '',
       hooks: [{ type: 'prompt', prompt: MEMPUNK_HOOK_PROMPT }],
     });
     writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
