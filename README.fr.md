@@ -110,19 +110,92 @@ Quand une session se termine, l'assistant:
 
 La prochaine session reprend exactement la ou celle-ci s'est arretee.
 
+## Hooks du Cycle de Vie (Claude Code)
+
+Quand les hooks sont installes (`mempunk hooks install`), Mempunk repond automatiquement aux evenements de session de Claude Code:
+
+| Hook | Evenement | Comportement |
+|------|-----------|-------------|
+| `on-prompt.js` | Avant chaque tour | **ContextWarning** — alerte a 70%, 80% et 84% d'utilisation du contexte |
+| `on-stop.js` | Apres chaque reponse | **AutoCheckpoint** — sauvegarde un checkpoint incremental tous les 5 tours |
+| `on-compact.js` | Avant compaction du contexte | **CompactGuard** — capture un snapshot complet avant que Claude compacte |
+| `on-start.js` | Debut de session | **CompactRestore** — restaure le contexte depuis le dernier snapshot apres une compaction |
+
+L'intervalle d'AutoCheckpoint est configurable via la variable d'environnement `MEMPUNK_CHECKPOINT_INTERVAL` (defaut: 5).
+
+Les hooks installent aussi une integration **statusline** — une barre de contexte en temps reel dans la barre de statut de Claude Code:
+
+```
+🟢 ███░░░░░░ 32% | claude-sonnet | $0.12
+```
+
+L'emoji indique le niveau de pression: 🟢 sous 70%, ⚠️ entre 70–80%, 🔶 entre 80–84%, 🚨 au-dessus de 84%.
+
+Pour recuperer le contexte d'une session precedente ou apres une interruption:
+
+```bash
+mempunk session recover <project_id>     # voir le dernier snapshot disponible
+mempunk session checkpoints <project_id> # lister tous les checkpoints sauvegardes
+```
+
+## Agents (Claude Code)
+
+Trois sous-agents sont installes avec les hooks:
+
+| Agent | Modele | Objectif |
+|-------|--------|----------|
+| `@mempunk-loader` | Sonnet | Charge le contexte du projet au debut de session — liste les projets, en active un, retourne un resume compact |
+| `@mempunk-saver` | Haiku (background) | Sauvegarde decisions, session logs et mises a jour du backlog en cours de session sans interrompre le flux |
+| `@mempunk-recover` | Sonnet | Recupere le contexte d'une session fermee ou interrompue manuellement |
+
+`@mempunk-loader` remplace le protocole manuel de debut de session. Si `auto-start` est active (`mempunk auto-start on`), il s'execute automatiquement a chaque ouverture de Claude Code.
+
+`@mempunk-saver` est declenche quand vous ecrivez des commandes de sauvegarde structurees:
+
+```
+SAVE decision: project=<id> title="Utiliser JWT pour l'auth"
+SAVE session: project=<id> summary="Implemente endpoint de login"
+```
+
 ## Commandes
+
+### Configuration
 
 | Commande | Description | Exemple |
 |----------|-------------|---------|
+| `mempunk setup` | Setup interactif: init + link + hooks install | `mempunk setup` |
 | `mempunk init` | Creer la structure du vault et initialiser la BD | `mempunk init` |
+| `mempunk link [--cli <name>]` | Lier le vault a Claude Code, opencode ou gemini-cli | `mempunk link --cli opencode` |
+| `mempunk unlink [--cli <name>]` | Delier d'un CLI | `mempunk unlink` |
+| `mempunk status` | Dashboard: vault, projets, backlogs, derniere session | `mempunk status` |
+| `mempunk cli list` | Lister les CLI compatibles et leur statut de liaison | `mempunk cli list` |
+| `mempunk auto-start on\|off` | Activer/desactiver `@mempunk-loader` automatique au demarrage | `mempunk auto-start on` |
+
+### Projets
+
+| Commande | Description | Exemple |
+|----------|-------------|---------|
 | `mempunk project add <id> <name>` | Enregistrer un nouveau projet | `mempunk project add api "Backend API"` |
 | `mempunk project list` | Lister tous les projets | `mempunk project list` |
+| `mempunk project activate <id>` | Definir le projet actif | `mempunk project activate api` |
+| `mempunk log <id>` | Ouvrir l'INDEX.md du projet dans l'editeur | `mempunk log api` |
+| `mempunk remove <id> --yes` | Supprimer un projet (BD + disque, irreversible) | `mempunk remove api --yes` |
+
+### Backlog
+
+| Commande | Description | Exemple |
+|----------|-------------|---------|
 | `mempunk backlog add <project_id> "<title>"` | Ajouter une tache au backlog | `mempunk backlog add api "Ajouter auth"` |
 | `mempunk backlog add ... --priority <1\|2\|3>` | Ajouter une tache avec priorite (defaut: 2) | `mempunk backlog add api "Fix CORS" --priority 1` |
 | `mempunk backlog list <project_id>` | Lister toutes les taches | `mempunk backlog list api` |
 | `mempunk backlog list ... --status <valeur>` | Filtrer par statut | `mempunk backlog list api --status pending` |
 | `mempunk backlog update <id> --status <valeur>` | Mettre a jour le statut d'une tache | `mempunk backlog update bl_123 --status done` |
 | `mempunk backlog update <id> --priority <valeur>` | Mettre a jour la priorite d'une tache | `mempunk backlog update bl_123 --priority 1` |
+
+### Decisions, Skills et Ressources
+
+| Commande | Description | Exemple |
+|----------|-------------|---------|
 | `mempunk decision add <project_id> "<title>"` | Creer un ADR avec fichier markdown | `mempunk decision add api "Utiliser JWT"` |
 | `mempunk decision add ... --tags "t1,t2"` | Creer une decision avec tags | `mempunk decision add api "JWT" --tags "auth,securite"` |
 | `mempunk decision list <project_id>` | Lister les decisions du projet | `mempunk decision list api` |
@@ -131,17 +204,33 @@ La prochaine session reprend exactement la ou celle-ci s'est arretee.
 | `mempunk skill update <id> --file <path>` | Ecraser le contenu d'un skill | `mempunk skill update sk_123 --file stack.md` |
 | `mempunk resource add <project_id> "<title>"` | Capturer une ressource externe | `mempunk resource add api "JWT spec" --url https://jwt.io` |
 | `mempunk resource list <project_id>` | Lister les ressources du projet | `mempunk resource list api` |
-| `mempunk daily log <project_id> "<content>"` | Ajouter une entree au log journalier | `mempunk daily log api "Termine module auth"` |
-| `mempunk daily list <project_id>` | Lister les entrees du log journalier | `mempunk daily list api` |
+
+### Sessions et Logs
+
+| Commande | Description | Exemple |
+|----------|-------------|---------|
 | `mempunk session log <project_id> "<summary>"` | Enregistrer une session de travail | `mempunk session log api "Implemente endpoint login"` |
 | `mempunk session log ... --files "p1,p2"` | Enregistrer session avec fichiers touches | `mempunk session log api "Fix" --files "src/auth.js"` |
 | `mempunk session last <project_id>` | Voir la derniere session enregistree | `mempunk session last api` |
+| `mempunk session recover <project_id>` | Voir le dernier snapshot disponible (checkpoint ou compact) | `mempunk session recover api` |
+| `mempunk session checkpoints <project_id>` | Lister tous les checkpoints et compact snapshots | `mempunk session checkpoints api` |
+| `mempunk daily log <project_id> "<content>"` | Ajouter une entree au log journalier | `mempunk daily log api "Termine module auth"` |
+| `mempunk daily list <project_id>` | Lister les entrees du log journalier | `mempunk daily list api` |
+
+### Recherche
+
+| Commande | Description | Exemple |
+|----------|-------------|---------|
 | `mempunk search "<query>"` | Recherche full-text dans le vault | `mempunk search "refresh token"` |
 | `mempunk search "<query>" --project <id>` | Recherche dans un seul projet | `mempunk search "auth" --project api` |
-| `mempunk sync` | Verifier la coherence disque ↔ BD | `mempunk sync` |
-| `mempunk sync --project <id>` | Sync limite a un projet | `mempunk sync --project api` |
+
+### Hooks et Agents
+
+| Commande | Description | Exemple |
+|----------|-------------|---------|
 | `mempunk hooks install` | Installer hooks + agents globalement dans `~/.claude/` | `mempunk hooks install` |
 | `mempunk hooks install --local` | Installer les hooks dans `.claude/` du projet actuel | `mempunk hooks install --local` |
+| `mempunk hooks install --check` | Verifier hooks, agents et statusline installes | `mempunk hooks install --check` |
 | `mempunk hooks uninstall` | Supprimer les hooks Mempunk | `mempunk hooks uninstall` |
 
 ## Maintenance du Vault
@@ -177,10 +266,12 @@ mempunk vault upgrade
 | Capture de connaissances | ✔ | ✔ | ✔ |
 | `sync` / `doctor` | ✔ | ✔ | ✔ |
 | Wiki (`state.md`) | ✔ | ✔ | ✔ |
-| Hooks (`hooks install`) | ✔ | ✘ | ✔ |
+| Hooks du cycle de vie (AutoCheckpoint, CompactGuard) | ✔ | ✘ | ✘ |
+| Statusline (barre d'utilisation du contexte) | ✔ | ✘ | ✘ |
+| Agents (`@mempunk-loader`, `@mempunk-saver`) | ✔ | ✘ | ✘ |
 | Multi-CLI simultane | ✔ | ✔ | ✔ |
 
-> Les protocoles de session, ADRs, mises a jour du backlog et logs journaliers sont des features au niveau du vault — ils fonctionnent avec n'importe quel CLI qui lit le `CLAUDE.md` du vault. Les lifecycle hooks necessitent la prise en charge des evenements de session, que opencode ne fournit pas.
+> Les protocoles de session, ADRs, mises a jour du backlog et logs journaliers sont des features au niveau du vault — ils fonctionnent avec n'importe quel CLI qui lit le `CLAUDE.md` du vault. Les lifecycle hooks et agents necessitent l'infrastructure de sous-agents et de hooks de Claude Code.
 
 ## Comparaison
 
@@ -191,6 +282,8 @@ mempunk vault upgrade
 | Le LLM fait la maintenance | ✔ | ✔ | ✘ | ✔ |
 | Fonctionne hors ligne, sans infrastructure | ✔ | ✘ | ✔ | ✘ |
 | Multi-CLI | ✔ | ✘ | ✔ | ✘ |
+| Sauvegarde pendant la session | ✔ | ✘ | ✘ | ✘ |
+| Survit aux compactions de contexte | ✔ | ✘ | ✘ | ✘ |
 
 **vs RAG / upload de fichiers:** Des outils comme NotebookLM ou l'upload de fichiers de ChatGPT recuperent depuis des documents bruts au moment de la requete. Rien ne s'accumule. Posez la meme question deux fois et le LLM fait le meme travail deux fois. Mempunk compile le contexte incrementalement — chaque session produit un snapshot plus riche et plus precis.
 
