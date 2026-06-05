@@ -889,13 +889,17 @@ function cmdHooksInstall() {
     fs.copyFileSync(statuslineSrc, statuslineDest);
     try { fs.chmodSync(statuslineDest, 0o755); } catch (_) {}
 
-    // Registrar statusline en ~/.claude/settings.json si no está configurado ya
+    // Registrar statusline en ~/.claude/settings.json
+    // Usa path completo de node y forward slashes para compatibilidad con bash en Windows
+    const fwdSlash   = (p) => p.replace(/\\/g, '/');
+    const nodeExe    = fwdSlash(process.execPath);
+    const destFwd    = fwdSlash(statuslineDest);
+    const newCommand = `${nodeExe} ${destFwd}`;
+
     const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
-    if (!settings.statusLine) {
-      settings.statusLine = {
-        type:    'command',
-        command: `node ${statuslineDest}`,
-      };
+    const currentCmd = settings.statusLine?.command ?? '';
+    if (currentCmd !== newCommand) {
+      settings.statusLine = { type: 'command', command: newCommand };
       writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
       console.log(`Statusline configurado en ${CLAUDE_SETTINGS_PATH}`);
     } else {
