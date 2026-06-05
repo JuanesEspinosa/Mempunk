@@ -758,42 +758,53 @@ function agentsTargetDir() {
 }
 
 /** Registra hooks de Mempunk en settings.json como command hooks.
- *  Usa formato command+args separados para compatibilidad con Windows. */
+ *  Usa un string completo "node /path/hook.js" porque Claude Code ejecuta
+ *  hooks via bash -c y el campo args[] se pasa como $0, no como argumento al
+ *  ejecutable. Los paths se normalizan a forward slashes para compatibilidad
+ *  con bash en Windows (process.execPath devuelve backslashes en Windows). */
 function _registerHooksInSettings(hooksDir) {
   const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
   if (!settings.hooks) settings.hooks = {};
 
-  // Limpiar entradas legacy (type:prompt o command-string-unico) de Mempunk
-  for (const event of Object.values(HOOK_EVENT_MAP)) {
+  // Normalizar backslashes → forward slashes para bash en Windows
+  const fwd = (p) => p.replace(/\\/g, '/');
+  const nodeExe = fwd(process.execPath);
+
+  // Limpiar entradas legacy de Mempunk:
+  //   - type:prompt (auto-start viejo)
+  //   - command string con 'mempunk' sin args
+  //   - command+args con cualquier hook file de Mempunk (formato roto anterior)
+  for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
     if (!Array.isArray(settings.hooks[event])) continue;
     settings.hooks[event] = settings.hooks[event].filter((g) => {
       if (!g.hooks) return true;
-      const isMempunkLegacy = g.hooks.some(
+      const isMempunkHook = g.hooks.some(
         (h) => h.prompt?.includes('mempunk-auto-start') ||
-               (h.type === 'command' && typeof h.command === 'string' &&
-                h.command.includes('mempunk') && !h.args)
+               (h.type === 'command' && (
+                 (typeof h.command === 'string' && h.command.includes('mempunk') && !h.args) ||
+                 (Array.isArray(h.args) && h.args[0]?.includes(file))
+               ))
       );
-      return !isMempunkLegacy;
+      return !isMempunkHook;
     });
   }
 
-  // Usar ruta absoluta al ejecutable node para evitar problemas de PATH en Windows (nvm4w, etc.)
-  const nodeExe = process.execPath;
-
   for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
-    const scriptPath = path.join(hooksDir, file);
+    const scriptPath = fwd(path.join(hooksDir, file));
+    const commandStr = `${nodeExe} ${scriptPath}`;
+
     if (!settings.hooks[event]) settings.hooks[event] = [];
 
-    // No duplicar si ya existe entrada con este script en args (independiente del command usado)
+    // No duplicar si ya existe entrada con este command string exacto
     const alreadyRegistered = settings.hooks[event].some((g) =>
       g.hooks?.some((h) =>
-        h.type === 'command' && Array.isArray(h.args) && h.args[0] === scriptPath
+        h.type === 'command' && !h.args && h.command === commandStr
       )
     );
     if (!alreadyRegistered) {
       settings.hooks[event].push({
         matcher: '',
-        hooks: [{ type: 'command', command: nodeExe, args: [scriptPath] }],
+        hooks: [{ type: 'command', command: commandStr }],
       });
     }
 
@@ -803,17 +814,22 @@ function _registerHooksInSettings(hooksDir) {
   writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
 }
 
-/** Elimina hooks de Mempunk de settings.json. */
+/** Elimina hooks de Mempunk de settings.json.
+ *  Soporta tanto el nuevo formato (command string) como el antiguo (command+args). */
 function _unregisterHooksFromSettings(hooksDir) {
   const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
   if (!settings.hooks) return;
 
   for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
     if (!Array.isArray(settings.hooks[event])) continue;
-    const scriptPath = path.join(hooksDir, file);
     settings.hooks[event] = settings.hooks[event].filter(
       (g) => !g.hooks?.some(
-        (h) => h.type === 'command' && Array.isArray(h.args) && h.args[0] === scriptPath
+        (h) => h.type === 'command' && (
+          // Nuevo formato: command string contiene el nombre del hook file
+          (!h.args && h.command?.includes(file)) ||
+          // Formato anterior: args[0] contiene el nombre del hook file
+          (Array.isArray(h.args) && h.args[0]?.includes(file))
+        )
       )
     );
     if (settings.hooks[event].length === 0) delete settings.hooks[event];
