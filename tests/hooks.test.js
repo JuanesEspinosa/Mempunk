@@ -36,10 +36,10 @@ function runCli(args) {
 function makeTranscript(nTurns, extraUsage = {}) {
   const lines = [];
   for (let i = 1; i <= nTurns; i++) {
-    lines.push(JSON.stringify({ type: 'human', message: { content: `mensaje ${i}` } }));
+    lines.push(JSON.stringify({ type: 'user', message: { role: 'user', content: `mensaje ${i}` } }));
     lines.push(JSON.stringify({
-      type: 'assistant',
       message: {
+        role: 'assistant',
         content: [{ type: 'text', text: `respuesta ${i} con src/auth.ts` }],
         usage: {
           input_tokens:                extraUsage.input_tokens ?? 1000,

@@ -85,7 +85,7 @@ function buildAdditionalContext(snapshot, projectId) {
   if (rawTurns.length > 0) {
     lines.push('Últimos mensajes de la sesión:');
     for (const turn of rawTurns.slice(-6)) {
-      const role    = turn.type === 'human' ? 'user' : 'assistant';
+      const role    = turn.type === 'user' ? 'user' : 'assistant';
       const content = extractFirstText(turn.message?.content ?? '');
       if (content) lines.push(`  [${role}] ${content.slice(0, 200)}`);
     }

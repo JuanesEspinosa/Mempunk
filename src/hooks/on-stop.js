@@ -83,7 +83,7 @@ async function parseTranscript(transcriptPath) {
         const entry = JSON.parse(line);
 
         // Contar mensajes de usuario como "turnos"
-        if (entry.type === 'human') turnCount++;
+        if (entry.type === 'user') turnCount++;
 
         // Extraer texto para detectar archivos
         const textContent = extractText(entry);
@@ -94,7 +94,7 @@ async function parseTranscript(transcriptPath) {
           }
         }
 
-        if (entry.type === 'human' || entry.type === 'assistant') {
+        if (entry.type === 'user' || entry.message?.role === 'assistant') {
           turns.push(entry);
         }
       } catch (_) {}

@@ -68,7 +68,7 @@ async function getContextPct(transcriptPath) {
       try {
         const entry = JSON.parse(line);
         // Buscar mensajes assistant con usage
-        if (entry.type === 'assistant' && entry.message?.usage) {
+        if (entry.message?.role === 'assistant' && entry.message?.usage) {
           lastUsage = entry.message.usage;
         }
       } catch (_) {}

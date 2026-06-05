@@ -67,7 +67,7 @@ async function parseTranscript(transcriptPath) {
         const entry = JSON.parse(line);
 
         // Recopilar tool calls Bash para commands_run
-        if (entry.type === 'assistant' && Array.isArray(entry.message?.content)) {
+        if (entry.message?.role === 'assistant' && Array.isArray(entry.message?.content)) {
           for (const block of entry.message.content) {
             if (block.type === 'tool_use' && block.name === 'Bash' && block.input?.command) {
               cmdsArr.push(block.input.command.slice(0, 200));
@@ -85,7 +85,7 @@ async function parseTranscript(transcriptPath) {
         }
 
         // Guardar turno completo para raw_turns
-        if (entry.type === 'human' || entry.type === 'assistant') {
+        if (entry.type === 'user' || entry.message?.role === 'assistant') {
           turns.push(entry);
         }
       } catch (_) {}
