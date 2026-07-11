@@ -10,7 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 
-const VAULT_PATH  = process.env.MEMPUNK_VAULT ?? path.join(os.homedir(), 'Dev-Brain');
+const VAULT_PATH  = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
 const MEMPUNK_DIR = path.join(VAULT_PATH, '.mempunk');
 const ACTIVE_FILE = path.join(MEMPUNK_DIR, 'active-project.json');
 const LOG_FILE    = path.join(MEMPUNK_DIR, 'hooks.log');
@@ -33,8 +33,9 @@ function runCli(args) {
 // Últimos N mensajes a guardar como raw_turns
 const MAX_TURNS = 20;
 
-// Regex para detectar rutas de archivo en el contenido de los mensajes
-const FILE_RE = /(?:^|\s)((?:[\w.-]+\/)*[\w.-]+\.(?:js|ts|py|json|md|sh|sql|css|html|jsx|tsx|go|rs))/gm;
+// Regex para detectar rutas de archivo en el contenido de los mensajes.
+// Acepta separadores / y \ (Windows); los matches se normalizan a /.
+const FILE_RE = /(?:^|[\s"'`(])((?:[\w.-]+[\\/])*[\w.-]+\.(?:js|ts|py|json|md|sh|sql|css|html|jsx|tsx|go|rs))/gm;
 
 function log(message) {
   try {
@@ -78,6 +79,9 @@ async function parseTranscript(transcriptPath) {
       try {
         const entry = JSON.parse(line);
 
+        // Ignorar subagentes: comparten el JSONL pero no son la conversación principal
+        if (entry.isSidechain) continue;
+
         // Recopilar tool calls Bash para commands_run
         if (entry.message?.role === 'assistant' && Array.isArray(entry.message?.content)) {
           for (const block of entry.message.content) {
@@ -92,12 +96,12 @@ async function parseTranscript(transcriptPath) {
         if (textContent) {
           let m;
           while ((m = FILE_RE.exec(textContent)) !== null) {
-            filesSet.add(m[1]);
+            filesSet.add(m[1].replace(/\\/g, '/'));
           }
         }
 
-        // Guardar turno completo para raw_turns
-        if (entry.type === 'user' || entry.message?.role === 'assistant') {
+        // raw_turns: solo conversación real (sin tool_results)
+        if (isRealUserTurn(entry) || entry.message?.role === 'assistant') {
           turns.push(entry);
         }
       } catch (_) {}
@@ -109,6 +113,16 @@ async function parseTranscript(transcriptPath) {
     filesFound: [...filesSet],
     commandsRun: cmdsArr,
   };
+}
+
+/** Un turno REAL del usuario: type "user" con texto — cada tool_result
+ *  también llega como línea type:"user" y no es conversación */
+function isRealUserTurn(entry) {
+  if (entry.type !== 'user') return false;
+  const content = entry.message?.content;
+  if (typeof content === 'string') return content.trim().length > 0;
+  if (Array.isArray(content)) return content.some((b) => b.type === 'text');
+  return false;
 }
 
 /** Extrae texto plano de una entrada del transcript */
@@ -136,11 +150,12 @@ try {
   for await (const chunk of process.stdin) input += chunk;
 
   const data = JSON.parse(input || '{}');
+  // El stdin de PreCompact trae `trigger` ("manual"/"auto") en snake_case —
+  // los campos compactType/messageCount no existen en el evento real
   const {
     session_id: sessionId,
     transcript_path: transcriptPath,
-    compactType,
-    messageCount,
+    trigger,
   } = data;
 
   if (!sessionId) {
@@ -161,8 +176,8 @@ try {
   fs.writeFileSync(tmpFile, JSON.stringify({
     project_id:    projectId,
     session_id:    sessionId,
-    compact_type:  compactType ?? null,
-    message_count: messageCount ?? turns.length,
+    compact_type:  trigger ?? null,
+    message_count: turns.length,
     raw_turns:     JSON.stringify(turns),
     files_found:   JSON.stringify(filesFound),
     commands_run:  JSON.stringify(commandsRun),
@@ -171,7 +186,7 @@ try {
   const result = runCli(['session', 'save-compact', tmpFile]);
 
   if (result.status === 0) {
-    log(`CompactSnapshot guardado: proyecto=${projectId} tipo=${compactType ?? 'auto'} turnos=${turns.length} archivos=${filesFound.length}`);
+    log(`CompactSnapshot guardado: proyecto=${projectId} tipo=${trigger ?? 'auto'} turnos=${turns.length} archivos=${filesFound.length}`);
   } else {
     try { fs.unlinkSync(tmpFile); } catch (_) {}
     const err = result.stderr?.trim() || result.error?.message || 'sin detalle';

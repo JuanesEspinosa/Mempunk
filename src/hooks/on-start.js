@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-const VAULT_PATH   = process.env.MEMPUNK_VAULT ?? path.join(os.homedir(), 'Dev-Brain');
+const VAULT_PATH   = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
 const MEMPUNK_DIR  = path.join(VAULT_PATH, '.mempunk');
 const ACTIVE_FILE  = path.join(MEMPUNK_DIR, 'active-project.json');
 const TOUCHED_FILE = path.join(MEMPUNK_DIR, 'session-touched.json');
@@ -57,7 +57,14 @@ function getProjectId() {
 /** Llama al CLI para obtener el último compact_snapshot como objeto */
 function fetchLastCompactSnapshot(projectId) {
   const result = runCli(['session', 'get-compact', projectId]);
-  if (result.status !== 0 || !result.stdout?.trim()) return null;
+  if (result.status !== 0) {
+    // Distinguir "el CLI falló" de "no hay snapshot" — sin esto el log diría
+    // "sin snapshot" aunque existan snapshots que no se pudieron leer
+    const err = result.stderr?.trim() || result.error?.message || 'sin detalle';
+    log(`get-compact falló (status=${result.status ?? 'null'}): ${err}`);
+    return null;
+  }
+  if (!result.stdout?.trim()) return null;
   try {
     return JSON.parse(result.stdout);
   } catch (_) {

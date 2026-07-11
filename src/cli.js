@@ -17,8 +17,9 @@ const CLI_VERSION = _require('../package.json').version;
 // Directorio donde reside el propio cli.js — necesario para localizar los hooks fuente
 const __cliDir = path.dirname(fileURLToPath(import.meta.url));
 
-// Ruta del vault — MEMPUNK_VAULT permite apuntar a un vault alternativo (usado en tests)
-const VAULT_PATH = process.env.MEMPUNK_VAULT ?? path.join(os.homedir(), 'Dev-Brain');
+// Ruta del vault — MEMPUNK_VAULT permite apuntar a un vault alternativo (usado en tests).
+// `|| default` (no ??): un MEMPUNK_VAULT vacío haría que init cree el vault en el cwd
+const VAULT_PATH = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
 
 // ── Utilidades de salida ──────────────────────────────────────────────────────
 
@@ -1302,7 +1303,7 @@ function cmdStatus() {
     const pending    = store.listBacklog(proj.id, 'pending').length;
     const inProgress = store.listBacklog(proj.id, 'in_progress').length;
     const lastSess   = store.getLastSession(proj.id);
-    const lastDate   = lastSess ? lastSess.ended_at.slice(0, 10) : '—';
+    const lastDate   = lastSess?.ended_at ? lastSess.ended_at.slice(0, 10) : '—';
     console.log(`  ${proj.id}  (${proj.name})`);
     console.log(`    backlog: ${pending} pendiente(s) / ${inProgress} en curso  |  última sesión: ${lastDate}`);
   }
@@ -1324,14 +1325,21 @@ function cmdRemove(projectId) {
     fail(`Proyecto no encontrado: ${projectId}`);
   }
 
-  store.db.prepare('DELETE FROM backlog       WHERE project_id = ?').run(projectId);
-  store.db.prepare('DELETE FROM decisions     WHERE project_id = ?').run(projectId);
-  store.db.prepare('DELETE FROM project_skills WHERE project_id = ?').run(projectId);
-  store.db.prepare('DELETE FROM session_log   WHERE project_id = ?').run(projectId);
-  store.db.prepare('DELETE FROM resources     WHERE project_id = ?').run(projectId);
-  store.db.prepare('DELETE FROM daily_logs    WHERE project_id = ?').run(projectId);
-  store.db.prepare('DELETE FROM search_index  WHERE project_id = ?').run(projectId);
-  store.db.prepare('DELETE FROM projects      WHERE id = ?').run(projectId);
+  // Transacción: un fallo intermedio no debe dejar el proyecto medio borrado.
+  // Incluye checkpoints y snapshots — sin esto, un proyecto recreado con el
+  // mismo id "heredaría" los checkpoints del anterior
+  store.db.transaction(() => {
+    store.db.prepare('DELETE FROM backlog             WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM decisions           WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM project_skills      WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM session_log         WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM resources           WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM daily_logs          WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM search_index        WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM session_checkpoints WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM compact_snapshots   WHERE project_id = ?').run(projectId);
+    store.db.prepare('DELETE FROM projects            WHERE id = ?').run(projectId);
+  })();
 
   const projectDir = path.join(VAULT_PATH, 'projects', projectId);
   if (fs.existsSync(projectDir)) fs.rmSync(projectDir, { recursive: true, force: true });

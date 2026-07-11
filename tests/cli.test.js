@@ -315,7 +315,9 @@ describe('mempunk vault', () => {
 
   it('vault version muestra la versión correcta cuando el vault está actualizado', () => {
     const output = run('vault version');
-    expect(output).toContain('v2');
+    // "Vault v3" explícito — un toContain('v2') genérico matchearía "CLI v2.x.x"
+    // y aprobaría con cualquier versión de vault
+    expect(output).toMatch(/Vault v3/);
     expect(output).toContain('OK');
   });
 
@@ -611,6 +613,22 @@ describe('mempunk session checkpoints', () => {
     const output = run('session checkpoints recov-proj');
     expect(output).toContain('compact');
     expect(output).toContain('2 msgs');
+  });
+});
+
+// ── Remove — limpieza completa ────────────────────────────────────────────────
+
+describe('mempunk remove', () => {
+  it('elimina también checkpoints y snapshots del proyecto', () => {
+    // recov-proj tiene un compact_snapshot guardado por los tests anteriores
+    run('remove recov-proj --yes');
+
+    const db = new Database(path.join(TEMP_VAULT, '.mempunk', 'mempunk.db'));
+    const snaps = db.prepare('SELECT * FROM compact_snapshots WHERE project_id = ?').all('recov-proj');
+    const chks  = db.prepare('SELECT * FROM session_checkpoints WHERE project_id = ?').all('recov-proj');
+    db.close();
+    expect(snaps).toHaveLength(0);
+    expect(chks).toHaveLength(0);
   });
 });
 

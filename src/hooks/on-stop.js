@@ -10,7 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 
-const VAULT_PATH       = process.env.MEMPUNK_VAULT ?? path.join(os.homedir(), 'Dev-Brain');
+const VAULT_PATH       = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
 const MEMPUNK_DIR      = path.join(VAULT_PATH, '.mempunk');
 const ACTIVE_FILE      = path.join(MEMPUNK_DIR, 'active-project.json');
 const LOG_FILE         = path.join(MEMPUNK_DIR, 'hooks.log');
@@ -37,8 +37,9 @@ const INTERVAL = parseInt(process.env.MEMPUNK_CHECKPOINT_INTERVAL ?? '5', 10);
 // Número de mensajes recientes a guardar en el checkpoint
 const MAX_TURNS = 10;
 
-// Regex para detectar rutas de archivo en el contenido de los mensajes
-const FILE_RE = /(?:^|\s)((?:[\w.-]+\/)*[\w.-]+\.(?:js|ts|py|json|md|sh|sql|css|html|jsx|tsx|go|rs))/gm;
+// Regex para detectar rutas de archivo en el contenido de los mensajes.
+// Acepta separadores / y \ (Windows); los matches se normalizan a /.
+const FILE_RE = /(?:^|[\s"'`(])((?:[\w.-]+[\\/])*[\w.-]+\.(?:js|ts|py|json|md|sh|sql|css|html|jsx|tsx|go|rs))/gm;
 
 function log(message) {
   try {
@@ -73,6 +74,19 @@ function writeCheckpointState(state) {
   } catch (_) {}
 }
 
+/** Un turno REAL del usuario: type "user", con texto, fuera de subagentes.
+ *  En el transcript de Claude Code cada tool_result también llega como una
+ *  línea type:"user" (content: [{type:"tool_result"}]) — contarlos haría que
+ *  "cada N turnos" dispare en casi cada Stop y llenaría los checkpoints de
+ *  resultados de herramientas en vez de conversación. */
+function isRealUserTurn(entry) {
+  if (entry.type !== 'user' || entry.isSidechain) return false;
+  const content = entry.message?.content;
+  if (typeof content === 'string') return content.trim().length > 0;
+  if (Array.isArray(content)) return content.some((b) => b.type === 'text');
+  return false;
+}
+
 /** Parsea el transcript JSONL: cuenta turnos de usuario y extrae últimos MAX_TURNS mensajes */
 async function parseTranscript(transcriptPath) {
   if (!transcriptPath || !fs.existsSync(transcriptPath)) {
@@ -94,19 +108,20 @@ async function parseTranscript(transcriptPath) {
       try {
         const entry = JSON.parse(line);
 
-        // Contar mensajes de usuario como "turnos"
-        if (entry.type === 'user') turnCount++;
+        if (isRealUserTurn(entry)) turnCount++;
 
         // Extraer texto para detectar archivos
         const textContent = extractText(entry);
         if (textContent) {
           let m;
           while ((m = FILE_RE.exec(textContent)) !== null) {
-            filesSet.add(m[1]);
+            filesSet.add(m[1].replace(/\\/g, '/'));
           }
         }
 
-        if (entry.type === 'user' || entry.message?.role === 'assistant') {
+        // raw_turns: solo conversación real (sin tool_results ni subagentes)
+        if (isRealUserTurn(entry) ||
+            (entry.message?.role === 'assistant' && !entry.isSidechain)) {
           turns.push(entry);
         }
       } catch (_) {}

@@ -293,6 +293,7 @@ class VaultStore {
     const tagsJson = JSON.stringify(tags || []);
 
     // Escribir el archivo primero — si falla aquí, nada llega a la BD
+    const fileExisted = fs.existsSync(filePath);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, content, 'utf8');
     this.trackFile(filePath);
@@ -315,11 +316,10 @@ class VaultStore {
           .run(id, projectId, `${title} ${content}`);
       })();
     } catch (err) {
-      // Revertir la escritura del archivo para mantener consistencia
-      try {
-        fs.unlinkSync(filePath);
-      } catch (_) {
-        // Ignorar error de borrado — ya estamos en un estado de fallo
+      // Revertir SOLO archivos creados en esta llamada: borrar uno preexistente
+      // no sería rollback sino pérdida de datos
+      if (!fileExisted) {
+        try { fs.unlinkSync(filePath); } catch (_) {}
       }
       throw err;
     }
@@ -404,7 +404,18 @@ class VaultStore {
    * @returns {{ filePath: string, appended: boolean }}
    */
   addDailyLog(projectId, content) {
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    // Validar el proyecto ANTES de tocar el archivo: el append al daily
+    // compartido es irreversible, y un project_id inválido dejaría contenido
+    // fantasma en el archivo sin registro en la BD
+    const project = this.db
+      .prepare('SELECT id FROM projects WHERE id = ?')
+      .get(projectId);
+    if (!project) throw new Error(`Proyecto no encontrado: ${projectId}`);
+
+    // Fecha LOCAL — toISOString() daría la fecha UTC, que por la tarde/noche
+    // en zonas UTC-x ya es "mañana" y partiría el daily en el día equivocado
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const dailyDir = path.join(this.vaultPath, 'daily');
     const filePath = path.join(dailyDir, `${today}.md`);
 
@@ -439,15 +450,7 @@ class VaultStore {
           .prepare('SELECT id FROM daily_logs WHERE project_id = ? AND date = ?')
           .get(projectId, today);
 
-        if (existing) {
-          // Solo actualizar el índice FTS — el registro de la tabla no cambia
-          this.db
-            .prepare(
-              `UPDATE search_index SET content = ?
-               WHERE item_id = ? AND type = 'daily'`
-            )
-            .run(fullContent, existing.id);
-        } else {
+        if (!existing) {
           const id = makeId('daily');
           this.db
             .prepare(
@@ -463,6 +466,17 @@ class VaultStore {
             )
             .run(id, projectId, fullContent);
         }
+
+        // El archivo del día es COMPARTIDO entre proyectos: refrescar el índice
+        // FTS de todas las entradas de esta fecha para que la búsqueda de
+        // cualquier proyecto vea la versión actual y no un snapshot viejo
+        this.db
+          .prepare(
+            `UPDATE search_index SET content = ?
+             WHERE type = 'daily'
+               AND item_id IN (SELECT id FROM daily_logs WHERE date = ?)`
+          )
+          .run(fullContent, today);
       })();
     } catch (err) {
       // Revertir solo si el archivo fue creado en esta llamada
@@ -575,10 +589,23 @@ class VaultStore {
    * @returns {string} ID generado
    */
   addSkill(projectId, name, filePath, content) {
+    // Rechazar duplicados ANTES de tocar el disco: sin esto, un segundo
+    // "skill add" con el mismo nombre sobreescribiría el .md existente con el
+    // template vacío (pérdida del contenido real) y duplicaría la fila
+    const dup = this.db
+      .prepare('SELECT id FROM project_skills WHERE project_id = ? AND name = ?')
+      .get(projectId, name);
+    if (dup) {
+      throw new Error(
+        `Ya existe el skill "${name}" en ${projectId} (${dup.id}) — usa: mempunk skill update ${dup.id} --file <path>`
+      );
+    }
+
     const id = makeId('sk');
     const now = new Date().toISOString();
 
     // Escribir el archivo primero — si falla aquí, nada llega a la BD
+    const fileExisted = fs.existsSync(filePath);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, content, 'utf8');
 
@@ -592,11 +619,10 @@ class VaultStore {
           .run(id, projectId, name, filePath, now);
       })();
     } catch (err) {
-      // Revertir la escritura del archivo para mantener consistencia
-      try {
-        fs.unlinkSync(filePath);
-      } catch (_) {
-        // Ignorar error de borrado — ya estamos en un estado de fallo
+      // Revertir SOLO archivos creados en esta llamada: borrar uno preexistente
+      // no sería rollback sino pérdida de datos
+      if (!fileExisted) {
+        try { fs.unlinkSync(filePath); } catch (_) {}
       }
       throw err;
     }
@@ -918,6 +944,16 @@ class VaultStore {
    * @returns {{ item_id: string, project_id: string, type: string, file_path: string|null }[]}
    */
   search(query, projectId = null) {
+    // FTS5 interpreta -, :, ?, +, etc. como sintaxis de query: "better-sqlite3"
+    // se leería como columna "better" NOT "sqlite3" y "C++" es syntax error.
+    // Citar cada término lo convierte en búsqueda literal.
+    const ftsQuery = query
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((term) => `"${term.replaceAll('"', '""')}"`)
+      .join(' ');
+    if (!ftsQuery) return [];
+
     // COALESCE resuelve el file_path de cualquier tipo registrado en el índice
     const baseQuery = `
       SELECT
@@ -941,10 +977,10 @@ class VaultStore {
     if (projectId) {
       return this.db
         .prepare(`${baseQuery} AND search_index.project_id = ?`)
-        .all(query, projectId);
+        .all(ftsQuery, projectId);
     }
 
-    return this.db.prepare(baseQuery).all(query);
+    return this.db.prepare(baseQuery).all(ftsQuery);
   }
 
   // ---------------------------------------------------------------------------

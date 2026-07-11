@@ -40,6 +40,7 @@ function makeTranscript(nTurns, extraUsage = {}) {
     lines.push(JSON.stringify({
       message: {
         role: 'assistant',
+        model: extraUsage.model ?? 'claude-test-model',
         content: [{ type: 'text', text: `respuesta ${i} con src/auth.ts` }],
         usage: {
           input_tokens:                extraUsage.input_tokens ?? 1000,
@@ -113,6 +114,42 @@ describe('on-prompt.js (ContextWarning)', () => {
     const r2 = runHook('on-prompt.js', input);
     expect(JSON.parse(r2.stdout)).toEqual({});
   });
+
+  it('usa ventana de 1M cuando el modelo tiene sufijo [1m]', () => {
+    // 140,000 / 1,000,000 = 14% → sin aviso (con 200k habría dado 70%)
+    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000, model: 'claude-fable-5[1m]' }));
+    const r = runHook('on-prompt.js', { session_id: 'sess-1m', transcript_path: transcriptPath });
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout)).toEqual({});
+  });
+
+  it('ignora mensajes de subagentes (isSidechain) al calcular el porcentaje', () => {
+    // Conversación principal al 81%; el último usage del JSONL es de un
+    // subagente con contexto pequeño — debe avisar rojo igualmente
+    let t = makeTranscript(1, { input_tokens: 162_000 });
+    t += JSON.stringify({
+      isSidechain: true,
+      message: { role: 'assistant', content: [{ type: 'text', text: 'sub' }], usage: { input_tokens: 5_000 } },
+    }) + '\n';
+    fs.writeFileSync(transcriptPath, t);
+    const r = runHook('on-prompt.js', { session_id: 'sess-side', transcript_path: transcriptPath });
+    expect(JSON.parse(r.stdout).systemMessage).toMatch(/🚨/);
+  });
+
+  it('re-arma los avisos cuando el contexto baja (post-compactación)', () => {
+    const warnFile = path.join(MEMPUNK_DIR, 'context-warn-state.json');
+    fs.writeFileSync(warnFile, JSON.stringify({ session_id: 'sess-rearm', last_warned_pct: 85 }));
+
+    // Contexto bajo (30%) → sin aviso, pero el estado debe resetearse
+    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 60_000 }));
+    runHook('on-prompt.js', { session_id: 'sess-rearm', transcript_path: transcriptPath });
+    expect(JSON.parse(fs.readFileSync(warnFile, 'utf8')).last_warned_pct).toBe(0);
+
+    // El contexto vuelve a subir en la misma sesión → avisa de nuevo
+    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000 }));
+    const r = runHook('on-prompt.js', { session_id: 'sess-rearm', transcript_path: transcriptPath });
+    expect(JSON.parse(r.stdout).systemMessage).toContain('⚠️');
+  });
 });
 
 // ── on-compact.js ─────────────────────────────────────────────────────────────
@@ -120,12 +157,12 @@ describe('on-prompt.js (ContextWarning)', () => {
 describe('on-compact.js (CompactCapture)', () => {
   it('guarda compact_snapshot en SQLite y retorna {}', () => {
     fs.writeFileSync(transcriptPath, makeTranscript(3));
+    // El stdin real de PreCompact trae `trigger` en snake_case, no compactType
     const input = {
       session_id: 'sess-compact-001',
       transcript_path: transcriptPath,
       hook_event_name: 'PreCompact',
-      compactType: 'automatic',
-      messageCount: 6,
+      trigger: 'auto',
     };
     const r = runHook('on-compact.js', input);
     expect(r.status).toBe(0);
@@ -135,8 +172,8 @@ describe('on-compact.js (CompactCapture)', () => {
     const row = db.prepare('SELECT * FROM compact_snapshots WHERE session_id = ?').get('sess-compact-001');
     db.close();
     expect(row).toBeDefined();
-    expect(row.compact_type).toBe('automatic');
-    expect(row.message_count).toBe(6);
+    expect(row.compact_type).toBe('auto');
+    expect(row.message_count).toBe(6); // 3 user + 3 assistant
   });
 
   it('retorna {} silencioso cuando no hay proyecto activo', () => {
@@ -246,6 +283,50 @@ describe('on-stop.js (AutoCheckpoint)', () => {
     const rows = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').all('sess-stop-save');
     db.close();
     expect(rows.length).toBe(1); // solo uno, no duplicado
+  });
+
+  it('los tool_results (type:user sin texto) no cuentan como turnos', () => {
+    // 2 turnos reales + 8 tool_results: sin el filtro serían 10 "turnos" y guardaría
+    let t = makeTranscript(2);
+    for (let i = 0; i < 8; i++) {
+      t += JSON.stringify({
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: `t${i}`, content: 'ok' }] },
+      }) + '\n';
+    }
+    fs.writeFileSync(transcriptPath, t);
+    const r = runHook('on-stop.js', {
+      session_id: 'sess-toolresult',
+      transcript_path: transcriptPath,
+      hook_event_name: 'Stop',
+    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
+    expect(r.status).toBe(0);
+
+    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-toolresult');
+    db.close();
+    expect(row).toBeUndefined();
+  });
+
+  it('detecta archivos con paths de Windows y los normaliza a /', () => {
+    let t = makeTranscript(5);
+    t += JSON.stringify({
+      type: 'user',
+      message: { role: 'user', content: 'revisa src\\hooks\\on-stop.js por favor' },
+    }) + '\n';
+    fs.writeFileSync(transcriptPath, t);
+    const r = runHook('on-stop.js', {
+      session_id: 'sess-winpath',
+      transcript_path: transcriptPath,
+      hook_event_name: 'Stop',
+    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
+    expect(r.status).toBe(0);
+
+    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-winpath');
+    db.close();
+    expect(row).toBeDefined();
+    expect(JSON.parse(row.files_found)).toContain('src/hooks/on-stop.js');
   });
 
   it('resetea checkpoint-state cuando cambia la session_id', () => {

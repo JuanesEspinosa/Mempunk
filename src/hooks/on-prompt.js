@@ -10,14 +10,16 @@ import path from 'node:path';
 import os from 'node:os';
 import readline from 'node:readline';
 
-const VAULT_PATH  = process.env.MEMPUNK_VAULT ?? path.join(os.homedir(), 'Dev-Brain');
+const VAULT_PATH  = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
 const MEMPUNK_DIR = path.join(VAULT_PATH, '.mempunk');
 const LOG_FILE    = path.join(MEMPUNK_DIR, 'hooks.log');
 const WARN_FILE   = path.join(MEMPUNK_DIR, 'context-warn-state.json');
 
-// Umbral de auto-compact de Claude Code — hardcodeado en 83.5%
-// Con 30% de free space before auto-compact cuando override está en 70%
-const CONTEXT_WINDOW = parseInt(process.env.MEMPUNK_CONTEXT_WINDOW ?? '200000', 10);
+// Ventana de contexto: los mensajes assistant del transcript traen message.model;
+// los modelos de contexto extendido llevan el sufijo "[1m]" (1M tokens).
+// MEMPUNK_CONTEXT_WINDOW permite forzar un valor manualmente.
+const DEFAULT_WINDOW  = 200_000;
+const EXTENDED_WINDOW = 1_000_000;
 const THRESHOLD_WARN  = 70;
 const THRESHOLD_ALERT = 80;
 
@@ -56,6 +58,7 @@ async function getContextPct(transcriptPath) {
   if (!transcriptPath || !fs.existsSync(transcriptPath)) return null;
 
   let lastUsage = null;
+  let lastModel = null;
 
   try {
     const rl = readline.createInterface({
@@ -67,9 +70,12 @@ async function getContextPct(transcriptPath) {
       if (!line.trim()) continue;
       try {
         const entry = JSON.parse(line);
-        // Buscar mensajes assistant con usage
+        // Los subagentes comparten el JSONL pero tienen su propio contexto
+        // (mucho menor): usarlos daría un porcentaje falso a la baja
+        if (entry.isSidechain) continue;
         if (entry.message?.role === 'assistant' && entry.message?.usage) {
           lastUsage = entry.message.usage;
+          lastModel = entry.message.model ?? lastModel;
         }
       } catch (_) {}
     }
@@ -84,7 +90,12 @@ async function getContextPct(transcriptPath) {
     (lastUsage.cache_creation_input_tokens ?? 0) +
     (lastUsage.cache_read_input_tokens ?? 0);
 
-  return Math.round((used / CONTEXT_WINDOW) * 100);
+  const envWindow = parseInt(process.env.MEMPUNK_CONTEXT_WINDOW ?? '', 10);
+  const window = Number.isFinite(envWindow) && envWindow > 0
+    ? envWindow
+    : (lastModel?.includes('[1m]') ? EXTENDED_WINDOW : DEFAULT_WINDOW);
+
+  return Math.round((used / window) * 100);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -115,6 +126,14 @@ try {
   log(`Contexto: ${pct}%`);
 
   const warnState = readWarnState(sessionId);
+
+  // Re-armar los avisos si el contexto bajó del umbral (p.ej. tras una
+  // compactación): sin esto, la sesión nunca vuelve a avisar aunque el
+  // contexto suba de nuevo
+  if (pct < THRESHOLD_WARN && warnState.last_warned_pct > 0) {
+    warnState.last_warned_pct = 0;
+    writeWarnState({ session_id: sessionId, last_warned_pct: 0 });
+  }
 
   // Aviso rojo — 80%+
   if (pct >= THRESHOLD_ALERT && warnState.last_warned_pct < THRESHOLD_ALERT) {

@@ -55,10 +55,10 @@ mempunk sync                                         → verifica consistencia v
 mempunk sync --project <project_id>                  → sync limitado a un proyecto
 mempunk session recover <project_id>                 → muestra el último snapshot disponible (checkpoint o compact)
 mempunk session checkpoints <project_id>             → lista todos los checkpoints y compact_snapshots del proyecto
-mempunk hooks install                                → instala hooks + agentes en .claude/ del proyecto actual
-mempunk hooks install --global                       → instala hooks + agentes en ~/.claude/ (aplica a todos los proyectos)
+mempunk hooks install                                → instala hooks + agentes en ~/.claude/ (global, todos los proyectos)
+mempunk hooks install --local                        → instala hooks + agentes en .claude/ del proyecto actual
 mempunk hooks install --check                        → verifica hooks, agentes y statusline instalados
-mempunk hooks uninstall                              → elimina hooks y agentes de Mempunk (local o --global)
+mempunk hooks uninstall                              → elimina hooks, agentes y statusline de Mempunk (global; --local para el proyecto actual)
 ```
 
 ---

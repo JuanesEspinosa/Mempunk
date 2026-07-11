@@ -725,3 +725,58 @@ describe('Compact Snapshots', () => {
     expect(sources.has('compact')).toBe(true);
   });
 });
+
+// ── Regresiones — bugs corregidos 2026-07-11 ──────────────────────────────────
+
+describe('Regresiones', () => {
+  it('search() no crashea con puntuación FTS5 y busca el término literal', () => {
+    const decPath = path.join(PROJ_PATH, 'decisions', 'fts-test.md');
+    store.addDecision(PROJ, 'Usar better-sqlite3', decPath, [], 'Adoptamos better-sqlite3 como driver');
+
+    // Antes: "no such column: sqlite3" / "fts5: syntax error"
+    expect(() => store.search('C++')).not.toThrow();
+    expect(() => store.search('what?')).not.toThrow();
+    const hits = store.search('better-sqlite3');
+    expect(hits.some((h) => h.file_path === decPath)).toBe(true);
+  });
+
+  it('addSkill() rechaza nombre duplicado sin destruir el archivo existente', () => {
+    const skillPath = path.join(PROJ_PATH, 'skills', 'stack-regresion.md');
+    store.addSkill(PROJ, 'stack-regresion', skillPath, 'contenido original valioso');
+
+    expect(() => store.addSkill(PROJ, 'stack-regresion', skillPath, 'template vacío'))
+      .toThrow(/Ya existe/);
+
+    // El archivo original queda intacto y sin fila duplicada
+    expect(fs.readFileSync(skillPath, 'utf8')).toBe('contenido original valioso');
+    const rows = store.db
+      .prepare('SELECT * FROM project_skills WHERE project_id = ? AND name = ?')
+      .all(PROJ, 'stack-regresion');
+    expect(rows).toHaveLength(1);
+  });
+
+  it('addDailyLog() con proyecto inexistente falla sin tocar el archivo del día', () => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const dailyFile = path.join(TEMP_VAULT, 'daily', `${today}.md`);
+    const before = fs.existsSync(dailyFile) ? fs.readFileSync(dailyFile, 'utf8') : null;
+
+    // Antes: el append ya estaba hecho cuando fallaba el FK → contenido fantasma
+    expect(() => store.addDailyLog('proyecto-typo', 'contenido fantasma')).toThrow(/no encontrado/);
+
+    const after = fs.existsSync(dailyFile) ? fs.readFileSync(dailyFile, 'utf8') : null;
+    expect(after).toBe(before);
+  });
+
+  it('addDailyLog() de dos proyectos el mismo día refresca el índice FTS de ambos', () => {
+    store.addProject('proj2', 'Proyecto Dos', path.join(TEMP_VAULT, 'projects', 'proj2'));
+
+    store.addDailyLog(PROJ,    'entrada única del proyecto uno alfa');
+    store.addDailyLog('proj2', 'entrada única del proyecto dos beta');
+
+    // Comparten el archivo del día: la entrada de proj2 (posterior) debe ser
+    // encontrable también filtrando por PROJ, porque su índice se refresca
+    const hits = store.search('beta', PROJ);
+    expect(hits.length).toBeGreaterThan(0);
+  });
+});
