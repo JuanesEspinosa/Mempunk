@@ -12,25 +12,34 @@ const PROJECT_ROOT = path.join(__dirname, '..');
 // Vault temporal para los tests de CLI — nunca toca ~/Dev-Brain
 const TEMP_VAULT = path.join(os.tmpdir(), `mempunk-cli-test-${Date.now()}`);
 
+// HOME temporal — imprescindible: hooks install/uninstall y setup escriben en
+// ~/.claude/settings.json, ~/.claude/hooks/, ~/.claude.json y ~/.mempunk/.
+// Sin esto, correr los tests destruye la instalación real del desarrollador.
+// os.homedir() usa HOME en POSIX y USERPROFILE en Windows: setear ambos.
+const TEMP_HOME = path.join(os.tmpdir(), `mempunk-cli-home-${Date.now()}`);
+const ISOLATED_ENV = { HOME: TEMP_HOME, USERPROFILE: TEMP_HOME };
+
 /**
- * Ejecuta un comando del CLI apuntando al vault temporal.
+ * Ejecuta un comando del CLI apuntando al vault y HOME temporales.
  * @param {string} args - Argumentos que siguen a "node src/cli.js"
  * @returns {string} stdout del proceso
  */
 function run(args) {
   return execSync(`node src/cli.js ${args}`, {
     cwd: PROJECT_ROOT,
-    env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT },
+    env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
     encoding: 'utf8',
   });
 }
 
 beforeAll(() => {
+  fs.mkdirSync(TEMP_HOME, { recursive: true });
   run('init');
 });
 
 afterAll(() => {
   fs.rmSync(TEMP_VAULT, { recursive: true, force: true });
+  fs.rmSync(TEMP_HOME,  { recursive: true, force: true });
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -363,23 +372,23 @@ describe('mempunk vault', () => {
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 describe('mempunk hooks', () => {
+  // "Global" = el HOME aislado de los tests, nunca el homedir real
   const localHooksDir   = path.join(PROJECT_ROOT, '.claude', 'hooks');
-  const globalHooksDir  = path.join(os.homedir(), '.claude', 'hooks');
+  const globalHooksDir  = path.join(TEMP_HOME, '.claude', 'hooks');
   const localAgentsDir  = path.join(PROJECT_ROOT, '.claude', 'agents');
-  const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
+  const globalAgentsDir = path.join(TEMP_HOME, '.claude', 'agents');
+  const settingsPath    = path.join(TEMP_HOME, '.claude', 'settings.json');
   const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
   const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
   const HOOK_MARKER  = '# mempunk-hook';
   const AGENT_MARKER = '# mempunk-agent';
 
   afterAll(() => {
-    for (const f of HOOK_FILES) {
-      try { fs.unlinkSync(path.join(localHooksDir,  f)); } catch (_) {}
-      try { fs.unlinkSync(path.join(globalHooksDir, f)); } catch (_) {}
-    }
+    // Lo global vive en TEMP_HOME (se borra entero en el afterAll raíz);
+    // lo local vive en el repo y hay que limpiarlo explícitamente
+    fs.rmSync(path.join(PROJECT_ROOT, '.claude', 'hooks'),  { recursive: true, force: true });
     for (const f of AGENT_FILES) {
-      try { fs.unlinkSync(path.join(localAgentsDir,  f)); } catch (_) {}
-      try { fs.unlinkSync(path.join(globalAgentsDir, f)); } catch (_) {}
+      try { fs.unlinkSync(path.join(localAgentsDir, f)); } catch (_) {}
     }
   });
 
@@ -462,6 +471,98 @@ describe('mempunk hooks', () => {
     }
     expect(fs.existsSync(foreignAgent)).toBe(true);
     fs.unlinkSync(foreignAgent);
+  });
+
+  it('hooks install registra los 4 eventos en settings.json con paths entre comillas', () => {
+    run('hooks install');
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+
+    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit']) {
+      expect(Array.isArray(settings.hooks[event])).toBe(true);
+      const commands = settings.hooks[event].flatMap((g) => g.hooks.map((h) => h.command));
+      // Debe haber exactamente un registro de Mempunk por evento (sin duplicados)
+      const mempunkCmds = commands.filter((c) => c.includes('.claude/hooks/'));
+      expect(mempunkCmds).toHaveLength(1);
+      // Node y script van entre comillas para sobrevivir rutas con espacios en bash
+      expect(mempunkCmds[0]).toMatch(/^".+" ".+"$/);
+    }
+  });
+
+  it('hooks install repetido no duplica registros aunque cambie la ruta de node', () => {
+    run('hooks install');
+    run('hooks install');
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit']) {
+      const mempunkCmds = settings.hooks[event]
+        .flatMap((g) => g.hooks.map((h) => h.command))
+        .filter((c) => c.includes('.claude/hooks/'));
+      expect(mempunkCmds).toHaveLength(1);
+    }
+  });
+
+  it('hooks uninstall --local NO elimina los registros de la instalación global', () => {
+    run('hooks install');
+    run('hooks install --local');
+    run('hooks uninstall --local');
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    const globalFwd = globalHooksDir.replace(/\\/g, '/');
+    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit']) {
+      const commands = (settings.hooks?.[event] ?? []).flatMap((g) => g.hooks.map((h) => h.command));
+      expect(commands.some((c) => c.includes(globalFwd))).toBe(true);
+    }
+  });
+
+  it('hooks uninstall global elimina registros, statusline y package.json residual', () => {
+    run('hooks install');
+    run('hooks uninstall');
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(settings.hooks).toBeUndefined();
+    expect(settings.statusLine).toBeUndefined();
+    expect(fs.existsSync(path.join(globalHooksDir, 'package.json'))).toBe(false);
+    expect(fs.existsSync(path.join(TEMP_HOME, '.mempunk', 'statusline.js'))).toBe(false);
+  });
+
+  it('hooks uninstall desregistra de settings.json aunque el directorio de hooks no exista', () => {
+    run('hooks install');
+    fs.rmSync(globalHooksDir, { recursive: true, force: true });
+    run('hooks uninstall');
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(settings.hooks).toBeUndefined();
+  });
+
+  it('hooks install aborta sin sobreescribir un settings.json inválido', () => {
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    const brokenJson = '{ "permissions": { "allow": ["Bash"] }, }'; // coma colgante
+    fs.writeFileSync(settingsPath, brokenJson, 'utf8');
+
+    expect(() => run('hooks install')).toThrow();
+    // El archivo debe quedar intacto — jamás reescribirlo con solo los hooks de Mempunk
+    expect(fs.readFileSync(settingsPath, 'utf8')).toBe(brokenJson);
+
+    fs.unlinkSync(settingsPath);
+  });
+
+  it('hooks install preserva la configuración existente del usuario en settings.json', () => {
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      env: { MY_VAR: '1' },
+      permissions: { allow: ['Bash(ls:*)'] },
+      hooks: {
+        SessionStart: [{ matcher: '', hooks: [{ type: 'command', command: 'node C:/otros/on-start.js' }] }],
+      },
+    }, null, 2), 'utf8');
+
+    run('hooks install');
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(settings.env.MY_VAR).toBe('1');
+    expect(settings.permissions.allow).toContain('Bash(ls:*)');
+    // El hook de terceros (mismo nombre de archivo, otro directorio) sobrevive
+    const startCmds = settings.hooks.SessionStart.flatMap((g) => g.hooks.map((h) => h.command));
+    expect(startCmds).toContain('node C:/otros/on-start.js');
   });
 });
 
@@ -568,7 +669,9 @@ describe('mempunk setup', () => {
   function runSetup(args) {
     return execSync(`node src/cli.js ${args}`, {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MEMPUNK_VAULT: SETUP_VAULT },
+      // HOME aislado: setup registra el vault en ~/.claude.json y puede
+      // instalar hooks — jamás debe tocar la configuración real
+      env: { ...process.env, MEMPUNK_VAULT: SETUP_VAULT, ...ISOLATED_ENV },
       encoding: 'utf8',
     });
   }
@@ -599,7 +702,7 @@ describe('mempunk setup', () => {
     try {
       execSync('node src/cli.js setup --setup-mode vault-skills', {
         cwd: PROJECT_ROOT,
-        env: { ...process.env, MEMPUNK_VAULT: VS_VAULT },
+        env: { ...process.env, MEMPUNK_VAULT: VS_VAULT, ...ISOLATED_ENV },
         encoding: 'utf8',
       });
       const config = JSON.parse(

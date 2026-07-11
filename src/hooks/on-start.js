@@ -20,6 +20,18 @@ const LOG_FILE     = path.join(MEMPUNK_DIR, 'hooks.log');
 // MEMPUNK_CLI permite sobrescribir "mempunk" por "node /path/to/cli.js" en tests
 const [CLI_BIN, ...CLI_ARGS_PREFIX] = (process.env.MEMPUNK_CLI ?? 'mempunk').split(' ');
 
+/** Ejecuta el CLI de mempunk. En Windows el binario global de npm es un shim
+ *  .cmd que spawnSync no puede ejecutar sin shell (ENOENT); con shell hay que
+ *  citar manualmente los argumentos que contengan espacios. */
+function runCli(args) {
+  const opts = { encoding: 'utf8', env: { ...process.env, MEMPUNK_VAULT: VAULT_PATH } };
+  if (process.env.MEMPUNK_CLI || process.platform !== 'win32') {
+    return spawnSync(CLI_BIN, [...CLI_ARGS_PREFIX, ...args], opts);
+  }
+  const quoted = args.map((a) => (/[\s"^&|<>]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a));
+  return spawnSync(CLI_BIN, quoted, { ...opts, shell: true });
+}
+
 // Límite de additionalContext que Claude Code acepta en SessionStart
 const MAX_CONTEXT_CHARS = 8000;
 
@@ -44,10 +56,7 @@ function getProjectId() {
 
 /** Llama al CLI para obtener el último compact_snapshot como objeto */
 function fetchLastCompactSnapshot(projectId) {
-  const result = spawnSync(CLI_BIN, [...CLI_ARGS_PREFIX, 'session', 'get-compact', projectId], {
-    encoding: 'utf8',
-    env: { ...process.env, MEMPUNK_VAULT: VAULT_PATH },
-  });
+  const result = runCli(['session', 'get-compact', projectId]);
   if (result.status !== 0 || !result.stdout?.trim()) return null;
   try {
     return JSON.parse(result.stdout);

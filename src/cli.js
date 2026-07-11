@@ -762,6 +762,21 @@ function agentsTargetDir() {
  *  hooks via bash -c y el campo args[] se pasa como $0, no como argumento al
  *  ejecutable. Los paths se normalizan a forward slashes para compatibilidad
  *  con bash en Windows (process.execPath devuelve backslashes en Windows). */
+/** True si la entrada `h` referencia el hook `file` de Mempunk dentro de alguno
+ *  de los directorios `dirsFwd` (paths ya normalizados a forward slashes).
+ *  Matchear por (directorio + nombre de archivo) evita borrar hooks de terceros
+ *  cuyo path solo contenga el nombre del archivo o la palabra "mempunk". */
+function _referencesMempunkHook(h, file, dirsFwd) {
+  const fwd = (p) => (typeof p === 'string' ? p.replace(/\\/g, '/') : '');
+  const target = Array.isArray(h.args) ? fwd(h.args[0]) : fwd(h.command);
+  return dirsFwd.some((d) => target.includes(`${d}/${file}`));
+}
+
+/** Directorio donde Mempunk instaló hooks en versiones anteriores. */
+function _legacyHooksDirFwd() {
+  return path.join(os.homedir(), '.mempunk', 'hooks').replace(/\\/g, '/');
+}
+
 function _registerHooksInSettings(hooksDir) {
   const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
   if (!settings.hooks) settings.hooks = {};
@@ -769,21 +784,19 @@ function _registerHooksInSettings(hooksDir) {
   // Normalizar backslashes → forward slashes para bash en Windows
   const fwd = (p) => p.replace(/\\/g, '/');
   const nodeExe = fwd(process.execPath);
+  const knownDirsFwd = [fwd(hooksDir), _legacyHooksDirFwd()];
 
-  // Limpiar entradas legacy de Mempunk:
+  // Limpiar entradas previas de Mempunk:
   //   - type:prompt (auto-start viejo)
-  //   - command string con 'mempunk' sin args
-  //   - command+args con cualquier hook file de Mempunk (formato roto anterior)
+  //   - registros del mismo script (dedupe si cambió la ruta de node)
+  //   - registros apuntando a la ubicación legacy ~/.mempunk/hooks
   for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
     if (!Array.isArray(settings.hooks[event])) continue;
     settings.hooks[event] = settings.hooks[event].filter((g) => {
       if (!g.hooks) return true;
       const isMempunkHook = g.hooks.some(
         (h) => h.prompt?.includes('mempunk-auto-start') ||
-               (h.type === 'command' && (
-                 (typeof h.command === 'string' && h.command.includes('mempunk') && !h.args) ||
-                 (Array.isArray(h.args) && h.args[0]?.includes(file))
-               ))
+               (h.type === 'command' && _referencesMempunkHook(h, file, knownDirsFwd))
       );
       return !isMempunkHook;
     });
@@ -791,45 +804,35 @@ function _registerHooksInSettings(hooksDir) {
 
   for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
     const scriptPath = fwd(path.join(hooksDir, file));
-    const commandStr = `${nodeExe} ${scriptPath}`;
+    // Comillas: node puede vivir en una ruta con espacios (C:/Program Files/...)
+    const commandStr = `"${nodeExe}" "${scriptPath}"`;
 
     if (!settings.hooks[event]) settings.hooks[event] = [];
-
-    // No duplicar si ya existe entrada con este command string exacto
-    const alreadyRegistered = settings.hooks[event].some((g) =>
-      g.hooks?.some((h) =>
-        h.type === 'command' && !h.args && h.command === commandStr
-      )
-    );
-    if (!alreadyRegistered) {
-      settings.hooks[event].push({
-        matcher: '',
-        hooks: [{ type: 'command', command: commandStr }],
-      });
-    }
-
-    if (settings.hooks[event].length === 0) delete settings.hooks[event];
+    settings.hooks[event].push({
+      matcher: '',
+      hooks: [{ type: 'command', command: commandStr }],
+    });
   }
 
   writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
 }
 
-/** Elimina hooks de Mempunk de settings.json.
- *  Soporta tanto el nuevo formato (command string) como el antiguo (command+args). */
+/** Elimina de settings.json los hooks de Mempunk que apunten a `hooksDir`
+ *  (o a la ubicación legacy ~/.mempunk/hooks). Registros de Mempunk en OTROS
+ *  directorios (p.ej. global vs --local) y hooks de terceros no se tocan. */
 function _unregisterHooksFromSettings(hooksDir) {
   const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
   if (!settings.hooks) return;
+
+  const fwd = (p) => p.replace(/\\/g, '/');
+  const dirsFwd = [fwd(hooksDir), _legacyHooksDirFwd()];
 
   for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
     if (!Array.isArray(settings.hooks[event])) continue;
     settings.hooks[event] = settings.hooks[event].filter(
       (g) => !g.hooks?.some(
-        (h) => h.type === 'command' && (
-          // Nuevo formato: command string contiene el nombre del hook file
-          (!h.args && h.command?.includes(file)) ||
-          // Formato anterior: args[0] contiene el nombre del hook file
-          (Array.isArray(h.args) && h.args[0]?.includes(file))
-        )
+        (h) => h.prompt?.includes('mempunk-auto-start') ||
+               (h.type === 'command' && _referencesMempunkHook(h, file, dirsFwd))
       )
     );
     if (settings.hooks[event].length === 0) delete settings.hooks[event];
@@ -858,6 +861,20 @@ function cmdHooksInstall() {
 
     console.log(`Hooks (${targetDir}):`);
     HOOK_FILES.forEach((f) => console.log(`  ${hooksOk.includes(f) ? '✓' : '✗'} ${f}`));
+
+    // Un hook copiado pero no registrado en settings.json nunca corre:
+    // verificar ambas cosas para que --check refleje el estado real
+    const settings   = readJsonFile(CLAUDE_SETTINGS_PATH);
+    const targetFwd  = targetDir.replace(/\\/g, '/');
+    console.log(`Registro en settings.json (${CLAUDE_SETTINGS_PATH}):`);
+    for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
+      const registered = Array.isArray(settings.hooks?.[event]) &&
+        settings.hooks[event].some((g) => g.hooks?.some(
+          (h) => h.type === 'command' && _referencesMempunkHook(h, file, [targetFwd])
+        ));
+      console.log(`  ${registered ? '✓' : '✗'} ${event} → ${file}`);
+    }
+
     console.log(`Agentes (${agentsDir}):`);
     AGENT_FILES.forEach((f) => console.log(`  ${agentsOk.includes(f) ? '✓' : '✗'} ${f}`));
 
@@ -888,13 +905,19 @@ function cmdHooksInstall() {
     fs.mkdirSync(path.dirname(statuslineDest), { recursive: true });
     fs.copyFileSync(statuslineSrc, statuslineDest);
     try { fs.chmodSync(statuslineDest, 0o755); } catch (_) {}
+    // package.json ESM: sin él, Node <22.7 no acepta los import del statusline
+    fs.writeFileSync(
+      path.join(path.dirname(statuslineDest), 'package.json'),
+      JSON.stringify({ type: 'module' }) + '\n'
+    );
 
     // Registrar statusline en ~/.claude/settings.json
     // Usa path completo de node y forward slashes para compatibilidad con bash en Windows
     const fwdSlash   = (p) => p.replace(/\\/g, '/');
     const nodeExe    = fwdSlash(process.execPath);
     const destFwd    = fwdSlash(statuslineDest);
-    const newCommand = `${nodeExe} ${destFwd}`;
+    // Comillas: node puede vivir en una ruta con espacios (C:/Program Files/...)
+    const newCommand = `"${nodeExe}" "${destFwd}"`;
 
     const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
     const currentCmd = settings.statusLine?.command ?? '';
@@ -927,23 +950,27 @@ function cmdHooksInstall() {
 function cmdHooksUninstall() {
   const targetDir = hooksTargetDir();
 
-  if (!fs.existsSync(targetDir)) {
-    console.log(`No hay hooks instalados en ${targetDir}`);
-    return;
-  }
-
   let removed = 0;
-  for (const file of HOOK_FILES) {
-    const filePath = path.join(targetDir, file);
-    if (!fs.existsSync(filePath)) continue;
+  if (fs.existsSync(targetDir)) {
+    for (const file of HOOK_FILES) {
+      const filePath = path.join(targetDir, file);
+      if (!fs.existsSync(filePath)) continue;
 
-    // Solo eliminar hooks que contengan el marcador — no tocar otros hooks del usuario
+      // Solo eliminar hooks que contengan el marcador — no tocar otros hooks del usuario
+      try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        if (content.includes(HOOK_MARKER)) {
+          fs.unlinkSync(filePath);
+          removed++;
+        }
+      } catch (_) {}
+    }
+
+    // El package.json ESM lo escribió install: retirarlo si no quedan otros scripts,
+    // para no dejar un directorio que "parece instalado" sin estarlo
     try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      if (content.includes(HOOK_MARKER)) {
-        fs.unlinkSync(filePath);
-        removed++;
-      }
+      const remaining = fs.readdirSync(targetDir).filter((f) => f.endsWith('.js'));
+      if (remaining.length === 0) fs.unlinkSync(path.join(targetDir, 'package.json'));
     } catch (_) {}
   }
 
@@ -969,7 +996,21 @@ function cmdHooksUninstall() {
   }
   if (agentsRemoved > 0) console.log(`Agentes eliminados de ${agentDir}`);
 
-  // Eliminar registros de settings.json
+  // Statusline: solo el uninstall global lo retira (settings.json + archivo)
+  if (!opts.local) {
+    const statuslineDest = path.join(os.homedir(), '.mempunk', 'statusline.js');
+    const destFwd = statuslineDest.replace(/\\/g, '/');
+    const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
+    if (settings.statusLine?.command?.includes(destFwd)) {
+      delete settings.statusLine;
+      writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
+      console.log('Statusline desregistrado de settings.json');
+    }
+    try { fs.unlinkSync(statuslineDest); } catch (_) {}
+  }
+
+  // Eliminar registros de settings.json — siempre, aunque el directorio no exista,
+  // para no dejar entradas zombie apuntando a scripts borrados
   _unregisterHooksFromSettings(targetDir);
 }
 
@@ -982,7 +1023,16 @@ const MEMPUNK_HOOK_PROMPT  =
 
 function readJsonFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
-  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { return {}; }
+  // Strip BOM: PowerShell y varios editores de Windows lo agregan y JSON.parse falla
+  const raw = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
+  if (!raw.trim()) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    // Nunca devolver {} ante un parse error: el caller reescribiría el archivo
+    // completo y destruiría la configuración existente del usuario
+    fail(`No se pudo parsear ${filePath}: ${err.message}\nCorrige el JSON manualmente y vuelve a intentar.`);
+  }
 }
 
 function writeJsonFile(filePath, data) {
