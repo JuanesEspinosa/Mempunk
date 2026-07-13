@@ -49,6 +49,79 @@ describe('Proyectos', () => {
   });
 });
 
+// ── Root path (proyecto activo por cwd) ───────────────────────────────────────
+
+describe('Root path', () => {
+  it('la migración v4 agrega la columna root_path a projects', () => {
+    const cols = store.db.prepare('PRAGMA table_info(projects)').all().map((c) => c.name);
+    expect(cols).toContain('root_path');
+  });
+
+  it('setProjectRootPath() guarda la ruta normalizada (/, sin slash final)', () => {
+    const raw = process.platform === 'win32' ? 'C:\\Repos\\Uno\\' : '/repos/uno/';
+    store.setProjectRootPath(PROJ, raw);
+
+    const row = store.db.prepare('SELECT root_path FROM projects WHERE id = ?').get(PROJ);
+    expect(row.root_path).not.toContain('\\');
+    expect(row.root_path.endsWith('/')).toBe(false);
+    if (process.platform === 'win32') expect(row.root_path).toBe(row.root_path.toLowerCase());
+  });
+
+  it('getProjectPathMap() retorna el mapa ruta → project_id', () => {
+    const map = store.getProjectPathMap();
+    expect(Object.values(map)).toContain(PROJ);
+  });
+
+  it('setProjectRootPath(id, null) limpia el mapeo', () => {
+    store.setProjectRootPath(PROJ, null);
+    const map = store.getProjectPathMap();
+    expect(Object.values(map)).not.toContain(PROJ);
+  });
+});
+
+// ── Poda de checkpoints y snapshots ───────────────────────────────────────────
+
+describe('Poda de checkpoints', () => {
+  it('addCheckpoint() conserva como máximo 30 checkpoints por proyecto', () => {
+    for (let i = 1; i <= 35; i++) {
+      store.addCheckpoint(PROJ, `sess-prune-${i}`, i, [{ turno: i }], []);
+    }
+    const rows = store.db
+      .prepare('SELECT COUNT(*) AS n FROM session_checkpoints WHERE project_id = ?')
+      .get(PROJ);
+    expect(rows.n).toBe(30);
+
+    // Sobreviven los más recientes, no los primeros
+    const oldest = store.db
+      .prepare('SELECT * FROM session_checkpoints WHERE project_id = ? AND session_id = ?')
+      .get(PROJ, 'sess-prune-1');
+    expect(oldest).toBeUndefined();
+  });
+
+  it('addCompactSnapshot() conserva como máximo 10 snapshots por proyecto', () => {
+    for (let i = 1; i <= 14; i++) {
+      store.addCompactSnapshot(PROJ, `sess-snap-${i}`, 'auto', i, [{ turno: i }], [], []);
+    }
+    const rows = store.db
+      .prepare('SELECT COUNT(*) AS n FROM compact_snapshots WHERE project_id = ?')
+      .get(PROJ);
+    expect(rows.n).toBe(10);
+  });
+
+  it('la poda no toca checkpoints de otros proyectos', () => {
+    store.addProject('proj-prune-b', 'Proyecto B', path.join(TEMP_VAULT, 'projects', 'proj-prune-b'));
+    store.addCheckpoint('proj-prune-b', 'sess-b', 1, [{ turno: 1 }], []);
+
+    // Forzar otra poda en PROJ
+    store.addCheckpoint(PROJ, 'sess-prune-extra', 99, [{ turno: 99 }], []);
+
+    const other = store.db
+      .prepare('SELECT COUNT(*) AS n FROM session_checkpoints WHERE project_id = ?')
+      .get('proj-prune-b');
+    expect(other.n).toBe(1);
+  });
+});
+
 // ── Backlog ───────────────────────────────────────────────────────────────────
 
 describe('Backlog', () => {
@@ -560,9 +633,9 @@ describe('Migración', () => {
 // ── Vault version ─────────────────────────────────────────────────────────────
 
 describe('Vault version', () => {
-  it('getVaultVersion() retorna 3 después de las migraciones v1, v2 y v3', () => {
-    // El store global ya tiene v1, v2 y v3 aplicadas
-    expect(store.getVaultVersion()).toBe(3);
+  it('getVaultVersion() retorna 4 después de todas las migraciones', () => {
+    // El store global ya tiene v1 a v4 aplicadas
+    expect(store.getVaultVersion()).toBe(4);
   });
 
   it('getVaultVersion() retorna 0 en una base de datos sin vault_version en vault_meta', () => {

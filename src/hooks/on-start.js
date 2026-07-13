@@ -14,6 +14,7 @@ import os from 'node:os';
 const VAULT_PATH   = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
 const MEMPUNK_DIR  = path.join(VAULT_PATH, '.mempunk');
 const ACTIVE_FILE  = path.join(MEMPUNK_DIR, 'active-project.json');
+const PATHS_FILE   = path.join(MEMPUNK_DIR, 'project-paths.json');
 const TOUCHED_FILE = path.join(MEMPUNK_DIR, 'session-touched.json');
 const LOG_FILE     = path.join(MEMPUNK_DIR, 'hooks.log');
 
@@ -44,8 +45,33 @@ function log(message) {
   } catch (_) {}
 }
 
-function getProjectId() {
+/** Normaliza rutas igual que el CLI al escribir project-paths.json */
+function normalizePathForMatch(p) {
+  let normalized = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+  if (process.platform === 'win32') normalized = normalized.toLowerCase();
+  return normalized;
+}
+
+/** Resuelve el proyecto: env → mapa de rutas por cwd (prefijo más largo) → activo global.
+ *  El mapa por cwd evita que una sesión restaure el snapshot de otro proyecto
+ *  cuando el active-project.json global apunta a otra cosa. */
+function getProjectId(cwd) {
   if (process.env.CLAUDE_PROJECT_ID) return process.env.CLAUDE_PROJECT_ID;
+
+  if (cwd) {
+    try {
+      const map = JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8'));
+      const target = normalizePathForMatch(cwd);
+      let best = null;
+      for (const [root, projectId] of Object.entries(map)) {
+        if (target === root || target.startsWith(root + '/')) {
+          if (!best || root.length > best.root.length) best = { root, projectId };
+        }
+      }
+      if (best) return best.projectId;
+    } catch (_) {}
+  }
+
   try {
     const data = JSON.parse(fs.readFileSync(ACTIVE_FILE, 'utf8'));
     return data.project_id ?? null;
@@ -140,7 +166,7 @@ try {
   for await (const chunk of process.stdin) input += chunk;
 
   const data = JSON.parse(input || '{}');
-  const { source, session_id: sessionId } = data;
+  const { source, session_id: sessionId, cwd } = data;
 
   // ── Lógica siempre activa (startup, resume y compact) ──────────────────────
 
@@ -178,7 +204,7 @@ try {
 
   // ── CompactRestore: solo cuando Claude Code indica source="compact" ─────────
 
-  const projectId = getProjectId();
+  const projectId = getProjectId(cwd);
   if (!projectId) {
     log('source=compact pero sin proyecto activo — sin restauración');
     process.exit(0);

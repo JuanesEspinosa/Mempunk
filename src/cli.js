@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import VaultStore, { VAULT_VERSION } from './store/VaultStore.js';
+import VaultStore, { VAULT_VERSION, normalizeRootPath } from './store/VaultStore.js';
 
 // Versión semántica del paquete — leída desde package.json en tiempo de ejecución
 const _require = createRequire(import.meta.url);
@@ -63,17 +63,24 @@ function requireVault() {
 }
 
 /**
- * Abre una instancia de VaultStore apuntando al vault.
- * Por defecto advierte en stderr si el vault está desactualizado.
- * @param {boolean} skipVersionCheck - true en vault version/upgrade para evitar warning circular
+ * Abre una instancia de VaultStore apuntando al vault SIN migrar en silencio.
+ * - Vault nuevo (versión 0): se hace bootstrap del schema completo.
+ * - Vault desactualizado: aborta pidiendo `mempunk vault upgrade` — las
+ *   migraciones solo corren cuando el usuario lo decide explícitamente.
+ * @param {boolean} skipVersionCheck - true en vault version/upgrade, que gestionan la versión ellos mismos
  */
 function openStore(skipVersionCheck = false) {
-  const store = new VaultStore(VAULT_PATH);
-  if (!skipVersionCheck) {
-    const vaultVersion = store.getVaultVersion();
-    if (vaultVersion < VAULT_VERSION) {
-      process.stderr.write('⚠ Vault desactualizado. Ejecuta mempunk vault upgrade.\n');
-    }
+  const store = new VaultStore(VAULT_PATH, { autoMigrate: false });
+  const vaultVersion = store.getVaultVersion();
+
+  // Bootstrap: una BD recién creada no es una migración pendiente, es un vault nuevo
+  if (vaultVersion === 0) {
+    store.migrate();
+    return store;
+  }
+
+  if (!skipVersionCheck && vaultVersion < VAULT_VERSION) {
+    fail(`Vault desactualizado (v${vaultVersion} → v${VAULT_VERSION}). Ejecuta mempunk vault upgrade.`);
   }
   return store;
 }
@@ -95,6 +102,8 @@ const { values: opts, positionals } = parseArgs({
     local:        { type: 'boolean' },  // hooks install/uninstall --local → instala en .claude/ del proyecto actual
     check:        { type: 'boolean' },  // hooks install --check
     yes:          { type: 'boolean' },  // remove --yes
+    path:         { type: 'string'  },  // project add --path <dir> → ruta del repo real
+    here:         { type: 'boolean' },  // project activate --here → mapear cwd al proyecto
     v:            { type: 'boolean' },  // -v
     version:      { type: 'boolean' },  // --version
     cli:          { type: 'string'  },  // link/unlink --cli <name>
@@ -130,7 +139,7 @@ function cmdInit() {
 // ── Handlers — Proyectos ──────────────────────────────────────────────────────
 
 function cmdProjectAdd(id, name) {
-  if (!id || !name) fail('Uso: mempunk project add <id> <name>');
+  if (!id || !name) fail('Uso: mempunk project add <id> <name> [--path <dir>]');
   requireVault();
 
   const projectPath = path.join(VAULT_PATH, 'projects', id);
@@ -161,14 +170,17 @@ function cmdProjectAdd(id, name) {
     fs.writeFileSync(destPath, content, 'utf8');
   }
 
-  // Registrar en SQLite
-  const store = openStore();
-  store.addProject(id, name, projectPath);
+  // Registrar en SQLite con la ruta del repo real (si hay una segura)
+  const store    = openStore();
+  const rootPath = _resolveRootPathForRegistration();
+  store.addProject(id, name, projectPath, rootPath);
+  _writeProjectPathsFile(store);
 
   // Auto-activar el proyecto recién creado
   _writeActiveProject(id);
 
   console.log(`Proyecto "${name}" creado en ${projectPath}`);
+  if (rootPath) console.log(`Directorio mapeado: ${rootPath} → ${id}`);
   console.log(`Proyecto activo: ${id}`);
 }
 
@@ -190,13 +202,54 @@ function _writeActiveProject(projectId) {
   fs.writeFileSync(activeFile, JSON.stringify({ project_id: projectId }), 'utf8');
 }
 
+/**
+ * Regenera .mempunk/project-paths.json desde la BD (fuente de verdad).
+ * Los hooks resuelven el proyecto por el cwd de la sesión leyendo este archivo,
+ * sin acceso a SQLite (se copian solos a ~/.claude/hooks/ sin node_modules).
+ */
+function _writeProjectPathsFile(store) {
+  const mempunkDir = path.join(VAULT_PATH, '.mempunk');
+  const pathsFile  = path.join(mempunkDir, 'project-paths.json');
+  fs.mkdirSync(mempunkDir, { recursive: true });
+  fs.writeFileSync(pathsFile, JSON.stringify(store.getProjectPathMap(), null, 2), 'utf8');
+}
+
+/**
+ * Resuelve la ruta del repo a registrar para un proyecto.
+ * Con --path la valida; sin --path usa el cwd salvo que sea el home o esté
+ * dentro del vault (mapearlos capturaría los checkpoints de todo lo demás).
+ * @returns {string|null} Ruta normalizada, o null si no hay una segura
+ */
+function _resolveRootPathForRegistration() {
+  if (opts.path) {
+    const resolved = path.resolve(opts.path);
+    if (!fs.existsSync(resolved)) fail(`La ruta indicada en --path no existe: ${resolved}`);
+    return normalizeRootPath(resolved);
+  }
+
+  const cwd       = normalizeRootPath(process.cwd());
+  const home      = normalizeRootPath(os.homedir());
+  const vaultRoot = normalizeRootPath(VAULT_PATH);
+  if (cwd === home || cwd === vaultRoot || cwd.startsWith(vaultRoot + '/')) return null;
+  return cwd;
+}
+
 function cmdProjectActivate(id) {
-  if (!id) fail('Uso: mempunk project activate <project_id>');
+  if (!id) fail('Uso: mempunk project activate <project_id> [--here]');
   requireVault();
 
   const store = openStore();
   if (!store.listProjects().find((p) => p.id === id)) {
     fail(`Proyecto no encontrado: "${id}". Usa mempunk project list para ver los disponibles.`);
+  }
+
+  // --here mapea el directorio actual al proyecto: las sesiones de Claude Code
+  // que corran en él guardarán checkpoints aquí sin depender del activo global
+  if (opts.here) {
+    const rootPath = normalizeRootPath(process.cwd());
+    store.setProjectRootPath(id, rootPath);
+    _writeProjectPathsFile(store);
+    console.log(`Directorio mapeado: ${rootPath} → ${id}`);
   }
 
   _writeActiveProject(id);
@@ -634,10 +687,15 @@ function cmdSync() {
   // Filtrar por proyecto si se especificó --project
   if (opts.project) {
     const pid = opts.project;
-    missing_files      = missing_files.filter((f) => f.project_id === pid);
+    missing_files = missing_files.filter((f) => f.project_id === pid);
+    // Los huérfanos de resources/ llevan el proyecto en el nombre del archivo
+    // (<pid>-resource-*.md) y los de daily/ son compartidos entre proyectos:
+    // ocultarlos haría pasar por limpio un vault con huérfanos reales
     unregistered_files = unregistered_files.filter((f) =>
       f.file_path.includes(path.join('projects', pid) + path.sep) ||
-      f.file_path.includes(path.join('projects', pid) + '/')
+      f.file_path.includes(path.join('projects', pid) + '/') ||
+      (f.type === 'resource' && path.basename(f.file_path).startsWith(`${pid}-resource-`)) ||
+      f.type === 'daily'
     );
   }
 
@@ -705,7 +763,8 @@ function cmdVaultVersion() {
 
 function cmdVaultUpgrade() {
   requireVault();
-  // El constructor de VaultStore ya ejecuta las migraciones pendientes
+  // Este es el ÚNICO punto donde se migra un vault existente — los demás
+  // comandos abortan si la versión es vieja en vez de migrar en silencio
   const store = openStore(true);
   const currentVersion = store.getVaultVersion();
 
@@ -714,13 +773,18 @@ function cmdVaultUpgrade() {
     return;
   }
 
+  store.migrate();
+
   // Si vault_meta estaba desincronizado pero las tablas ya existían (_migrationsRan === 0),
   // actualizarlo explícitamente para reflejar el estado real del schema
   store.db
     .prepare('INSERT OR REPLACE INTO vault_meta (key, value) VALUES (?, ?)')
     .run('vault_version', String(VAULT_VERSION));
 
-  console.log(`Vault actualizado a v${VAULT_VERSION}`);
+  // Regenerar el mapa de rutas por si la migración agregó root_path
+  _writeProjectPathsFile(store);
+
+  console.log(`Vault actualizado a v${VAULT_VERSION} (${store._migrationsRan} migración(es) aplicadas)`);
 }
 
 // ── Handlers — Hooks ──────────────────────────────────────────────────────────
@@ -1325,6 +1389,26 @@ function cmdRemove(projectId) {
     fail(`Proyecto no encontrado: ${projectId}`);
   }
 
+  // Recolectar ANTES de borrar las filas: los .md de resources/ del proyecto,
+  // y los daily cuya fecha no comparte ningún otro proyecto (el archivo diario
+  // es compartido — borrarlo con entradas ajenas sería pérdida de datos)
+  const resourceFiles = store.db
+    .prepare('SELECT file_path FROM resources WHERE project_id = ?')
+    .all(projectId)
+    .map((r) => r.file_path);
+
+  const soleOwnerDailyFiles = store.db
+    .prepare(
+      `SELECT file_path FROM daily_logs d
+       WHERE project_id = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM daily_logs o
+           WHERE o.date = d.date AND o.project_id != ?
+         )`
+    )
+    .all(projectId, projectId)
+    .map((r) => r.file_path);
+
   // Transacción: un fallo intermedio no debe dejar el proyecto medio borrado.
   // Incluye checkpoints y snapshots — sin esto, un proyecto recreado con el
   // mismo id "heredaría" los checkpoints del anterior
@@ -1343,6 +1427,15 @@ function cmdRemove(projectId) {
 
   const projectDir = path.join(VAULT_PATH, 'projects', projectId);
   if (fs.existsSync(projectDir)) fs.rmSync(projectDir, { recursive: true, force: true });
+
+  // Borrado de archivos DESPUÉS de la transacción exitosa: si la transacción
+  // fallara, las filas seguirían apuntando a archivos existentes (consistente)
+  for (const filePath of [...resourceFiles, ...soleOwnerDailyFiles]) {
+    try { fs.rmSync(filePath, { force: true }); } catch (_) {}
+  }
+
+  // El proyecto pudo tener un root_path mapeado — regenerar el mapa de rutas
+  _writeProjectPathsFile(store);
 
   console.log(`Proyecto "${projectId}" eliminado`);
 }

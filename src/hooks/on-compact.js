@@ -13,6 +13,7 @@ import readline from 'node:readline';
 const VAULT_PATH  = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
 const MEMPUNK_DIR = path.join(VAULT_PATH, '.mempunk');
 const ACTIVE_FILE = path.join(MEMPUNK_DIR, 'active-project.json');
+const PATHS_FILE  = path.join(MEMPUNK_DIR, 'project-paths.json');
 const LOG_FILE    = path.join(MEMPUNK_DIR, 'hooks.log');
 
 // MEMPUNK_CLI permite sobrescribir "mempunk" por "node /path/to/cli.js" en tests
@@ -48,8 +49,33 @@ function exit() {
   process.exit(0);
 }
 
-function getProjectId() {
+/** Normaliza rutas igual que el CLI al escribir project-paths.json */
+function normalizePathForMatch(p) {
+  let normalized = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+  if (process.platform === 'win32') normalized = normalized.toLowerCase();
+  return normalized;
+}
+
+/** Resuelve el proyecto: env → mapa de rutas por cwd (prefijo más largo) → activo global.
+ *  El mapa por cwd evita que sesiones concurrentes en proyectos distintos
+ *  crucen sus snapshots a través del único active-project.json global. */
+function getProjectId(cwd) {
   if (process.env.CLAUDE_PROJECT_ID) return process.env.CLAUDE_PROJECT_ID;
+
+  if (cwd) {
+    try {
+      const map = JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8'));
+      const target = normalizePathForMatch(cwd);
+      let best = null;
+      for (const [root, projectId] of Object.entries(map)) {
+        if (target === root || target.startsWith(root + '/')) {
+          if (!best || root.length > best.root.length) best = { root, projectId };
+        }
+      }
+      if (best) return best.projectId;
+    } catch (_) {}
+  }
+
   try {
     const data = JSON.parse(fs.readFileSync(ACTIVE_FILE, 'utf8'));
     return data.project_id ?? null;
@@ -156,6 +182,7 @@ try {
     session_id: sessionId,
     transcript_path: transcriptPath,
     trigger,
+    cwd,
   } = data;
 
   if (!sessionId) {
@@ -163,7 +190,7 @@ try {
     exit();
   }
 
-  const projectId = getProjectId();
+  const projectId = getProjectId(cwd);
   if (!projectId) {
     log('Sin proyecto activo — sin acción');
     exit();

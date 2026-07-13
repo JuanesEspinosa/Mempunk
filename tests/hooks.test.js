@@ -329,6 +329,70 @@ describe('on-stop.js (AutoCheckpoint)', () => {
     expect(JSON.parse(row.files_found)).toContain('src/hooks/on-stop.js');
   });
 
+  it('guarda el checkpoint en el proyecto mapeado al cwd, no en el activo global', () => {
+    const repoDir = path.join(os.tmpdir(), `mempunk-cwd-repo-${Date.now()}`);
+    fs.mkdirSync(repoDir, { recursive: true });
+
+    runCli('project add cwdproj "Cwd Project"');
+    // Mapear repoDir → cwdproj corriendo activate --here desde ese directorio
+    spawnSync('node', [CLI_PATH, 'project', 'activate', 'cwdproj', '--here'], {
+      cwd: repoDir,
+      env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT },
+      encoding: 'utf8',
+    });
+    // El activo global queda apuntando a testproj — el cwd debe ganarle
+    fs.writeFileSync(path.join(MEMPUNK_DIR, 'active-project.json'), JSON.stringify({ project_id: 'testproj' }));
+
+    fs.writeFileSync(transcriptPath, makeTranscript(6));
+    const r = runHook('on-stop.js', {
+      session_id: 'sess-cwd-map',
+      transcript_path: transcriptPath,
+      cwd: repoDir,
+      hook_event_name: 'Stop',
+    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
+    expect(r.status).toBe(0);
+
+    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-cwd-map');
+    db.close();
+    expect(row).toBeDefined();
+    expect(row.project_id).toBe('cwdproj');
+
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('cae al proyecto activo global cuando el cwd no está mapeado', () => {
+    fs.writeFileSync(transcriptPath, makeTranscript(6));
+    const r = runHook('on-stop.js', {
+      session_id: 'sess-cwd-fallback',
+      transcript_path: transcriptPath,
+      cwd: path.join(os.tmpdir(), `dir-sin-mapear-${Date.now()}`),
+      hook_event_name: 'Stop',
+    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
+    expect(r.status).toBe(0);
+
+    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-cwd-fallback');
+    db.close();
+    expect(row).toBeDefined();
+    expect(row.project_id).toBe('testproj');
+  });
+
+  it('mantiene el contador por sesión — sesiones concurrentes no se resetean entre sí', () => {
+    fs.writeFileSync(transcriptPath, makeTranscript(6));
+    const base = { transcript_path: transcriptPath, hook_event_name: 'Stop' };
+    const env  = { MEMPUNK_CHECKPOINT_INTERVAL: '5' };
+
+    runHook('on-stop.js', { ...base, session_id: 'sess-conc-a' }, env);
+    runHook('on-stop.js', { ...base, session_id: 'sess-conc-b' }, env);
+    runHook('on-stop.js', { ...base, session_id: 'sess-conc-a' }, env);
+
+    // El estado conserva ambas sesiones (antes era un objeto global que se pisaba)
+    const state = JSON.parse(fs.readFileSync(path.join(MEMPUNK_DIR, 'checkpoint-state.json'), 'utf8'));
+    expect(state['sess-conc-a']).toBe(6);
+    expect(state['sess-conc-b']).toBe(6);
+  });
+
   it('resetea checkpoint-state cuando cambia la session_id', () => {
     // Nueva sesión con solo 2 turnos pero checkpoint-state tenía last_saved_turn=6 de otra sesión
     fs.writeFileSync(transcriptPath, makeTranscript(6));

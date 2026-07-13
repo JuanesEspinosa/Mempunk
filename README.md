@@ -175,9 +175,9 @@ SAVE session: project=<id> summary="Implemented login endpoint"
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `mempunk project add <id> <name>` | Register a new project | `mempunk project add api "Backend API"` |
+| `mempunk project add <id> <name> [--path <dir>]` | Register a new project (maps the current directory, or `--path`, as its repo) | `mempunk project add api "Backend API"` |
 | `mempunk project list` | List all projects | `mempunk project list` |
-| `mempunk project activate <id>` | Set the active project | `mempunk project activate api` |
+| `mempunk project activate <id> [--here]` | Set the active project; `--here` maps the current directory to it so hooks resolve the project by cwd | `mempunk project activate api --here` |
 | `mempunk log <id>` | Open project INDEX.md in editor | `mempunk log api` |
 | `mempunk remove <id> --yes` | Delete a project (DB + disk, irreversible) | `mempunk remove api --yes` |
 

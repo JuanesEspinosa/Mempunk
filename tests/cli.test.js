@@ -116,6 +116,82 @@ describe('mempunk project activate', () => {
   });
 });
 
+// ── Mapeo de rutas por proyecto (proyecto activo por cwd) ─────────────────────
+
+describe('project-paths.json (resolución por cwd)', () => {
+  const pathsFile = path.join(TEMP_VAULT, '.mempunk', 'project-paths.json');
+
+  function normalizeLikeCli(p) {
+    let n = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+    if (process.platform === 'win32') n = n.toLowerCase();
+    return n;
+  }
+
+  it('project add mapea el cwd al proyecto en project-paths.json', () => {
+    // run() ejecuta con cwd = PROJECT_ROOT — debe quedar mapeado a myproj
+    // (myproj se creó en el describe anterior con ese mismo cwd)
+    expect(fs.existsSync(pathsFile)).toBe(true);
+    const map = JSON.parse(fs.readFileSync(pathsFile, 'utf8'));
+    expect(map[normalizeLikeCli(PROJECT_ROOT)]).toBeDefined();
+  });
+
+  it('project add --path registra la ruta indicada en vez del cwd', () => {
+    const repoDir = path.join(os.tmpdir(), `mempunk-repo-${Date.now()}`);
+    fs.mkdirSync(repoDir, { recursive: true });
+
+    run(`project add pathproj "Path Project" --path "${repoDir}"`);
+
+    const map = JSON.parse(fs.readFileSync(pathsFile, 'utf8'));
+    expect(map[normalizeLikeCli(repoDir)]).toBe('pathproj');
+
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('project add --path falla si la ruta no existe', () => {
+    const result = spawnSync(
+      'node',
+      ['src/cli.js', 'project', 'add', 'badpath', 'Bad Path', '--path', path.join(os.tmpdir(), 'no-existe-xyz')],
+      {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+        encoding: 'utf8',
+      }
+    );
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('--path no existe');
+  });
+
+  it('project activate --here mapea el directorio actual al proyecto', () => {
+    const hereDir = path.join(os.tmpdir(), `mempunk-here-${Date.now()}`);
+    fs.mkdirSync(hereDir, { recursive: true });
+
+    const result = spawnSync('node', [path.join(PROJECT_ROOT, 'src', 'cli.js'), 'project', 'activate', 'pathproj', '--here'], {
+      cwd: hereDir,
+      env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Directorio mapeado');
+
+    const map = JSON.parse(fs.readFileSync(pathsFile, 'utf8'));
+    expect(map[normalizeLikeCli(hereDir)]).toBe('pathproj');
+
+    fs.rmSync(hereDir, { recursive: true, force: true });
+  });
+
+  it('no mapea el home ni rutas dentro del vault al registrar sin --path', () => {
+    const result = spawnSync('node', [path.join(PROJECT_ROOT, 'src', 'cli.js'), 'project', 'add', 'homeproj', 'Home Project'], {
+      cwd: TEMP_HOME,
+      env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(0);
+
+    const map = JSON.parse(fs.readFileSync(pathsFile, 'utf8'));
+    expect(Object.values(map)).not.toContain('homeproj');
+  });
+});
+
 // ── Backlog ───────────────────────────────────────────────────────────────────
 
 describe('mempunk backlog add', () => {
@@ -260,8 +336,9 @@ describe('mempunk daily log', () => {
 describe('mempunk daily list', () => {
   it('muestra tabla con el log diario creado', () => {
     const output = run('daily list myproj');
-    // Debe mostrar al menos una fila con la fecha de hoy
-    const today = new Date().toISOString().slice(0, 10);
+    // Debe mostrar al menos una fila con la fecha de hoy (local, igual que addDailyLog)
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     expect(output).toContain(today);
   });
 });
@@ -315,9 +392,9 @@ describe('mempunk vault', () => {
 
   it('vault version muestra la versión correcta cuando el vault está actualizado', () => {
     const output = run('vault version');
-    // "Vault v3" explícito — un toContain('v2') genérico matchearía "CLI v2.x.x"
+    // "Vault v4" explícito — un toContain('v2') genérico matchearía "CLI v2.x.x"
     // y aprobaría con cualquier versión de vault
-    expect(output).toMatch(/Vault v3/);
+    expect(output).toMatch(/Vault v4/);
     expect(output).toContain('OK');
   });
 
@@ -340,7 +417,7 @@ describe('mempunk vault', () => {
       env: { ...process.env, MEMPUNK_VAULT: isolated },
       encoding: 'utf8',
     });
-    expect(output).toContain('v3');
+    expect(output).toContain('v4');
 
     // Verificar que vault version ahora dice OK
     const versionOutput = execSync('node src/cli.js vault version', {
@@ -358,16 +435,34 @@ describe('mempunk vault', () => {
     expect(output).toContain('ya está en la versión más reciente');
   });
 
-  it('project list muestra warning en stderr si el vault está desactualizado, pero no falla', () => {
+  it('project list aborta con instrucción de upgrade si el vault está desactualizado', () => {
     const result = spawnSync('node', ['src/cli.js', 'project', 'list'], {
       cwd: PROJECT_ROOT,
       env: { ...process.env, MEMPUNK_VAULT: staleVault },
       encoding: 'utf8',
     });
-    // El proceso debe terminar con código 0 (no falla)
-    expect(result.status).toBe(0);
-    // El warning debe aparecer en stderr
+    // Gating real: los comandos NO migran en silencio — abortan pidiendo upgrade
+    expect(result.status).toBe(1);
     expect(result.stderr).toContain('Vault desactualizado');
+    expect(result.stderr).toContain('vault upgrade');
+  });
+
+  it('los comandos no migran el schema en silencio sobre un vault desactualizado', () => {
+    const isolated = createStaleVault('-silent');
+
+    // Intentar un comando cualquiera: debe fallar sin tocar la versión
+    spawnSync('node', ['src/cli.js', 'project', 'list'], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env, MEMPUNK_VAULT: isolated },
+      encoding: 'utf8',
+    });
+
+    const db = new Database(path.join(isolated, '.mempunk', 'mempunk.db'));
+    const row = db.prepare('SELECT value FROM vault_meta WHERE key = ?').get('vault_version');
+    db.close();
+    expect(row.value).toBe('1');
+
+    fs.rmSync(isolated, { recursive: true, force: true });
   });
 });
 
@@ -629,6 +724,55 @@ describe('mempunk remove', () => {
     db.close();
     expect(snaps).toHaveLength(0);
     expect(chks).toHaveLength(0);
+  });
+
+  it('borra los .md de resources del proyecto y respeta el daily compartido', () => {
+    run('project add rm-files "Remove Files"');
+    run('project add rm-other "Remove Other"');
+
+    // Resource del proyecto a borrar
+    run('resource add rm-files "Spec temporal" --url https://example.com --content "cuerpo"');
+    const db1 = new Database(path.join(TEMP_VAULT, '.mempunk', 'mempunk.db'));
+    const resourcePath = db1
+      .prepare('SELECT file_path FROM resources WHERE project_id = ?')
+      .get('rm-files').file_path;
+    db1.close();
+    expect(fs.existsSync(resourcePath)).toBe(true);
+
+    // Daily de HOY compartido con otro proyecto → no debe borrarse
+    run('daily log rm-files "entrada del proyecto a borrar"');
+    run('daily log rm-other "entrada del proyecto que sobrevive"');
+    const db2 = new Database(path.join(TEMP_VAULT, '.mempunk', 'mempunk.db'));
+    const dailyPath = db2
+      .prepare('SELECT file_path FROM daily_logs WHERE project_id = ?')
+      .get('rm-files').file_path;
+    db2.close();
+
+    run('remove rm-files --yes');
+
+    // El resource huérfano se fue del disco; el daily compartido sigue
+    expect(fs.existsSync(resourcePath)).toBe(false);
+    expect(fs.existsSync(dailyPath)).toBe(true);
+
+    run('remove rm-other --yes');
+  });
+});
+
+// ── Sync --project — huérfanos de resources y daily ──────────────────────────
+
+describe('mempunk sync --project', () => {
+  it('reporta huérfanos de resources/ que pertenecen al proyecto', () => {
+    run('project add sync-orph "Sync Orphans"');
+
+    // Crear un .md huérfano en resources/ con el prefijo del proyecto
+    const orphan = path.join(TEMP_VAULT, 'resources', 'sync-orph-resource-999.md');
+    fs.writeFileSync(orphan, '# huérfano', 'utf8');
+
+    const output = run('sync --project sync-orph');
+    expect(output).toContain('sync-orph-resource-999.md');
+
+    fs.unlinkSync(orphan);
+    run('remove sync-orph --yes');
   });
 });
 

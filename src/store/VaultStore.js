@@ -140,10 +140,36 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 4,
+    up(db) {
+      // Ruta del repositorio real de cada proyecto (fuera del vault).
+      // Permite que los hooks resuelvan el proyecto activo por el cwd de la
+      // sesión de Claude Code en vez de un único active-project.json global.
+      db.exec(`ALTER TABLE projects ADD COLUMN root_path TEXT`);
+    },
+  },
 ];
 
 // Versión más alta que este código conoce — se actualiza al agregar migraciones
 export const VAULT_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
+
+// Retención de snapshots automáticos por proyecto — sin poda, mempunk.db
+// crece sin límite (cada checkpoint guarda ~10 mensajes completos)
+const MAX_CHECKPOINTS_PER_PROJECT = 30;
+const MAX_SNAPSHOTS_PER_PROJECT   = 10;
+
+/**
+ * Normaliza una ruta para comparación entre CLI y hooks:
+ * separadores /, sin slash final, y case-insensitive en Windows.
+ * @param {string} p
+ * @returns {string}
+ */
+export function normalizeRootPath(p) {
+  let normalized = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+  if (process.platform === 'win32') normalized = normalized.toLowerCase();
+  return normalized;
+}
 
 // Genera un ID único con prefijo legible
 function makeId(prefix) {
@@ -153,8 +179,14 @@ function makeId(prefix) {
 class VaultStore {
   /**
    * @param {string} vaultPath - Ruta raíz del vault. Por defecto ~/Dev-Brain.
+   * @param {object} [options]
+   * @param {boolean} [options.autoMigrate=true] - Si es false, NO ejecuta
+   *   migraciones pendientes al abrir: solo crea las tablas de metadatos para
+   *   poder leer la versión. El caller decide si llama a migrate() (bootstrap
+   *   de vault nuevo) o aborta pidiendo `mempunk vault upgrade`.
    */
-  constructor(vaultPath = path.join(os.homedir(), 'Dev-Brain')) {
+  constructor(vaultPath = path.join(os.homedir(), 'Dev-Brain'), options = {}) {
+    const { autoMigrate = true } = options;
     this.vaultPath = vaultPath;
     this.mempunkDir = path.join(vaultPath, '.mempunk');
     this.dbPath = path.join(this.mempunkDir, 'mempunk.db');
@@ -169,14 +201,17 @@ class VaultStore {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
 
-    this._runMigrations();
+    this._bootstrapMetaTables();
+    this._migrationsRan = 0;
+    if (autoMigrate) this.migrate();
   }
 
   // ---------------------------------------------------------------------------
   // Migraciones
   // ---------------------------------------------------------------------------
 
-  _runMigrations() {
+  /** Crea las tablas de control (_migrations, vault_meta) sin migrar el schema */
+  _bootstrapMetaTables() {
     // Tabla de control de versiones del schema
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS _migrations (
@@ -193,13 +228,16 @@ class VaultStore {
         value TEXT NOT NULL
       )
     `);
+  }
 
+  /**
+   * Ejecuta las migraciones pendientes del schema. Idempotente.
+   * Incrementa this._migrationsRan por cada migración aplicada.
+   */
+  migrate() {
     const applied = new Set(
       this.db.prepare('SELECT version FROM _migrations').all().map((r) => r.version)
     );
-
-    // Contador accesible desde el CLI para saber si se aplicaron migraciones nuevas
-    this._migrationsRan = 0;
 
     for (const migration of MIGRATIONS) {
       if (applied.has(migration.version)) continue;
@@ -260,15 +298,44 @@ class VaultStore {
 
   /**
    * Registra o reemplaza un proyecto en la base de datos.
+   * @param {string}      id
+   * @param {string}      name
+   * @param {string}      projectPath - Carpeta del proyecto DENTRO del vault
+   * @param {string|null} rootPath    - Carpeta del repositorio real (para resolver por cwd)
    */
-  addProject(id, name, projectPath) {
+  addProject(id, name, projectPath, rootPath = null) {
     const now = new Date().toISOString();
     this.db
       .prepare(
-        `INSERT OR REPLACE INTO projects (id, name, path, status, created_at, updated_at)
-         VALUES (?, ?, ?, 'active', ?, ?)`
+        `INSERT OR REPLACE INTO projects (id, name, path, root_path, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'active', ?, ?)`
       )
-      .run(id, name, projectPath, now, now);
+      .run(id, name, projectPath, rootPath ? normalizeRootPath(rootPath) : null, now, now);
+  }
+
+  /**
+   * Asigna (o limpia con null) la ruta del repositorio real de un proyecto.
+   * @param {string}      id
+   * @param {string|null} rootPath
+   */
+  setProjectRootPath(id, rootPath) {
+    this.db
+      .prepare('UPDATE projects SET root_path = ?, updated_at = ? WHERE id = ?')
+      .run(rootPath ? normalizeRootPath(rootPath) : null, new Date().toISOString(), id);
+  }
+
+  /**
+   * Mapa ruta-de-repo → project_id de todos los proyectos con root_path.
+   * Los hooks lo consumen via .mempunk/project-paths.json (no leen SQLite).
+   * @returns {Record<string, string>}
+   */
+  getProjectPathMap() {
+    const map = {};
+    const rows = this.db
+      .prepare('SELECT id, root_path FROM projects WHERE root_path IS NOT NULL')
+      .all();
+    for (const row of rows) map[row.root_path] = row.id;
+    return map;
   }
 
   // ---------------------------------------------------------------------------
@@ -834,6 +901,20 @@ class VaultStore {
         JSON.stringify(rawTurns),
         JSON.stringify(filesFound)
       );
+
+    // Poda: conservar solo los más recientes por proyecto para evitar bloat
+    this.db
+      .prepare(
+        `DELETE FROM session_checkpoints
+         WHERE project_id = ?
+           AND id NOT IN (
+             SELECT id FROM session_checkpoints
+             WHERE project_id = ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT ?
+           )`
+      )
+      .run(projectId, projectId, MAX_CHECKPOINTS_PER_PROJECT);
   }
 
   /**
@@ -906,6 +987,20 @@ class VaultStore {
         JSON.stringify(filesFound),
         JSON.stringify(commandsRun)
       );
+
+    // Poda: conservar solo los más recientes por proyecto para evitar bloat
+    this.db
+      .prepare(
+        `DELETE FROM compact_snapshots
+         WHERE project_id = ?
+           AND id NOT IN (
+             SELECT id FROM compact_snapshots
+             WHERE project_id = ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT ?
+           )`
+      )
+      .run(projectId, projectId, MAX_SNAPSHOTS_PER_PROJECT);
   }
 
   /**

@@ -81,7 +81,7 @@ abrir esta sesion. Solo confirma el proyecto y continua.
 1. Leer este archivo (`CLAUDE.md`) completo
 2. Listar los proyectos registrados en la seccion **Proyectos activos** de este CLAUDE.md
 3. Preguntarle al usuario: *"Encontre estos proyectos: [lista]. Con cual trabajamos hoy?"*
-4. Ejecutar `mempunk project activate <id>` para activar el proyecto elegido
+4. Ejecutar `mempunk project activate <id>` para activar el proyecto elegido (agrega `--here` si estas en la carpeta del repo, para que los checkpoints se resuelvan por directorio)
 5. Leer el `INDEX.md` del proyecto
 6. Leer el `overview.md` completo de ese proyecto
 7. Verificar si existe `wiki/state.md` en el proyecto:

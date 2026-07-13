@@ -7,6 +7,29 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.4] — 2026-07-12
+
+### Added
+
+- **Active project resolved by cwd** (vault schema v4): projects store the path of their real repository (`root_path`). `project add` maps the current directory automatically (or `--path <dir>`); `project activate <id> --here` maps the current directory for existing projects. Hooks resolve the project from the session's `cwd` via `.mempunk/project-paths.json`, falling back to the global `active-project.json` — concurrent sessions in different projects no longer cross checkpoints.
+- **Checkpoint pruning**: at most 30 checkpoints and 10 compact snapshots are kept per project — `mempunk.db` no longer grows without bound.
+
+### Changed
+
+- **Real migration gating**: commands no longer migrate the vault schema silently on every open. An outdated vault aborts with a clear message; `mempunk vault upgrade` is the only place migrations run. Fresh vaults still bootstrap automatically.
+- `checkpoint-state.json` now tracks the last saved turn **per session** — concurrent sessions no longer reset each other's checkpoint counter.
+
+### Fixed
+
+- `sync --project` no longer hides orphaned files in `resources/` and `daily/`.
+- `mempunk remove` now deletes the project's resource `.md` files, and daily files whose date belongs only to the removed project (shared daily files are preserved).
+- `daily list` test used the UTC date instead of the local date (mismatch with `addDailyLog` after the 2.0.3 fix).
+
+## [2.0.1] – [2.0.3] — 2026-06-05 / 2026-07-11
+
+- Hooks registered as a single command string with forward slashes (Windows bash compatibility); statusline uses the full node path.
+- Full audit (26 bugs): test suite isolated from the real `~/.claude` installation; `spawnSync` with `shell: true` on Windows (checkpoints work on Windows for the first time); `readJsonFile` no longer destroys corrupted `settings.json`; surgical hook (un)registration; correct context percentage (1M models, sidechains); tool_results no longer counted as turns; FTS5 search escaping; transactional `remove`.
+
 ## [2.0.0] — 2026-05-30
 
 Complete architectural rewrite. The vault format is backwards-incompatible with v1.x.

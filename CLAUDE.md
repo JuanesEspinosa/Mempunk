@@ -28,8 +28,11 @@ CLI tool que da memoria persistente entre sesiones de Claude Code via SQLite + m
 
 ```
 mempunk init                                         → crea ~/Dev-Brain/ con la estructura base
-mempunk project add <id> <name>                      → registra un proyecto nuevo
+mempunk project add <id> <name>                      → registra un proyecto nuevo (mapea el cwd como repo del proyecto)
+mempunk project add <id> <name> --path <dir>         → igual, indicando la ruta del repo explícitamente
 mempunk project list                                 → lista todos los proyectos
+mempunk project activate <id>                        → marca el proyecto activo global (fallback de los hooks)
+mempunk project activate <id> --here                 → además mapea el directorio actual al proyecto (resolución por cwd)
 mempunk backlog add <project_id> "<title>"           → agrega tarea al backlog
 mempunk backlog list <project_id>                    → lista tareas del proyecto
 mempunk backlog list <project_id> --status <valor>   → lista tareas filtradas por status
@@ -137,7 +140,7 @@ Actualizar vault después de instalar una nueva versión de Mempunk:
 mempunk vault upgrade
 ```
 
-Versión actual del vault: 3
+Versión actual del vault: 4
 Versión mínima requerida por este CLI: 2
 
-Si el vault está desactualizado, algunos comandos pueden comportarse de forma inesperada. Ejecuta `mempunk vault upgrade` antes de continuar.
+Si el vault está desactualizado, los comandos abortan con un mensaje claro en vez de migrar en silencio. Ejecuta `mempunk vault upgrade` para actualizarlo.
