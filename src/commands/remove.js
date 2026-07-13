@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { opts } from '../lib/args.js';
+import { t } from '../lib/i18n.js';
 import { fail } from '../lib/output.js';
 import { VAULT_PATH, requireVault, openStore } from '../lib/vault.js';
 import { _writeProjectPathsFile } from './project.js';
@@ -8,16 +9,16 @@ import { _writeProjectPathsFile } from './project.js';
 // ── Handlers — Remove ─────────────────────────────────────────────────────────
 
 export function cmdRemove(projectId) {
-  if (!projectId) fail('Uso: mempunk remove <project_id> --yes');
+  if (!projectId) fail(t('usage', { syntax: 'mempunk remove <project_id> --yes' }));
   requireVault();
 
   if (!opts.yes) {
-    fail(`Operación destructiva. Confirma con: mempunk remove ${projectId} --yes`);
+    fail(t('remove.confirm', { id: projectId }));
   }
 
   const store = openStore();
   if (!store.listProjects().find(p => p.id === projectId)) {
-    fail(`Proyecto no encontrado: ${projectId}`);
+    fail(t('project.notFound', { id: projectId }));
   }
 
   // Recolectar ANTES de borrar las filas: los .md de resources/ del proyecto,
@@ -68,5 +69,5 @@ export function cmdRemove(projectId) {
   // El proyecto pudo tener un root_path mapeado — regenerar el mapa de rutas
   _writeProjectPathsFile(store);
 
-  console.log(`Proyecto "${projectId}" eliminado`);
+  console.log(t('remove.done', { id: projectId }));
 }

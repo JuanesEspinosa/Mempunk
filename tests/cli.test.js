@@ -27,7 +27,7 @@ const ISOLATED_ENV = { HOME: TEMP_HOME, USERPROFILE: TEMP_HOME };
 function run(args) {
   return execSync(`node src/cli.js ${args}`, {
     cwd: PROJECT_ROOT,
-    env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
     encoding: 'utf8',
   });
 }
@@ -108,7 +108,7 @@ describe('mempunk project activate', () => {
   it('falla si el proyecto no existe en la BD', () => {
     const result = spawnSync('node', ['src/cli.js', 'project', 'activate', 'no-existe'], {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT },
       encoding: 'utf8',
     });
     expect(result.status).toBe(1);
@@ -153,7 +153,7 @@ describe('project-paths.json (resolución por cwd)', () => {
       ['src/cli.js', 'project', 'add', 'badpath', 'Bad Path', '--path', path.join(os.tmpdir(), 'no-existe-xyz')],
       {
         cwd: PROJECT_ROOT,
-        env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
         encoding: 'utf8',
       }
     );
@@ -167,7 +167,7 @@ describe('project-paths.json (resolución por cwd)', () => {
 
     const result = spawnSync('node', [path.join(PROJECT_ROOT, 'src', 'cli.js'), 'project', 'activate', 'pathproj', '--here'], {
       cwd: hereDir,
-      env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
       encoding: 'utf8',
     });
     expect(result.status).toBe(0);
@@ -182,7 +182,7 @@ describe('project-paths.json (resolución por cwd)', () => {
   it('no mapea el home ni rutas dentro del vault al registrar sin --path', () => {
     const result = spawnSync('node', [path.join(PROJECT_ROOT, 'src', 'cli.js'), 'project', 'add', 'homeproj', 'Home Project'], {
       cwd: TEMP_HOME,
-      env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
       encoding: 'utf8',
     });
     expect(result.status).toBe(0);
@@ -372,7 +372,7 @@ describe('mempunk vault', () => {
     const vaultPath = path.join(os.tmpdir(), `mempunk-stale-${Date.now()}${suffix}`);
     execSync('node src/cli.js init', {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MEMPUNK_VAULT: vaultPath },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: vaultPath },
       encoding: 'utf8',
     });
     // Degradar vault_meta a v1 sin alterar las tablas del schema
@@ -401,7 +401,7 @@ describe('mempunk vault', () => {
   it('vault version muestra warning si el vault está desactualizado', () => {
     const output = execSync('node src/cli.js vault version', {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MEMPUNK_VAULT: staleVault },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: staleVault },
       encoding: 'utf8',
     });
     expect(output).toContain('v1');
@@ -414,7 +414,7 @@ describe('mempunk vault', () => {
 
     const output = execSync('node src/cli.js vault upgrade', {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MEMPUNK_VAULT: isolated },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: isolated },
       encoding: 'utf8',
     });
     expect(output).toContain('v4');
@@ -422,7 +422,7 @@ describe('mempunk vault', () => {
     // Verificar que vault version ahora dice OK
     const versionOutput = execSync('node src/cli.js vault version', {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MEMPUNK_VAULT: isolated },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: isolated },
       encoding: 'utf8',
     });
     expect(versionOutput).toContain('OK');
@@ -438,7 +438,7 @@ describe('mempunk vault', () => {
   it('project list aborta con instrucción de upgrade si el vault está desactualizado', () => {
     const result = spawnSync('node', ['src/cli.js', 'project', 'list'], {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MEMPUNK_VAULT: staleVault },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: staleVault },
       encoding: 'utf8',
     });
     // Gating real: los comandos NO migran en silencio — abortan pidiendo upgrade
@@ -453,7 +453,7 @@ describe('mempunk vault', () => {
     // Intentar un comando cualquiera: debe fallar sin tocar la versión
     spawnSync('node', ['src/cli.js', 'project', 'list'], {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MEMPUNK_VAULT: isolated },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: isolated },
       encoding: 'utf8',
     });
 
@@ -872,12 +872,12 @@ describe('mempunk auto-start — advertencia sin agentes', () => {
     try {
       execSync('node src/cli.js init', {
         cwd: PROJECT_ROOT,
-        env: { ...process.env, MEMPUNK_VAULT: NO_AGENTS_VAULT, HOME: NO_AGENTS_HOME, USERPROFILE: NO_AGENTS_HOME },
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: NO_AGENTS_VAULT, HOME: NO_AGENTS_HOME, USERPROFILE: NO_AGENTS_HOME },
         encoding: 'utf8',
       });
       const result = spawnSync('node', ['src/cli.js', 'auto-start', 'on'], {
         cwd: PROJECT_ROOT,
-        env: { ...process.env, MEMPUNK_VAULT: NO_AGENTS_VAULT, HOME: NO_AGENTS_HOME, USERPROFILE: NO_AGENTS_HOME },
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: NO_AGENTS_VAULT, HOME: NO_AGENTS_HOME, USERPROFILE: NO_AGENTS_HOME },
         encoding: 'utf8',
       });
       expect(result.stderr).toContain('mempunk hooks install');
@@ -900,7 +900,7 @@ describe('mempunk setup', () => {
       cwd: PROJECT_ROOT,
       // HOME aislado: setup registra el vault en ~/.claude.json y puede
       // instalar hooks — jamás debe tocar la configuración real
-      env: { ...process.env, MEMPUNK_VAULT: SETUP_VAULT, ...ISOLATED_ENV },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: SETUP_VAULT, ...ISOLATED_ENV },
       encoding: 'utf8',
     });
   }
@@ -931,7 +931,7 @@ describe('mempunk setup', () => {
     try {
       execSync('node src/cli.js setup --setup-mode vault-skills', {
         cwd: PROJECT_ROOT,
-        env: { ...process.env, MEMPUNK_VAULT: VS_VAULT, ...ISOLATED_ENV },
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: VS_VAULT, ...ISOLATED_ENV },
         encoding: 'utf8',
       });
       const config = JSON.parse(
@@ -948,5 +948,74 @@ describe('mempunk setup', () => {
 
   it('--setup-mode inválido: falla con error descriptivo', () => {
     expect(() => runSetup('setup --setup-mode banana')).toThrow();
+  });
+});
+
+// ── Idioma por defecto (en) ────────────────────────────────────────────────────
+
+describe('idioma por defecto (en) — sin MEMPUNK_LANG', () => {
+  // Vault y HOME propios: estos tests corren SIN MEMPUNK_LANG y no deben
+  // interferir con el estado del vault de los tests en español
+  const EN_VAULT = path.join(os.tmpdir(), `mempunk-en-test-${Date.now()}`);
+  const EN_HOME  = path.join(os.tmpdir(), `mempunk-en-home-${Date.now()}`);
+
+  function envEn() {
+    const env = { ...process.env, MEMPUNK_VAULT: EN_VAULT, HOME: EN_HOME, USERPROFILE: EN_HOME };
+    delete env.MEMPUNK_LANG; // inglés por defecto: el env var NO debe estar presente
+    return env;
+  }
+
+  function runEn(args) {
+    return execSync(`node src/cli.js ${args}`, {
+      cwd: PROJECT_ROOT,
+      env: envEn(),
+      encoding: 'utf8',
+    });
+  }
+
+  beforeAll(() => {
+    fs.mkdirSync(EN_HOME, { recursive: true });
+    runEn('init');
+  });
+
+  afterAll(() => {
+    fs.rmSync(EN_VAULT, { recursive: true, force: true });
+    fs.rmSync(EN_HOME,  { recursive: true, force: true });
+  });
+
+  it('la ayuda sin argumentos sale en inglés', () => {
+    const output = runEn('');
+    expect(output).toContain('Usage: mempunk <command> [options]');
+    expect(output).toContain('Projects:');
+    expect(output).toContain('Maintenance:');
+    expect(output).not.toContain('Uso:');
+  });
+
+  it('project add responde en inglés', () => {
+    const output = runEn('project add en-proj "English Project"');
+    expect(output).toContain('Project "English Project" created at');
+    expect(output).toContain('Active project: en-proj');
+  });
+
+  it('vault version responde en inglés con OK', () => {
+    const output = runEn('vault version');
+    expect(output).toMatch(/Vault v\d+ — OK/);
+  });
+
+  it('fail() sale en inglés por stderr', () => {
+    const result = spawnSync('node', ['src/cli.js', 'project', 'activate', 'nope'], {
+      cwd: PROJECT_ROOT,
+      env: envEn(),
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Project not found');
+  });
+
+  it('project list --json sigue siendo JSON parseable', () => {
+    const output = runEn('project list --json');
+    const rows = JSON.parse(output);
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.some((r) => r.id === 'en-proj')).toBe(true);
   });
 });

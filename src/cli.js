@@ -2,6 +2,7 @@
 
 import { opts, command, subcommand, args } from './lib/args.js';
 import { fail } from './lib/output.js';
+import { t } from './lib/i18n.js';
 import { CLI_VERSION } from './lib/vault.js';
 import { cmdInit } from './commands/init.js';
 import { cmdProjectAdd, cmdProjectList, cmdProjectActivate } from './commands/project.js';
@@ -44,7 +45,7 @@ try {
         case 'add':      cmdProjectAdd(args[0], args[1]); break;
         case 'list':     cmdProjectList(); break;
         case 'activate': cmdProjectActivate(args[0]); break;
-        default: fail(`Subcomando desconocido: project ${subcommand ?? ''}. Usa: add | list | activate`);
+        default: fail(t('cli.unknownSubcommand', { command: 'project', sub: subcommand ?? '', valid: 'add | list | activate' }));
       }
       break;
 
@@ -53,7 +54,7 @@ try {
         case 'add':    cmdBacklogAdd(args[0], args[1]); break;
         case 'list':   cmdBacklogList(args[0]); break;
         case 'update': cmdBacklogUpdate(args[0]); break;
-        default: fail(`Subcomando desconocido: backlog ${subcommand ?? ''}. Usa: add | list | update`);
+        default: fail(t('cli.unknownSubcommand', { command: 'backlog', sub: subcommand ?? '', valid: 'add | list | update' }));
       }
       break;
 
@@ -61,7 +62,7 @@ try {
       switch (subcommand) {
         case 'add':  cmdDecisionAdd(args[0], args[1]); break;
         case 'list': cmdDecisionList(args[0]); break;
-        default: fail(`Subcomando desconocido: decision ${subcommand ?? ''}. Usa: add | list`);
+        default: fail(t('cli.unknownSubcommand', { command: 'decision', sub: subcommand ?? '', valid: 'add | list' }));
       }
       break;
 
@@ -70,7 +71,7 @@ try {
         case 'add':    cmdSkillAdd(args[0], args[1]); break;
         case 'list':   cmdSkillList(args[0]); break;
         case 'update': cmdSkillUpdate(args[0]); break;
-        default: fail(`Subcomando desconocido: skill ${subcommand ?? ''}. Usa: add | list | update`);
+        default: fail(t('cli.unknownSubcommand', { command: 'skill', sub: subcommand ?? '', valid: 'add | list | update' }));
       }
       break;
 
@@ -78,7 +79,7 @@ try {
       switch (subcommand) {
         case 'add':  cmdResourceAdd(args[0], args[1]); break;
         case 'list': cmdResourceList(args[0]); break;
-        default: fail(`Subcomando desconocido: resource ${subcommand ?? ''}. Usa: add | list`);
+        default: fail(t('cli.unknownSubcommand', { command: 'resource', sub: subcommand ?? '', valid: 'add | list' }));
       }
       break;
 
@@ -86,7 +87,7 @@ try {
       switch (subcommand) {
         case 'log':  cmdDailyLog(args[0], args[1]); break;
         case 'list': cmdDailyList(args[0]); break;
-        default: fail(`Subcomando desconocido: daily ${subcommand ?? ''}. Usa: log | list`);
+        default: fail(t('cli.unknownSubcommand', { command: 'daily', sub: subcommand ?? '', valid: 'log | list' }));
       }
       break;
 
@@ -99,7 +100,7 @@ try {
         case 'save-compact':    cmdSessionSaveCompact(args[0]); break;
         case 'get-compact':     cmdSessionGetCompact(args[0]); break;
         case 'save-checkpoint': cmdSessionSaveCheckpoint(args[0]); break;
-        default: fail(`Subcomando desconocido: session ${subcommand ?? ''}. Usa: log | last | recover | checkpoints | save-compact | get-compact | save-checkpoint`);
+        default: fail(t('cli.unknownSubcommand', { command: 'session', sub: subcommand ?? '', valid: 'log | last | recover | checkpoints | save-compact | get-compact | save-checkpoint' }));
       }
       break;
 
@@ -117,7 +118,7 @@ try {
         case 'version': cmdVaultVersion(); break;
         case 'upgrade': cmdVaultUpgrade(); break;
         case 'backup':  cmdVaultBackup(); break;
-        default: fail(`Subcomando desconocido: vault ${subcommand ?? ''}. Usa: version | upgrade | backup`);
+        default: fail(t('cli.unknownSubcommand', { command: 'vault', sub: subcommand ?? '', valid: 'version | upgrade | backup' }));
       }
       break;
 
@@ -129,7 +130,7 @@ try {
       switch (subcommand) {
         case 'install':   cmdHooksInstall(); break;
         case 'uninstall': cmdHooksUninstall(); break;
-        default: fail(`Subcomando desconocido: hooks ${subcommand ?? ''}. Usa: install | uninstall`);
+        default: fail(t('cli.unknownSubcommand', { command: 'hooks', sub: subcommand ?? '', valid: 'install | uninstall' }));
       }
       break;
 
@@ -168,63 +169,16 @@ try {
     case 'cli':
       switch (subcommand) {
         case 'list': cmdCliList(); break;
-        default: fail(`Subcomando desconocido: cli ${subcommand ?? ''}. Usa: list`);
+        default: fail(t('cli.unknownSubcommand', { command: 'cli', sub: subcommand ?? '', valid: 'list' }));
       }
       break;
 
     case undefined:
-      console.log('Uso: mempunk <comando> [opciones]');
-      console.log('');
-      console.log('Setup:');
-      console.log('  setup                             Inicializa, vincula y configura hooks (todo en uno)');
-      console.log('  init                              Inicializa el vault en ~/Dev-Brain');
-      console.log('  link       [--cli claude|gemini|opencode]  Vincula el vault (default: todos los instalados)');
-      console.log('  unlink     [--cli claude|gemini|opencode]  Desvincula el vault');
-      console.log('  status                            Dashboard: vault, proyectos y sesiones');
-      console.log('  doctor                            Verifica integridad del vault');
-      console.log('  auto-start on|off                 Activa/desactiva auto-start al iniciar sesión');
-      console.log('  cli      list                     Muestra CLIs vinculados al vault');
-      console.log('  -v                                Muestra la versión del CLI');
-      console.log('');
-      console.log('Proyectos:');
-      console.log('  project  add <id> <name>          Crea un proyecto');
-      console.log('  project  list                     Lista proyectos activos');
-      console.log('  remove   <id> --yes               Elimina un proyecto (irreversible)');
-      console.log('  log      <id>                     Abre el INDEX.md del proyecto en el editor');
-      console.log('');
-      console.log('Backlog:');
-      console.log('  backlog  add <proj> "<title>"     Agrega tarea al backlog');
-      console.log('  backlog  list <proj>              Lista tareas del backlog');
-      console.log('  backlog  update <id>              Actualiza una tarea');
-      console.log('');
-      console.log('Conocimiento:');
-      console.log('  decision add <proj> "<title>"     Crea una decisión (ADR)');
-      console.log('  decision list <proj>              Lista decisiones del proyecto');
-      console.log('  skill    add <proj> <name>        Crea un skill de proyecto');
-      console.log('  skill    list <proj>              Lista skills del proyecto');
-      console.log('  skill    update <id>              Actualiza contenido de un skill');
-      console.log('  resource add <proj> "<title>"     Captura un resource externo');
-      console.log('  resource list <proj>              Lista resources del proyecto');
-      console.log('');
-      console.log('Sesiones y logs:');
-      console.log('  session  log <proj> "<summary>"   Registra sesión de trabajo');
-      console.log('  session  last <proj>              Muestra la última sesión');
-      console.log('  daily    log <proj> "<content>"   Agrega una entrada al log diario');
-      console.log('  daily    list <proj>              Lista los logs diarios del proyecto');
-      console.log('  search   "<query>"                Búsqueda full-text en el vault');
-      console.log('');
-      console.log('Mantenimiento:');
-      console.log('  sync                              Verifica consistencia vault ↔ BD');
-      console.log('  vault    version                  Muestra la versión del vault y del CLI');
-      console.log('  vault    upgrade                  Actualiza el vault a la versión más reciente');
-      console.log('  hooks    install                  Instala hooks globalmente en ~/.claude/hooks/');
-      console.log('  hooks    install --local          Instala hooks en .claude/hooks/ del proyecto actual');
-      console.log('  hooks    install --check          Verifica si los hooks están activos');
-      console.log('  hooks    uninstall                Elimina hooks de Mempunk (global por defecto)');
+      console.log(t('cli.help'));
       break;
 
     default:
-      fail(`Comando desconocido: "${command}". Ejecuta "mempunk" sin argumentos para ver ayuda.`);
+      fail(t('cli.unknownCommand', { command }));
   }
 } catch (err) {
   // Capturar errores inesperados de VaultStore o del sistema de archivos

@@ -3,6 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { VAULT_VERSION } from '../store/VaultStore.js';
 import { opts } from '../lib/args.js';
+import { t } from '../lib/i18n.js';
 import { fail } from '../lib/output.js';
 import { VAULT_PATH, CLI_VERSION, requireVault, openStore } from '../lib/vault.js';
 import { _writeProjectPathsFile } from './project.js';
@@ -18,9 +19,9 @@ export function cmdVaultVersion() {
 
   if (vaultVersion < VAULT_VERSION) {
     console.log(`Vault v${vaultVersion}`);
-    console.log(`⚠ Tu vault está en v${vaultVersion}. Ejecuta mempunk vault upgrade para actualizarlo.`);
+    console.log(t('vault.upgradeHint', { version: vaultVersion }));
   } else {
-    console.log(`Vault v${vaultVersion} — OK`);
+    console.log(t('vault.ok', { version: vaultVersion }));
   }
 }
 
@@ -32,7 +33,7 @@ export function cmdVaultUpgrade() {
   const currentVersion = store.getVaultVersion();
 
   if (currentVersion >= VAULT_VERSION) {
-    console.log(`El vault ya está en la versión más reciente (v${VAULT_VERSION})`);
+    console.log(t('vault.alreadyLatest', { version: VAULT_VERSION }));
     return;
   }
 
@@ -47,7 +48,7 @@ export function cmdVaultUpgrade() {
   // Regenerar el mapa de rutas por si la migración agregó root_path
   _writeProjectPathsFile(store);
 
-  console.log(`Vault actualizado a v${VAULT_VERSION} (${store._migrationsRan} migración(es) aplicadas)`);
+  console.log(t('vault.upgraded', { version: VAULT_VERSION, count: store._migrationsRan }));
 }
 
 // Backups a retener en .mempunk/backups/ — los más viejos se podan
@@ -73,7 +74,7 @@ export function cmdVaultBackup() {
   copy.close();
   if (result?.[0]?.integrity_check !== 'ok') {
     try { fs.rmSync(backupPath, { force: true }); } catch (_) {}
-    fail(`El backup no pasó la verificación de integridad: ${JSON.stringify(result)}`);
+    fail(t('vault.backupIntegrityFailed', { result: JSON.stringify(result) }));
   }
 
   // Retención: conservar solo los últimos MAX_BACKUPS
@@ -84,7 +85,7 @@ export function cmdVaultBackup() {
     try { fs.rmSync(path.join(backupsDir, old), { force: true }); } catch (_) {}
   }
 
-  console.log(`Backup creado: ${backupPath} (integridad ✓)`);
+  console.log(t('vault.backupCreated', { path: backupPath }));
 }
 
 /** Dump JSON portable de todas las tablas del vault (excepto el índice FTS, que es derivado) */
@@ -114,5 +115,5 @@ export function cmdExport() {
   fs.writeFileSync(outPath, JSON.stringify(data, null, 2), 'utf8');
 
   const totalRows = TABLES.reduce((n, t) => n + data.tables[t].length, 0);
-  console.log(`Export creado: ${outPath} (${TABLES.length} tablas, ${totalRows} filas)`);
+  console.log(t('export.created', { path: outPath, tables: TABLES.length, rows: totalRows }));
 }

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { opts } from '../lib/args.js';
+import { t } from '../lib/i18n.js';
 import { fail, printJson } from '../lib/output.js';
 import { requireVault, openStore } from '../lib/vault.js';
 
@@ -7,7 +8,7 @@ import { requireVault, openStore } from '../lib/vault.js';
 
 export function cmdSessionLog(projectId, summary) {
   if (!projectId || !summary) {
-    fail('Uso: mempunk session log <project_id> "<summary>" [--files "path1,path2"]');
+    fail(t('usage', { syntax: 'mempunk session log <project_id> "<summary>" [--files "path1,path2"]' }));
   }
   requireVault();
 
@@ -18,11 +19,11 @@ export function cmdSessionLog(projectId, summary) {
 
   const store = openStore();
   store.logSession(projectId, summary, filesTouched);
-  console.log(`Sesión registrada para ${projectId}`);
+  console.log(t('session.logged', { id: projectId }));
 }
 
 export function cmdSessionLast(projectId) {
-  if (!projectId) fail('Uso: mempunk session last <project_id>');
+  if (!projectId) fail(t('usage', { syntax: 'mempunk session last <project_id>' }));
   requireVault();
 
   const store   = openStore();
@@ -30,7 +31,7 @@ export function cmdSessionLast(projectId) {
   if (opts.json) return printJson(session ?? null);
 
   if (!session) {
-    console.log(`No hay sesiones registradas para el proyecto "${projectId}"`);
+    console.log(t('session.none', { id: projectId }));
     return;
   }
 
@@ -51,41 +52,41 @@ export function cmdSessionLast(projectId) {
 
 /** Muestra el último snapshot disponible (checkpoint o compact_snapshot) de un proyecto */
 export function cmdSessionRecover(projectId) {
-  if (!projectId) fail('Uso: mempunk session recover <project_id>');
+  if (!projectId) fail(t('usage', { syntax: 'mempunk session recover <project_id>' }));
   requireVault();
 
   const store    = openStore();
   const snapshot = store.getLastCompactSnapshot(projectId);
 
   if (!snapshot) {
-    console.log(`No hay snapshots guardados para el proyecto "${projectId}"`);
-    console.log('Los checkpoints se guardan automáticamente cada 5 turnos (hook on-stop).');
-    console.log('Los compact_snapshots se guardan antes de cada compactación (hook on-compact).');
+    console.log(t('session.noSnapshots', { id: projectId }));
+    console.log(t('session.checkpointHint'));
+    console.log(t('session.compactHint'));
     return;
   }
 
-  const fecha   = snapshot.created_at ?? 'desconocida';
+  const fecha   = snapshot.created_at ?? t('session.unknownDate');
   const tipo    = snapshot.source === 'compact' ? `compact_snapshot (${snapshot.compact_type ?? 'auto'})` : 'checkpoint';
   const mensajes = snapshot.message_count ?? snapshot.turn_count ?? '?';
 
-  console.log(`Último snapshot disponible: ${fecha} (${tipo})`);
-  console.log(`Session ID: ${snapshot.session_id} | Mensajes: ${mensajes}`);
+  console.log(t('session.lastSnapshot', { date: fecha, type: tipo }));
+  console.log(t('session.snapshotMeta', { sessionId: snapshot.session_id, count: mensajes }));
 
   const filesFound = tryParseJsonArray(snapshot.files_found);
   if (filesFound.length > 0) {
-    console.log('\nArchivos tocados:');
+    console.log('\n' + t('session.filesTouched'));
     for (const f of filesFound) console.log(`  - ${f}`);
   }
 
   const commandsRun = tryParseJsonArray(snapshot.commands_run);
   if (commandsRun && commandsRun.length > 0) {
-    console.log('\nComandos corridos:');
+    console.log('\n' + t('session.commandsRun'));
     for (const c of commandsRun) console.log(`  - ${c}`);
   }
 
   const rawTurns = tryParseJsonArray(snapshot.raw_turns);
   if (rawTurns.length > 0) {
-    console.log('\nÚltimos mensajes:');
+    console.log('\n' + t('session.lastMessages'));
     for (const turn of rawTurns.slice(-4)) {
       const role    = turn.type === 'human' ? 'user' : 'assistant';
       const content = extractFirstTextContent(turn.message?.content ?? '');
@@ -93,12 +94,12 @@ export function cmdSessionRecover(projectId) {
     }
   }
 
-  console.log(`\nPara ver checkpoints completos: mempunk session checkpoints ${projectId}`);
+  console.log('\n' + t('session.seeCheckpoints', { id: projectId }));
 }
 
 /** Muestra la lista de checkpoints de un proyecto */
 export function cmdSessionCheckpoints(projectId) {
-  if (!projectId) fail('Uso: mempunk session checkpoints <project_id>');
+  if (!projectId) fail(t('usage', { syntax: 'mempunk session checkpoints <project_id>' }));
   requireVault();
 
   const store       = openStore();
@@ -106,13 +107,13 @@ export function cmdSessionCheckpoints(projectId) {
   if (opts.json) return printJson(checkpoints);
 
   if (checkpoints.length === 0) {
-    console.log(`No hay checkpoints para el proyecto "${projectId}"`);
+    console.log(t('session.noCheckpoints', { id: projectId }));
     return;
   }
 
-  console.log(`Checkpoints de ${projectId} (más reciente primero):\n`);
+  console.log(t('session.checkpointsHeader', { id: projectId }) + '\n');
   const COL = { n: 3, fecha: 20, tipo: 20, extra: 12, archivos: 8 };
-  const header = `  ${'#'.padEnd(COL.n)}  ${'Fecha'.padEnd(COL.fecha)}  ${'Tipo'.padEnd(COL.tipo)}  ${'Detalle'.padEnd(COL.extra)}  Archivos`;
+  const header = `  ${'#'.padEnd(COL.n)}  ${t('session.colDate').padEnd(COL.fecha)}  ${t('session.colType').padEnd(COL.tipo)}  ${t('session.colDetail').padEnd(COL.extra)}  ${t('session.colFiles')}`;
   console.log(header);
   console.log('  ' + '─'.repeat(header.length - 2));
 
@@ -120,7 +121,7 @@ export function cmdSessionCheckpoints(projectId) {
     const n       = String(i + 1).padEnd(COL.n);
     const fecha   = (row.created_at ?? '').slice(0, 19).padEnd(COL.fecha);
     const tipo    = (row.source === 'compact' ? `compact (${row.compact_type ?? 'auto'})` : 'checkpoint').padEnd(COL.tipo);
-    const extra   = (row.source === 'compact' ? `${row.message_count ?? '?'} msgs` : `turno ${row.turn_count ?? '?'}`).padEnd(COL.extra);
+    const extra   = (row.source === 'compact' ? `${row.message_count ?? '?'} msgs` : t('session.turnLabel', { n: row.turn_count ?? '?' })).padEnd(COL.extra);
     const nFiles  = tryParseJsonArray(row.files_found).length;
     console.log(`  ${n}  ${fecha}  ${tipo}  ${extra}  ${nFiles}`);
   });
@@ -143,20 +144,20 @@ function extractFirstTextContent(content) {
 
 /** Persiste un checkpoint incremental desde un temp JSON file (usado por on-stop.js hook) */
 export function cmdSessionSaveCheckpoint(tmpFilePath) {
-  if (!tmpFilePath) fail('Uso interno: mempunk session save-checkpoint <tmp_json_path>');
+  if (!tmpFilePath) fail(t('usage.internal', { syntax: 'mempunk session save-checkpoint <tmp_json_path>' }));
   requireVault();
 
   let data;
   try {
     data = JSON.parse(fs.readFileSync(tmpFilePath, 'utf8'));
   } catch (err) {
-    fail(`No se pudo leer el archivo temporal: ${err.message}`);
+    fail(t('session.tmpReadError', { message: err.message }));
   } finally {
     try { fs.unlinkSync(tmpFilePath); } catch (_) {}
   }
 
   const { project_id, session_id, turn_count, raw_turns, files_found } = data;
-  if (!project_id || !session_id || turn_count == null) fail('Datos incompletos en el archivo temporal');
+  if (!project_id || !session_id || turn_count == null) fail(t('session.tmpIncomplete'));
 
   const store = openStore();
   store.addCheckpoint(
@@ -171,7 +172,7 @@ export function cmdSessionSaveCheckpoint(tmpFilePath) {
 
 /** Retorna el último compact_snapshot de un proyecto como JSON (usado por on-start.js hook) */
 export function cmdSessionGetCompact(projectId) {
-  if (!projectId) fail('Uso interno: mempunk session get-compact <project_id>');
+  if (!projectId) fail(t('usage.internal', { syntax: 'mempunk session get-compact <project_id>' }));
   requireVault();
 
   const store    = openStore();
@@ -182,20 +183,20 @@ export function cmdSessionGetCompact(projectId) {
 
 /** Persiste un compact_snapshot desde un temp JSON file (usado por on-compact.js hook) */
 export function cmdSessionSaveCompact(tmpFilePath) {
-  if (!tmpFilePath) fail('Uso interno: mempunk session save-compact <tmp_json_path>');
+  if (!tmpFilePath) fail(t('usage.internal', { syntax: 'mempunk session save-compact <tmp_json_path>' }));
   requireVault();
 
   let data;
   try {
     data = JSON.parse(fs.readFileSync(tmpFilePath, 'utf8'));
   } catch (err) {
-    fail(`No se pudo leer el archivo temporal: ${err.message}`);
+    fail(t('session.tmpReadError', { message: err.message }));
   } finally {
     try { fs.unlinkSync(tmpFilePath); } catch (_) {}
   }
 
   const { project_id, session_id, compact_type, message_count, raw_turns, files_found, commands_run } = data;
-  if (!project_id || !session_id) fail('Datos incompletos en el archivo temporal');
+  if (!project_id || !session_id) fail(t('session.tmpIncomplete'));
 
   const store = openStore();
   store.addCompactSnapshot(

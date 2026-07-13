@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { opts } from './args.js';
 import { fail } from './output.js';
+import { t } from './i18n.js';
 import { readJsonFile, writeJsonFile } from './config-files.js';
 
 // ── Definiciones de CLI ───────────────────────────────────────────────────────
@@ -195,7 +196,7 @@ export function resolveCLIs() {
   const flag = opts.cli;
   if (!flag || flag === 'all') return Object.keys(CLI_DEFS);
   const key = CLI_ALIASES[flag];
-  if (!key) fail(`CLI desconocido: "${flag}". Opciones: claude, gemini, opencode`);
+  if (!key) fail(t('cli.unknownCli', { flag }));
   return [key];
 }
 

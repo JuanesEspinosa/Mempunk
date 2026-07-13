@@ -22,14 +22,14 @@ function runHook(hookFile, input, extraEnv = {}) {
     input: typeof input === 'string' ? input : JSON.stringify(input),
     encoding: 'utf8',
     cwd: PROJECT_ROOT,
-    env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI, ...extraEnv },
+    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI, ...extraEnv },
   });
 }
 
 function runCli(args) {
   return spawnSync('node', [CLI_PATH, ...args.split(' ')], {
     cwd: PROJECT_ROOT,
-    env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT },
+    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT },
     encoding: 'utf8',
   });
 }
@@ -339,7 +339,7 @@ describe('on-stop.js (AutoCheckpoint)', () => {
     // Mapear repoDir → cwdproj corriendo activate --here desde ese directorio
     spawnSync('node', [CLI_PATH, 'project', 'activate', 'cwdproj', '--here'], {
       cwd: repoDir,
-      env: { ...process.env, MEMPUNK_VAULT: TEMP_VAULT },
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT },
       encoding: 'utf8',
     });
     // El activo global queda apuntando a testproj — el cwd debe ganarle

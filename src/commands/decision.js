@@ -1,12 +1,13 @@
 import path from 'node:path';
 import { opts } from '../lib/args.js';
+import { t } from '../lib/i18n.js';
 import { fail, printTable, printJson } from '../lib/output.js';
 import { VAULT_PATH, requireVault, openStore } from '../lib/vault.js';
 
 // ── Handlers — Decisions ──────────────────────────────────────────────────────
 
 export function cmdDecisionAdd(projectId, title) {
-  if (!projectId || !title) fail('Uso: mempunk decision add <project_id> "<title>" [--tags "tag1,tag2"]');
+  if (!projectId || !title) fail(t('usage', { syntax: 'mempunk decision add <project_id> "<title>" [--tags "tag1,tag2"]' }));
   requireVault();
 
   const tags = opts.tags ? opts.tags.split(',').map((t) => t.trim()) : [];
@@ -34,11 +35,11 @@ export function cmdDecisionAdd(projectId, title) {
 
   const store = openStore();
   store.addDecision(projectId, title, filePath, tags, content);
-  console.log(`Decisión guardada en ${filePath}`);
+  console.log(t('decision.saved', { path: filePath }));
 }
 
 export function cmdDecisionList(projectId) {
-  if (!projectId) fail('Uso: mempunk decision list <project_id>');
+  if (!projectId) fail(t('usage', { syntax: 'mempunk decision list <project_id>' }));
   requireVault();
 
   const store = openStore();

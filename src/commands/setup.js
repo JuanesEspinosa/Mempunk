@@ -2,6 +2,7 @@ import { createInterface } from 'node:readline/promises';
 import fs from 'node:fs';
 import path from 'node:path';
 import { opts } from '../lib/args.js';
+import { t } from '../lib/i18n.js';
 import { fail } from '../lib/output.js';
 import { VAULT_PATH, __cliDir } from '../lib/vault.js';
 import { CLI_DEFS } from '../lib/cli-defs.js';
@@ -36,9 +37,9 @@ export async function cmdSetup() {
   // ── Step 1: Vault ────────────────────────────────────────────────────────
   if (!fs.existsSync(VAULT_PATH)) {
     cmdInit();
-    console.log(`✓ Vault creado en ${VAULT_PATH}`);
+    console.log(t('setup.vaultCreated', { path: VAULT_PATH }));
   } else {
-    console.log(`✓ Vault existente en ${VAULT_PATH}`);
+    console.log(t('setup.vaultExists', { path: VAULT_PATH }));
   }
 
   // ── Step 2: Determinar modo ──────────────────────────────────────────────
@@ -47,20 +48,20 @@ export async function cmdSetup() {
   if (!mode) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-    console.log('\n¿Qué AI CLI usas principalmente?');
-    console.log('  1. Claude Code');
-    console.log('  2. Gemini CLI / opencode / otra\n');
-    const cliAnswer = (await rl.question('Elige (1 o 2): ')).trim();
+    console.log(t('setup.askCli'));
+    console.log(t('setup.cliOption1'));
+    console.log(t('setup.cliOption2'));
+    const cliAnswer = (await rl.question(t('setup.choose'))).trim();
     const isClaudeCode = cliAnswer !== '2';
 
     if (isClaudeCode) {
-      console.log('\n¿Cómo quieres que funcione Mempunk?');
-      console.log('  1. Automático — hooks + agentes  (recomendado)');
-      console.log('     Los hooks guardan checkpoints solos y @mempunk-loader');
-      console.log('     carga el contexto al inicio de cada sesión.');
-      console.log('  2. Manual — solo vault-skills');
-      console.log('     Corres los protocolos tú mismo al inicio/fin de sesión.\n');
-      const modeAnswer = (await rl.question('Elige (1 o 2): ')).trim();
+      console.log(t('setup.askMode'));
+      console.log(t('setup.modeOption1'));
+      console.log(t('setup.modeOption1a'));
+      console.log(t('setup.modeOption1b'));
+      console.log(t('setup.modeOption2'));
+      console.log(t('setup.modeOption2a'));
+      const modeAnswer = (await rl.question(t('setup.choose'))).trim();
       mode = modeAnswer === '2' ? 'manual' : 'auto';
     } else {
       mode = 'vault-skills';
@@ -71,7 +72,7 @@ export async function cmdSetup() {
 
   // Validar modo si vino por flag
   if (!['auto', 'manual', 'vault-skills'].includes(mode)) {
-    fail(`--setup-mode inválido: "${mode}". Usa: auto | manual | vault-skills`);
+    fail(t('setup.invalidMode', { mode }));
   }
 
   // ── Step 3: Vincular vault a los CLIs correspondientes ───────────────────
@@ -79,20 +80,20 @@ export async function cmdSetup() {
 
   if (mode === 'auto' || mode === 'manual') {
     const added = CLI_DEFS['claude-code'].addDir(normalized);
-    console.log(`✓ Vault ${added ? 'vinculado' : 'ya vinculado'} a Claude Code`);
+    console.log(added ? t('setup.linked', { name: 'Claude Code' }) : t('setup.alreadyLinked', { name: 'Claude Code' }));
   } else {
     let anyLinked = false;
     for (const key of ['gemini-cli', 'opencode']) {
       const def = CLI_DEFS[key];
       if (def.isInstalled()) {
         const added = def.addDir(normalized);
-        console.log(`✓ Vault ${added ? 'vinculado' : 'ya vinculado'} a ${def.displayName}`);
+        console.log(added ? t('setup.linked', { name: def.displayName }) : t('setup.alreadyLinked', { name: def.displayName }));
         anyLinked = true;
       }
     }
     if (!anyLinked) {
-      console.log('! No se detectó Gemini CLI ni opencode instalados. Vincula manualmente con:');
-      console.log('    mempunk link --cli gemini   (o opencode)');
+      console.log(t('setup.noCliDetected'));
+      console.log(t('setup.noCliDetectedHint'));
     }
   }
 
@@ -102,7 +103,7 @@ export async function cmdSetup() {
     cmdAutoStart('on');
   } else {
     _installVaultSkills();
-    console.log(`✓ vault-skills instalados en ${path.join(VAULT_PATH, 'vault-skills')}`);
+    console.log(t('setup.vaultSkills', { path: path.join(VAULT_PATH, 'vault-skills') }));
   }
 
   // ── Step 5: Guardar configuración de setup ───────────────────────────────
@@ -121,18 +122,18 @@ export async function cmdSetup() {
   // ── Step 6: Resumen final ────────────────────────────────────────────────
   const line = '─'.repeat(52);
   console.log(`\n${line}`);
-  console.log('Próximo paso:');
-  console.log('  mempunk project add <id> "<nombre del proyecto>"');
+  console.log(t('setup.nextStep'));
+  console.log(t('setup.nextStepCmd'));
   if (mode === 'auto') {
-    console.log('\nAl iniciar Claude Code: @mempunk-loader se ejecuta automáticamente.');
+    console.log(t('setup.autoHint'));
   } else {
     const skillPath = path.join(VAULT_PATH, 'vault-skills', 'session-start.md');
-    console.log('\nPara cargar contexto al inicio de sesión:');
-    console.log(`  Lee ${skillPath}`);
+    console.log(t('setup.manualHint'));
+    console.log(t('setup.manualHintRead', { path: skillPath }));
   }
   if (mode !== 'auto') {
-    console.log('\nSi migras a Claude Code en el futuro:');
-    console.log('  mempunk setup --setup-mode auto');
+    console.log(t('setup.migrateHint'));
+    console.log(t('setup.migrateHintCmd'));
   }
   console.log(`${line}\n`);
 }

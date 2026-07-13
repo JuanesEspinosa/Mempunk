@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import VaultStore, { VAULT_VERSION } from '../store/VaultStore.js';
 import { fail } from './output.js';
+import { t } from './i18n.js';
 
 // Versión semántica del paquete — leída desde package.json en tiempo de ejecución
 const _require = createRequire(import.meta.url);
@@ -23,7 +24,7 @@ export const VAULT_PATH = process.env.MEMPUNK_VAULT?.trim() || path.join(os.home
 /** Aborta si el vault no está inicializado */
 export function requireVault() {
   if (!fs.existsSync(VAULT_PATH)) {
-    fail(`El vault no existe en ${VAULT_PATH}. Ejecuta "mempunk init" primero.`);
+    fail(t('vault.notInitialized', { path: VAULT_PATH }));
   }
 }
 
@@ -45,7 +46,7 @@ export function openStore(skipVersionCheck = false) {
   }
 
   if (!skipVersionCheck && vaultVersion < VAULT_VERSION) {
-    fail(`Vault desactualizado (v${vaultVersion} → v${VAULT_VERSION}). Ejecuta mempunk vault upgrade.`);
+    fail(t('vault.outdated', { current: vaultVersion, required: VAULT_VERSION }));
   }
   return store;
 }

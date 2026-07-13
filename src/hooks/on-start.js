@@ -14,6 +14,7 @@ import {
   createLogger,
   readStdinJson,
   getProjectId,
+  hookT,
 } from '../hooks-lib/common.js';
 
 const TOUCHED_FILE = path.join(MEMPUNK_DIR, 'session-touched.json');
@@ -48,14 +49,14 @@ function fetchLastCompactSnapshot(projectId) {
 function buildAdditionalContext(snapshot, projectId) {
   const lines = [];
 
-  const fecha = snapshot.created_at ?? 'fecha desconocida';
-  lines.push(`⚠️ CONTEXTO RESTAURADO TRAS COMPACTACION (${fecha})`);
+  const fecha = snapshot.created_at ?? hookT('restore.unknownDate');
+  lines.push(hookT('restore.title', { date: fecha }));
   lines.push('');
 
   // Archivos encontrados
   const filesFound = tryParseJson(snapshot.files_found, []);
   if (filesFound.length > 0) {
-    lines.push('Archivos que estabas editando:');
+    lines.push(hookT('restore.files'));
     for (const f of filesFound.slice(0, 20)) lines.push(`  - ${f}`);
     lines.push('');
   }
@@ -63,7 +64,7 @@ function buildAdditionalContext(snapshot, projectId) {
   // Comandos corridos
   const commandsRun = tryParseJson(snapshot.commands_run, []);
   if (commandsRun.length > 0) {
-    lines.push('Comandos corridos antes de compactar:');
+    lines.push(hookT('restore.commands'));
     for (const c of commandsRun.slice(0, 10)) lines.push(`  - ${c}`);
     lines.push('');
   }
@@ -71,7 +72,7 @@ function buildAdditionalContext(snapshot, projectId) {
   // Últimos mensajes del transcript
   const rawTurns = tryParseJson(snapshot.raw_turns, []);
   if (rawTurns.length > 0) {
-    lines.push('Últimos mensajes de la sesión:');
+    lines.push(hookT('restore.messages'));
     for (const turn of rawTurns.slice(-6)) {
       const role    = turn.type === 'user' ? 'user' : 'assistant';
       const content = extractFirstText(turn.message?.content ?? '');
@@ -80,11 +81,13 @@ function buildAdditionalContext(snapshot, projectId) {
     lines.push('');
   }
 
-  lines.push(`Para ver el historial completo ejecuta: mempunk session recover ${projectId}`);
-  lines.push('Continúa desde donde estabas.');
+  lines.push(hookT('restore.recoverHint', { id: projectId }));
+  lines.push(hookT('restore.continue'));
 
   const full = lines.join('\n');
-  return full.length > MAX_CONTEXT_CHARS ? full.slice(0, MAX_CONTEXT_CHARS) + '\n…(truncado)' : full;
+  return full.length > MAX_CONTEXT_CHARS
+    ? full.slice(0, MAX_CONTEXT_CHARS) + '\n' + hookT('restore.truncated')
+    : full;
 }
 
 function tryParseJson(value, fallback) {
@@ -133,7 +136,7 @@ try {
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'SessionStart',
-          additionalContext: 'mempunk-auto-start: El usuario tiene auto-start activado. Invoca @mempunk-loader para cargar el contexto del vault del proyecto actual antes de responder.',
+          additionalContext: hookT('autostart.context'),
         },
       }));
     } else {

@@ -101,6 +101,61 @@ export function isRealUserTurn(entry) {
   return false;
 }
 
+// ── i18n de hooks ─────────────────────────────────────────────────────────────
+// Mini-catálogo bilingüe SOLO para los mensajes visibles al usuario final
+// (systemMessage / additionalContext). Los mensajes de log() quedan en español:
+// son diagnóstico interno, no UI. No importa de src/lib/i18n.js a propósito —
+// los hooks se bundlean autocontenidos y este módulo debe seguir liviano.
+
+const HOOK_MESSAGES = {
+  en: {
+    'context.alert': '🚨 Context at {pct}% — compaction imminent (auto-compact triggers at ~83.5%). ' +
+      'Mempunk will save a snapshot automatically when it happens. ' +
+      'You can run /compact now to stay in control.',
+    'context.warn': '⚠️  Context at {pct}% — automatic compaction triggers at ~83.5%. ' +
+      'Consider running /compact manually to control when it happens.',
+    'autostart.context': 'mempunk-auto-start: The user has auto-start enabled. Invoke @mempunk-loader ' +
+      'to load the vault context for the current project before responding.',
+    'restore.title': '⚠️ CONTEXT RESTORED AFTER COMPACTION ({date})',
+    'restore.unknownDate': 'unknown date',
+    'restore.files': 'Files you were editing:',
+    'restore.commands': 'Commands run before compaction:',
+    'restore.messages': 'Last messages of the session:',
+    'restore.recoverHint': 'To see the full history run: mempunk session recover {id}',
+    'restore.continue': 'Continue from where you left off.',
+    'restore.truncated': '…(truncated)',
+  },
+  es: {
+    'context.alert': '🚨 Contexto al {pct}% — compactación inminente (auto-compact ocurre al ~83.5%). ' +
+      'Mempunk guardará un snapshot automáticamente cuando ocurra. ' +
+      'Puedes ejecutar /compact ahora para controlarlo.',
+    'context.warn': '⚠️  Contexto al {pct}% — la compactación automática ocurre al ~83.5%. ' +
+      'Considera ejecutar /compact manualmente para controlar cuándo ocurre.',
+    'autostart.context': 'mempunk-auto-start: El usuario tiene auto-start activado. Invoca @mempunk-loader ' +
+      'para cargar el contexto del vault del proyecto actual antes de responder.',
+    'restore.title': '⚠️ CONTEXTO RESTAURADO TRAS COMPACTACION ({date})',
+    'restore.unknownDate': 'fecha desconocida',
+    'restore.files': 'Archivos que estabas editando:',
+    'restore.commands': 'Comandos corridos antes de compactar:',
+    'restore.messages': 'Últimos mensajes de la sesión:',
+    'restore.recoverHint': 'Para ver el historial completo ejecuta: mempunk session recover {id}',
+    'restore.continue': 'Continúa desde donde estabas.',
+    'restore.truncated': '…(truncado)',
+  },
+};
+
+// Idioma activo — mismo contrato que src/lib/i18n.js: MEMPUNK_LANG que empiece
+// con "es" → español; cualquier otra cosa o ausente → inglés.
+const HOOK_LANG = (process.env.MEMPUNK_LANG ?? '').trim().toLowerCase().startsWith('es') ? 'es' : 'en';
+
+/** Mensaje de UI del hook traducido, con placeholders {name}. Nunca lanza. */
+export function hookT(key, params = {}) {
+  const template = HOOK_MESSAGES[HOOK_LANG][key] ?? HOOK_MESSAGES.en[key] ?? key;
+  return template.replace(/\{(\w+)\}/g, (match, name) =>
+    params[name] !== undefined ? String(params[name]) : match
+  );
+}
+
 /** Extrae el texto plano de una entrada del transcript */
 export function extractText(entry) {
   const content = entry.message?.content;

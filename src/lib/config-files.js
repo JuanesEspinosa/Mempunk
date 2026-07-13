@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fail } from './output.js';
+import { t } from './i18n.js';
 
 // ── Helpers — archivos de config ─────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ export function readJsonFile(filePath) {
   } catch (err) {
     // Nunca devolver {} ante un parse error: el caller reescribiría el archivo
     // completo y destruiría la configuración existente del usuario
-    fail(`No se pudo parsear ${filePath}: ${err.message}\nCorrige el JSON manualmente y vuelve a intentar.`);
+    fail(t('config.parseError', { path: filePath, message: err.message }));
   }
 }
 

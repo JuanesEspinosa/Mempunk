@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { opts } from '../lib/args.js';
+import { t } from '../lib/i18n.js';
 import { printTable } from '../lib/output.js';
 import { VAULT_PATH, requireVault, openStore } from '../lib/vault.js';
 
@@ -46,12 +47,12 @@ export function cmdSync() {
   }
 
   if (missing_files.length === 0 && unregistered_files.length === 0 && missingScaffold.length === 0) {
-    console.log('Vault sincronizado correctamente');
+    console.log(t('sync.ok'));
     return;
   }
 
   if (missing_files.length > 0) {
-    console.log('\nRegistros sin archivo en disco:');
+    console.log('\n' + t('sync.missingFiles'));
     printTable(
       ['type', 'id', 'project_id', 'file_path'],
       missing_files.map((f) => [f.type, f.id, f.project_id, f.file_path])
@@ -59,7 +60,7 @@ export function cmdSync() {
   }
 
   if (unregistered_files.length > 0) {
-    console.log('\nArchivos sin registro en BD:');
+    console.log('\n' + t('sync.unregistered'));
     printTable(
       ['type', 'file_path'],
       unregistered_files.map((f) => [f.type, f.file_path])
@@ -67,9 +68,9 @@ export function cmdSync() {
   }
 
   if (missingScaffold.length > 0) {
-    console.log('\nArchivos de scaffold faltantes:');
+    console.log('\n' + t('sync.missingScaffold'));
     printTable(
-      ['project_id', 'archivo'],
+      ['project_id', t('sync.colFile')],
       missingScaffold.map((f) => [f.project_id, f.file])
     );
   }

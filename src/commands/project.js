@@ -3,13 +3,14 @@ import path from 'node:path';
 import os from 'node:os';
 import { normalizeRootPath } from '../store/VaultStore.js';
 import { opts } from '../lib/args.js';
+import { t } from '../lib/i18n.js';
 import { fail, printTable, printJson } from '../lib/output.js';
 import { VAULT_PATH, __cliDir, requireVault, openStore } from '../lib/vault.js';
 
 // ── Handlers — Proyectos ──────────────────────────────────────────────────────
 
 export function cmdProjectAdd(id, name) {
-  if (!id || !name) fail('Uso: mempunk project add <id> <name> [--path <dir>]');
+  if (!id || !name) fail(t('usage', { syntax: 'mempunk project add <id> <name> [--path <dir>]' }));
   requireVault();
 
   const projectPath = path.join(VAULT_PATH, 'projects', id);
@@ -49,9 +50,9 @@ export function cmdProjectAdd(id, name) {
   // Auto-activar el proyecto recién creado
   _writeActiveProject(id);
 
-  console.log(`Proyecto "${name}" creado en ${projectPath}`);
-  if (rootPath) console.log(`Directorio mapeado: ${rootPath} → ${id}`);
-  console.log(`Proyecto activo: ${id}`);
+  console.log(t('project.created', { name, path: projectPath }));
+  if (rootPath) console.log(t('project.dirMapped', { root: rootPath, id }));
+  console.log(t('project.active', { id }));
 }
 
 export function cmdProjectList() {
@@ -94,7 +95,7 @@ export function _writeProjectPathsFile(store) {
 export function _resolveRootPathForRegistration() {
   if (opts.path) {
     const resolved = path.resolve(opts.path);
-    if (!fs.existsSync(resolved)) fail(`La ruta indicada en --path no existe: ${resolved}`);
+    if (!fs.existsSync(resolved)) fail(t('project.pathNotFound', { path: resolved }));
     return normalizeRootPath(resolved);
   }
 
@@ -106,12 +107,12 @@ export function _resolveRootPathForRegistration() {
 }
 
 export function cmdProjectActivate(id) {
-  if (!id) fail('Uso: mempunk project activate <project_id> [--here]');
+  if (!id) fail(t('usage', { syntax: 'mempunk project activate <project_id> [--here]' }));
   requireVault();
 
   const store = openStore();
   if (!store.listProjects().find((p) => p.id === id)) {
-    fail(`Proyecto no encontrado: "${id}". Usa mempunk project list para ver los disponibles.`);
+    fail(t('project.notFoundHint', { id }));
   }
 
   // --here mapea el directorio actual al proyecto: las sesiones de Claude Code
@@ -120,9 +121,9 @@ export function cmdProjectActivate(id) {
     const rootPath = normalizeRootPath(process.cwd());
     store.setProjectRootPath(id, rootPath);
     _writeProjectPathsFile(store);
-    console.log(`Directorio mapeado: ${rootPath} → ${id}`);
+    console.log(t('project.dirMapped', { root: rootPath, id }));
   }
 
   _writeActiveProject(id);
-  console.log(`Proyecto activo: ${id}`);
+  console.log(t('project.active', { id }));
 }

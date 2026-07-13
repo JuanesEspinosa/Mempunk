@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { MEMPUNK_DIR, createLogger, readStdinJson } from '../hooks-lib/common.js';
+import { MEMPUNK_DIR, createLogger, readStdinJson, hookT } from '../hooks-lib/common.js';
 
 const WARN_FILE = path.join(MEMPUNK_DIR, 'context-warn-state.json');
 
@@ -126,23 +126,14 @@ try {
   if (pct >= THRESHOLD_ALERT && warnState.last_warned_pct < THRESHOLD_ALERT) {
     log(`Aviso rojo disparado: ${pct}%`);
     writeWarnState({ session_id: sessionId, last_warned_pct: pct });
-    exit({
-      systemMessage:
-        `🚨 Contexto al ${pct}% — compactación inminente (auto-compact ocurre al ~83.5%). ` +
-        `Mempunk guardará un snapshot automáticamente cuando ocurra. ` +
-        `Puedes ejecutar /compact ahora para controlarlo.`,
-    });
+    exit({ systemMessage: hookT('context.alert', { pct }) });
   }
 
   // Aviso amarillo — 70%+
   if (pct >= THRESHOLD_WARN && warnState.last_warned_pct < THRESHOLD_WARN) {
     log(`Aviso amarillo disparado: ${pct}%`);
     writeWarnState({ session_id: sessionId, last_warned_pct: pct });
-    exit({
-      systemMessage:
-        `⚠️  Contexto al ${pct}% — la compactación automática ocurre al ~83.5%. ` +
-        `Considera ejecutar /compact manualmente para controlar cuándo ocurre.`,
-    });
+    exit({ systemMessage: hookT('context.warn', { pct }) });
   }
 
   // Sin umbral alcanzado — salida silenciosa

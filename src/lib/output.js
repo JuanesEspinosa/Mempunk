@@ -1,5 +1,7 @@
 // ── Utilidades de salida ──────────────────────────────────────────────────────
 
+import { t } from './i18n.js';
+
 /** Escribe el error en stderr y termina con código 1 */
 export function fail(message) {
   process.stderr.write(`Error: ${message}\n`);
@@ -13,7 +15,7 @@ export function fail(message) {
  */
 export function printTable(headers, rows) {
   if (rows.length === 0) {
-    console.log('(sin resultados)');
+    console.log(t('output.noResults'));
     return;
   }
 

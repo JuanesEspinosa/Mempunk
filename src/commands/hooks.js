@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { opts } from '../lib/args.js';
+import { t } from '../lib/i18n.js';
 import { fail } from '../lib/output.js';
 import { VAULT_PATH, __cliDir } from '../lib/vault.js';
 import { CLAUDE_SETTINGS_PATH, readJsonFile, writeJsonFile } from '../lib/config-files.js';
@@ -135,7 +136,7 @@ export function cmdHooksInstall() {
   // Verificar que los hooks fuente existen antes de proceder
   for (const file of HOOK_FILES) {
     if (!fs.existsSync(path.join(sourceDir, file))) {
-      fail(`Hook bundleado no encontrado: ${path.join(sourceDir, file)} — ejecuta npm run build`);
+      fail(t('hooks.bundleMissing', { path: path.join(sourceDir, file) }));
     }
   }
 
@@ -145,14 +146,14 @@ export function cmdHooksInstall() {
     const hooksOk      = HOOK_FILES.filter((f) => fs.existsSync(path.join(targetDir, f)));
     const agentsOk     = AGENT_FILES.filter((f) => fs.existsSync(path.join(agentsDir, f)));
 
-    console.log(`Hooks (${targetDir}):`);
+    console.log(t('hooks.checkHooksHeader', { dir: targetDir }));
     HOOK_FILES.forEach((f) => console.log(`  ${hooksOk.includes(f) ? '✓' : '✗'} ${f}`));
 
     // Un hook copiado pero no registrado en settings.json nunca corre:
     // verificar ambas cosas para que --check refleje el estado real
     const settings   = readJsonFile(CLAUDE_SETTINGS_PATH);
     const targetFwd  = targetDir.replace(/\\/g, '/');
-    console.log(`Registro en settings.json (${CLAUDE_SETTINGS_PATH}):`);
+    console.log(t('hooks.checkSettingsHeader', { path: CLAUDE_SETTINGS_PATH }));
     for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
       const registered = Array.isArray(settings.hooks?.[event]) &&
         settings.hooks[event].some((g) => g.hooks?.some(
@@ -161,7 +162,7 @@ export function cmdHooksInstall() {
       console.log(`  ${registered ? '✓' : '✗'} ${event} → ${file}`);
     }
 
-    console.log(`Agentes (${agentsDir}):`);
+    console.log(t('hooks.checkAgentsHeader', { dir: agentsDir }));
     AGENT_FILES.forEach((f) => console.log(`  ${agentsOk.includes(f) ? '✓' : '✗'} ${f}`));
 
     const statuslineOk = fs.existsSync(path.join(os.homedir(), '.mempunk', 'statusline.js'));
@@ -210,9 +211,9 @@ export function cmdHooksInstall() {
     if (currentCmd !== newCommand) {
       settings.statusLine = { type: 'command', command: newCommand };
       writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
-      console.log(`Statusline configurado en ${CLAUDE_SETTINGS_PATH}`);
+      console.log(t('hooks.statuslineConfigured', { path: CLAUDE_SETTINGS_PATH }));
     } else {
-      console.log('Statusline ya configurado — no se modificó settings.json');
+      console.log(t('hooks.statuslineUnchanged'));
     }
   }
 
@@ -227,10 +228,10 @@ export function cmdHooksInstall() {
       if (!fs.existsSync(src)) continue;
       fs.copyFileSync(src, path.join(agentDestDir, file));
     }
-    console.log(`Agentes instalados en ${agentDestDir}`);
+    console.log(t('hooks.agentsInstalled', { dir: agentDestDir }));
   }
 
-  console.log(`Hooks instalados en ${targetDir}`);
+  console.log(t('hooks.installed', { dir: targetDir }));
 }
 
 export function cmdHooksUninstall() {
@@ -261,9 +262,9 @@ export function cmdHooksUninstall() {
   }
 
   if (removed > 0) {
-    console.log(`Hooks eliminados de ${targetDir}`);
+    console.log(t('hooks.removed', { dir: targetDir }));
   } else {
-    console.log(`No se encontraron hooks de Mempunk en ${targetDir}`);
+    console.log(t('hooks.noneFound', { dir: targetDir }));
   }
 
   // Eliminar agentes de Mempunk (solo los marcados con # mempunk-agent)
@@ -280,7 +281,7 @@ export function cmdHooksUninstall() {
       }
     } catch (_) {}
   }
-  if (agentsRemoved > 0) console.log(`Agentes eliminados de ${agentDir}`);
+  if (agentsRemoved > 0) console.log(t('hooks.agentsRemoved', { dir: agentDir }));
 
   // Statusline: solo el uninstall global lo retira (settings.json + archivo)
   if (!opts.local) {
@@ -290,7 +291,7 @@ export function cmdHooksUninstall() {
     if (settings.statusLine?.command?.includes(destFwd)) {
       delete settings.statusLine;
       writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
-      console.log('Statusline desregistrado de settings.json');
+      console.log(t('hooks.statuslineUnregistered'));
     }
     try { fs.unlinkSync(statuslineDest); } catch (_) {}
   }
@@ -309,30 +310,27 @@ export function cmdAutoStart(action) {
   const enabled = fs.existsSync(AUTO_START_FLAG);
 
   if (!action) {
-    console.log(`Auto-start: ${enabled ? 'on' : 'off'}`);
+    console.log(t('autostart.status', { state: enabled ? 'on' : 'off' }));
     return;
   }
 
   if (action === 'on') {
-    if (enabled) { console.log('Auto-start ya estaba activo'); return; }
+    if (enabled) { console.log(t('autostart.alreadyOn')); return; }
 
     // Advertir si los hooks no están instalados — on-start.js los necesita
     const globalHooksDir = path.join(os.homedir(), '.claude', 'hooks');
     if (!fs.existsSync(path.join(globalHooksDir, 'on-start.js'))) {
-      process.stderr.write(
-        '! Auto-start requiere que los hooks estén instalados.\n' +
-        '  Ejecuta primero: mempunk hooks install\n'
-      );
+      process.stderr.write(t('autostart.requiresHooks'));
     }
 
     fs.mkdirSync(path.dirname(AUTO_START_FLAG), { recursive: true });
     fs.writeFileSync(AUTO_START_FLAG, '');
-    console.log('Auto-start activado');
+    console.log(t('autostart.enabled'));
   } else if (action === 'off') {
-    if (!enabled) { console.log('Auto-start ya estaba inactivo'); return; }
+    if (!enabled) { console.log(t('autostart.alreadyOff')); return; }
     fs.unlinkSync(AUTO_START_FLAG);
-    console.log('Auto-start desactivado');
+    console.log(t('autostart.disabled'));
   } else {
-    fail(`Acción desconocida: "${action}". Usa: on | off`);
+    fail(t('autostart.unknownAction', { action }));
   }
 }
