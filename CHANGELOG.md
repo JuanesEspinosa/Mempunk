@@ -7,6 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.1.1] — Unreleased
+
+### Changed
+
+- **Agents rewritten in English** (`mempunk-loader`, `mempunk-saver`, `mempunk-recover`) and now consume `--json` output from every read command instead of parsing table output.
+- **Vault template (`templates/CLAUDE.md`) rewritten in English** with the v2 protocol: backlog and sessions are read/written SQLite-first via the CLI (`session log`, `backlog update`, `--json` reads); the exhaustive command table was reduced to the daily-flow commands plus a pointer to the full reference.
+- **vault-skills updated to v2 commands** (English, `--json` on reads, session close persists to SQLite via `mempunk session log` / `mempunk backlog update` in addition to markdown notes).
+- **Loader/skill precedence rule**: if the session context was already loaded (e.g., via a /mempunk skill or the auto-start hook), `@mempunk-loader` does not reload — it just confirms the active project.
+
 ## [2.1.0] — 2026-07-13
 
 > Supersedes 2.0.4, which was never published to npm.
@@ -17,7 +26,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `mempunk vault backup` — consistent copy via `VACUUM INTO` to `.mempunk/backups/`, integrity-checked, keeps the last 10.
 - `mempunk export [--out <file>]` — portable JSON dump of all vault tables.
 - `--json` flag on read commands (`project/backlog/decision/skill/resource/daily list`, `session last/checkpoints`, `search`) for scripts and agents.
-- **CI**: GitHub Actions with lint, test matrix (Ubuntu/Windows/macOS × Node 18/22), 80% line-coverage gate, gitleaks secret scan, and an npm publish workflow with provenance.
+- **CI**: GitHub Actions with lint, test matrix (Ubuntu/Windows/macOS × Node 22/24), 80% line-coverage gate, gitleaks secret scan, and an npm publish workflow with provenance.
 - ESLint (flat config) and real coverage measurement with `c8` (subprocess-aware).
 
 ### Changed

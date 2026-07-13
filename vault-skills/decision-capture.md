@@ -1,62 +1,62 @@
-# Captura de decisiones
+# Decision capture
 
 ---
 
-## Cuándo guardar una decisión
+## When to save a decision
 
-Guarda la decisión si afecta alguno de estos aspectos del proyecto:
+Save the decision if it affects any of these aspects of the project:
 
-- **Arquitectura**: estructura de módulos, separación de capas, flujo de datos
-- **Stack**: agregar, quitar o cambiar una dependencia o tecnología
-- **Patrones**: adoptar o abandonar un patrón de diseño, una convención de código
-- **Infraestructura**: cambios en deploy, base de datos, servicios externos
+- **Architecture**: module structure, layer separation, data flow
+- **Stack**: adding, removing, or changing a dependency or technology
+- **Patterns**: adopting or abandoning a design pattern or code convention
+- **Infrastructure**: changes to deploy, database, external services
 
-**No guardes** si es:
-- Un fix puntual de bug sin implicaciones de diseño
-- Un cambio cosmético (renombrar variable, reformatear código)
-- Una decisión ya obvia dado el stack del proyecto
+**Do not save** if it is:
+- A one-off bug fix with no design implications
+- A cosmetic change (renaming a variable, reformatting code)
+- A decision that is already obvious given the project's stack
 
-En caso de duda, guárdala. Es más barato tener una decisión de más que perder contexto.
+When in doubt, save it. Having one extra decision is cheaper than losing context.
 
 ---
 
-## Cuándo ejecutar el comando
+## When to run the command
 
-**Inmediatamente** al tomar la decisión, no al final de la sesión.
+**Immediately** when the decision is made, not at the end of the session.
 
 ```
-mempunk decision add <project_id> "<título conciso>"
-mempunk decision add <project_id> "<título conciso>" --tags "tag1,tag2"
+mempunk decision add <project_id> "<concise title>"
+mempunk decision add <project_id> "<concise title>" --tags "tag1,tag2"
 ```
 
-El comando crea el archivo markdown y lo registra en la BD en una sola operación.
+The command creates the markdown file and registers it in the DB in a single operation. To review existing decisions, use `mempunk decision list <project_id> --json`.
 
 ---
 
-## Formato del archivo markdown
+## Markdown file format
 
-El archivo se crea con secciones vacías. Rellena las tres secciones antes de continuar:
+The file is created with empty sections. Fill in all three sections before continuing:
 
 ```markdown
-## Contexto
+## Context
 
-[Por qué surgió esta decisión. Qué problema resuelve. Qué restricciones existían.]
+[Why this decision came up. What problem it solves. What constraints existed.]
 
-## Decisión
+## Decision
 
-[Qué se decidió, de forma concisa y específica.]
+[What was decided, concisely and specifically.]
 
-## Consecuencias
+## Consequences
 
-[Qué implica esta decisión hacia adelante. Qué se habilita y qué se descarta.]
+[What this decision implies going forward. What it enables and what it rules out.]
 ```
 
-Escribe lo mínimo necesario para que tenga sentido en una sesión futura sin contexto. No escribas ensayos.
+Write the minimum needed for it to make sense in a future session with no context. Do not write essays.
 
 ---
 
-## Tags recomendados
+## Recommended tags
 
-Usa tags cortos y consistentes entre proyectos:
+Use short tags that stay consistent across projects:
 
 `auth`, `database`, `api`, `frontend`, `deploy`, `testing`, `patterns`, `security`, `performance`, `dependencies`

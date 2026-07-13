@@ -1,59 +1,67 @@
-# Cierre de sesión
+# Session close
 
-Ejecuta estos pasos al terminar. Si ya hiciste saves incrementales durante la sesión, este proceso es rápido — solo consolida lo que ya existe.
+Run these steps when finishing. If you already made incremental saves during the session, this process is fast — it only consolidates what already exists.
+
+These CLI writes persist to SQLite (`.mempunk/mempunk.db`) — they are the source of truth for backlog and session history. Markdown notes (ADRs, daily) complement them; they do not replace them.
 
 ---
 
-## Paso 1 — Actualiza el backlog
+## Step 1 — Update the backlog
 
-Por cada tarea que cambió de estado durante la sesión, ejecuta:
+For each task that changed state during the session, run:
 
 ```
 mempunk backlog update <id> --status <done|in_progress|pending>
 ```
 
-Solo las que cambiaron. No toques las que siguen igual.
+Only the ones that changed. Do not touch the ones that stayed the same. If you need the task ids, list them with `mempunk backlog list <project_id> --json`.
 
 ---
 
-## Paso 2 — Captura decisiones pendientes
+## Step 2 — Capture pending decisions
 
-Si tomaste alguna decisión arquitectural importante durante la sesión y no la guardaste en el momento, guárdala ahora:
+If you made an important architectural decision during the session and did not save it at the time, save it now:
 
 ```
-mempunk decision add <project_id> "<título de la decisión>"
+mempunk decision add <project_id> "<decision title>"
 ```
 
-Si ya la guardaste con un save incremental, no la dupliques.
+Then fill in the generated markdown file. If you already saved it with an incremental save, do not duplicate it.
 
 ---
 
-## Paso 3 — Registra la sesión
+## Step 3 — Log the session
 
 ```
 mempunk session log <project_id> "<summary>" --files "path1,path2,path3"
 ```
 
-### Formato del summary
+### Summary format
 
-Escribe en este orden, separado por puntos:
-1. Qué se hizo
-2. Qué decisiones se tomaron (si no se guardaron como decisión individual)
-3. Qué quedó pendiente
+Write in this order, separated by periods:
+1. What was done
+2. What decisions were made (if not saved as individual decisions)
+3. What is left pending
 
-Ejemplo:
+Example:
 ```
-"Implementado endpoint de autenticación con JWT. Decidido usar refresh tokens en cookie httpOnly. Pendiente: tests de integración y manejo de expiración."
+"Implemented authentication endpoint with JWT. Decided to use refresh tokens in an httpOnly cookie. Pending: integration tests and expiration handling."
 ```
 
-### Cómo construir --files
+### How to build --files
 
-Incluye solo los archivos que efectivamente modificaste en esta sesión. No incluyas archivos que solo leíste. Usa rutas relativas al proyecto cuando sea posible.
+Include only the files you actually modified in this session. Do not include files you only read. Use paths relative to the project when possible.
 
 ---
 
-## Reglas
+## Step 4 — Update the daily note
 
-- **No reescribas** lo que ya guardaste con saves incrementales durante la sesión.
-- El session log es el resumen final, no la única fuente de verdad.
-- Si la sesión fue corta y no hubo cambios significativos, el summary puede ser una sola línea.
+Write or update `daily/YYYY-MM-DD.md` in the vault with a short entry: projects worked on, decisions of the day, and a 2-3 line executive summary. If the day's entry already exists, append below without deleting anything.
+
+---
+
+## Rules
+
+- **Do not rewrite** what you already saved with incremental saves during the session.
+- The session log is the final summary, not the only source of truth.
+- If the session was short and there were no significant changes, the summary can be a single line.

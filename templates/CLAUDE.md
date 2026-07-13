@@ -1,239 +1,271 @@
-# CLAUDE.md — Dev Brain (Vault Global)
+# CLAUDE.md — Dev Brain (Global Vault)
 
-> Este archivo es el punto de entrada para Claude Code en este vault.
-> Leelo completo antes de hacer cualquier accion. Contiene la arquitectura,
-> las reglas de navegacion, y los protocolos de cada proyecto.
-
----
-
-## Que es este vault
-
-Este vault es el cerebro centralizado de todos los proyectos de desarrollo activos.
-No es un repo de codigo — es la memoria persistente entre sesiones de Claude Code.
-
-**Principio fundamental:** Claude Code olvida todo entre sesiones. Este vault es la
-continuidad. Al inicio de cada sesion, Claude lee el contexto relevante aqui.
-Al final, escribe lo que hizo.
+> This file is the entry point for Claude Code in this vault.
+> Read it in full before taking any action. It contains the architecture,
+> the navigation rules, and the protocols for every project.
 
 ---
 
-## Estructura del vault
+## What this vault is
+
+This vault is the centralized brain for all active development projects.
+It is not a code repo — it is the persistent memory between Claude Code sessions.
+
+**Core principle:** Claude Code forgets everything between sessions. This vault is
+the continuity. At the start of each session, Claude loads the relevant context.
+At the end, it writes down what was done.
+
+**Where the data lives (v2):** sessions, backlog, decisions metadata, skills,
+resources and daily logs are stored in SQLite (`.mempunk/mempunk.db`) and are
+read/written through the `mempunk` CLI — never by editing the database or
+hand-maintained backlog/session-log files. The markdown files in this vault are
+for narrative content: ADRs, project skills, resources, daily notes, and wikis.
+
+---
+
+## Vault structure
 
 ```
 vault/
-├── CLAUDE.md              # Estas aqui. Leer primero siempre.
-├── projects/              # Un directorio por proyecto activo
-├── areas/                 # Responsabilidades continuas
-│   └── INDEX.md           # Indice de areas
-├── resources/             # Conocimiento tecnico reutilizable
-│   └── INDEX.md           # Indice de recursos
-└── daily/                 # Session logs diarios
-    └── INDEX.md           # Indice de logs diarios
+├── CLAUDE.md              # You are here. Always read first.
+├── projects/              # One directory per active project
+├── areas/                 # Ongoing responsibilities
+│   └── INDEX.md           # Areas index
+├── resources/             # Reusable technical knowledge
+│   └── INDEX.md           # Resources index
+├── daily/                 # Daily session logs
+│   └── INDEX.md           # Daily index
+└── .mempunk/
+    └── mempunk.db         # SQLite database — never edit manually
 ```
 
 ---
 
-## Estructura interna de cada proyecto
+## Internal structure of each project
 
-Cada carpeta en `projects/` sigue esta estructura estandar:
+Each folder in `projects/` follows this standard structure:
 
 ```
-projects/[nombre-proyecto]/
-├── INDEX.md             # Punto de entrada — leer primero
-├── overview.md          # Descripcion completa del proyecto
-├── architecture.md      # Stack, decisiones tecnicas, diagramas
-├── conventions.md       # Reglas, estandares y convenciones de codigo
-├── backlog.md           # Tareas pendientes priorizadas
+projects/[project-name]/
+├── INDEX.md             # Entry point — read first
+├── overview.md          # Full project description
+├── architecture.md      # Stack, technical decisions, diagrams
+├── conventions.md       # Rules, standards, and code conventions
 ├── decisions/           # ADRs (Architecture Decision Records)
-│   └── YYYY-MM-DD-titulo.md
-├── session-log.md       # Claude escribe aqui al terminar cada sesion
-└── wiki/                # Wiki del proyecto (estado compilado, log, fuentes)
+│   └── YYYY-MM-DD-title.md
+├── skills/              # Project skills (stack, patterns, conventions)
+└── wiki/                # Project wiki (compiled state, log, sources)
 ```
+
+> Note: there is no `backlog.md` or `session-log.md` on disk. The backlog and
+> session history live in SQLite and are accessed through the `mempunk` CLI.
 
 ---
 
-## Proyectos activos
+## Active projects
 
 <!-- MEMPUNK:PROJECTS:START -->
-*Ninguno registrado aun. Usa `mempunk project <nombre>` para agregar.*
+*None registered yet. Use `mempunk project add <id> <name>` to add one.*
 <!-- MEMPUNK:PROJECTS:END -->
 
 ---
 
-## Protocolo de inicio de sesion
+## Daily-flow commands
 
-> **Primero: verifica si tienes agentes instalados.**
-> Ejecuta `mempunk hooks install --check` o busca `@mempunk-loader` en tus agentes.
-
-### Camino A — Con agentes (Claude Code modo automatico)
-
-Si el agente `@mempunk-loader` esta disponible, **invocalo directamente**.
-El agente maneja la seleccion de proyecto, activacion y carga de contexto completa.
-No sigas el protocolo manual — seria redundante.
-
-Si configuraste `auto-start`, el agente ya se habra invocado automaticamente al
-abrir esta sesion. Solo confirma el proyecto y continua.
-
-### Camino B — Sin agentes (modo manual, Gemini CLI, opencode)
-
-**Al comenzar cualquier sesion, Claude DEBE:**
-
-1. Leer este archivo (`CLAUDE.md`) completo
-2. Listar los proyectos registrados en la seccion **Proyectos activos** de este CLAUDE.md
-3. Preguntarle al usuario: *"Encontre estos proyectos: [lista]. Con cual trabajamos hoy?"*
-4. Ejecutar `mempunk project activate <id>` para activar el proyecto elegido (agrega `--here` si estas en la carpeta del repo, para que los checkpoints se resuelvan por directorio)
-5. Leer el `INDEX.md` del proyecto
-6. Leer el `overview.md` completo de ese proyecto
-7. Verificar si existe `wiki/state.md` en el proyecto:
-   - Si **existe**: leer `wiki/state.md` (estado compilado — reemplaza leer el session-log)
-   - Si **no existe**: leer las ultimas **3 entradas** del `session-log.md`
-8. Leer las tareas pendientes: `mempunk backlog list <id> --status pending`
-9. Leer el `conventions.md` del proyecto (si existe)
-10. Confirmar al usuario: *"Lei el contexto de [proyecto]. Ultimo trabajo fue [resumen]. Continuamos con [X] o hay algo nuevo?"*
-
-**Nunca asumir el proyecto — siempre preguntar primero.**
-**Nunca leer archivos de un proyecto antes de que el usuario lo confirme.**
-**Nunca empezar a escribir codigo sin haber hecho estos pasos.**
-
----
-
-## Protocolo de cierre de sesion
-
-> Si tienes `@mempunk-saver` disponible, puedes usarlo para el guardado.
-> De lo contrario, sigue el protocolo manual.
-
-### Cierre manual
-
-**Al terminar cualquier sesion de trabajo, Claude DEBE:**
-
-1. Actualizar tareas que cambiaron de estado: `mempunk backlog update <id> --status done`
-2. Registrar decisiones tecnicas tomadas: `mempunk decision add <project_id> "<titulo>"`
-3. Registrar la sesion: `mempunk session log <project_id> "<resumen>" --files "arch1,arch2"`
-4. Actualizar el `INDEX.md` del proyecto con la ultima sesion y top 3 del backlog
-5. Actualizar `wiki/state.md` si existe — reescribir con estado compilado y agregar linea al `wiki/log.md`
-6. Escribir o actualizar `daily/YYYY-MM-DD.md` (ver skill: Daily consolidado)
-
----
-
-## Skills automaticos
-
-### ADRs automaticos
-
-Si durante cualquier sesion se toma una decision tecnica que afecte arquitectura, stack, patrones de codigo, o infraestructura — Claude debe crear automaticamente un ADR en `projects/[nombre]/decisions/YYYY-MM-DD-titulo.md` sin esperar a que el usuario lo pida.
-
-Formato del ADR:
-
-```markdown
-# YYYY-MM-DD — [Titulo de la decision]
-
-## Contexto
-[Por que surgio esta decision]
-
-## Decision
-[Que se decidio]
-
-## Alternativas consideradas
-[Que otras opciones habia]
-
-## Consecuencias
-[Que implica esta decision a futuro]
+```
+mempunk project list --json                          → list all projects
+mempunk project activate <id> [--here]               → set the active project (--here maps the cwd)
+mempunk session last <id> --json                     → last session summary
+mempunk session log <id> "<summary>" --files "a,b"   → record a work session
+mempunk backlog list <id> --status pending --json    → pending tasks
+mempunk backlog add <id> "<title>"                   → add a task
+mempunk backlog update <task_id> --status <value>    → update a task status
+mempunk decision add <id> "<title>"                  → create an ADR (markdown + DB)
+mempunk skill list <id> --json                       → project skills (read their file_path)
+mempunk search "<query>" --json                      → full-text search in the vault
 ```
 
-Despues de crear el ADR, actualizar el `INDEX.md` del proyecto con una mencion en la seccion de ultima sesion.
+Always add `--json` to read commands and parse the JSON — never scrape table output.
+Full command reference: run `mempunk` or see the README.
 
-### Captura de conocimiento en resources/
+---
 
-Si Claude resuelve durante la sesion un problema que probablemente se repita (configurar algo en Debian, un patron de NestJS, un workaround de Dokploy, una configuracion de PostgreSQL, etc.), debe guardarlo en `resources/[categoria]/titulo.md` automaticamente.
+## Session start protocol
 
-Categorias: `debian/`, `nestjs/`, `nextjs/`, `electron/`, `dokploy/`, `postgresql/`, `general/`
+> **First: check whether the agents are installed.**
+> Run `mempunk hooks install --check` or look for `@mempunk-loader` among your agents.
 
-Antes de resolver un problema tecnico generico, buscar primero en [[resources/INDEX|Resources]] si ya existe una nota relevante.
+### Path A — With agents (Claude Code, automatic mode)
 
-### Backlog inteligente
+If the `@mempunk-loader` agent is available, **invoke it directly**.
+The agent handles project selection, activation, and full context loading.
+Do not follow the manual protocol — it would be redundant.
 
-Al escribir el session-log al final de cada sesion, Claude tambien debe actualizar el `backlog.md` del proyecto:
-- Marcar como completado `[x]` lo que se hizo en la sesion
-- Agregar al backlog las tareas nuevas que surgieron
-- Reordenar por prioridad si cambio algo relevante
+If `auto-start` is configured, the agent has already been invoked automatically
+when this session opened. Just confirm the project and continue.
 
-Despues de actualizar el backlog, reflejar el top 3 actualizado en el `INDEX.md` del proyecto.
+### Path B — Without agents (manual mode, Gemini CLI, opencode)
 
-### Daily consolidado
+**At the start of any session, Claude MUST:**
 
-Al cerrar la sesion, ademas del session-log por proyecto, Claude debe escribir o actualizar `daily/YYYY-MM-DD.md` con este formato:
+1. Read this file (`CLAUDE.md`) in full
+2. List the registered projects: `mempunk project list --json`
+3. Ask the user: *"I found these projects: [list]. Which one are we working on today?"*
+4. Run `mempunk project activate <id>` to activate the chosen project (add `--here` if you are inside the repo folder, so checkpoints resolve by directory)
+5. Read the last session: `mempunk session last <id> --json`
+6. Read the project's `INDEX.md` and `overview.md`
+7. Check whether `wiki/state.md` exists in the project:
+   - If it **exists**: read `wiki/state.md` (compiled state)
+   - If it **does not exist**: rely on the session summary from step 5
+8. Read the pending tasks: `mempunk backlog list <id> --status pending --json`
+9. Read the project's skills: `mempunk skill list <id> --json`, then read each `file_path`
+10. Confirm with the user: *"I loaded the context for [project]. Last work was [summary]. Do we continue with [X] or is there something new?"*
+
+**Never assume the project — always ask first.**
+**Never read a project's files before the user confirms it.**
+**Never start writing code without completing these steps.**
+
+---
+
+## Session close protocol
+
+> If `@mempunk-saver` is available, you can use it for saving.
+> Otherwise, follow the manual protocol.
+
+### Manual close
+
+**At the end of any work session, Claude MUST:**
+
+1. Update every task that changed state: `mempunk backlog update <task_id> --status done` (or `in_progress`, `blocked`)
+2. Record technical decisions made: `mempunk decision add <project_id> "<title>"` and fill in the generated ADR file
+3. Record the session: `mempunk session log <project_id> "<summary>" --files "file1,file2"`
+4. Update the project's `INDEX.md` with the latest session and the backlog top 3
+5. Update `wiki/state.md` if it exists — rewrite with the compiled state and append a line to `wiki/log.md`
+6. Write or update `daily/YYYY-MM-DD.md` (see skill: Consolidated daily)
+
+The CLI writes (steps 1-3) are mandatory — they persist to SQLite. The markdown
+notes (steps 4-6) are the narrative layer on top.
+
+---
+
+## Automatic skills
+
+### Automatic ADRs
+
+If during any session a technical decision is made that affects architecture, stack, code patterns, or infrastructure — Claude must run `mempunk decision add <project_id> "<title>"` immediately (which creates the ADR file in `projects/[name]/decisions/` and registers it in the DB), then fill in the file without waiting for the user to ask.
+
+ADR format:
+
+```markdown
+# YYYY-MM-DD — [Decision title]
+
+## Context
+[Why this decision came up]
+
+## Decision
+[What was decided]
+
+## Alternatives considered
+[What other options existed]
+
+## Consequences
+[What this decision implies going forward]
+```
+
+After creating the ADR, update the project's `INDEX.md` with a mention in the latest-session section.
+
+### Knowledge capture in resources/
+
+If Claude solves a problem during the session that is likely to recur (configuring something on Debian, a NestJS pattern, a Dokploy workaround, a PostgreSQL configuration, etc.), it must save it with `mempunk resource add <project_id> "<title>" --url <url>` or as a note under `resources/[category]/title.md`.
+
+Categories: `debian/`, `nestjs/`, `nextjs/`, `electron/`, `dokploy/`, `postgresql/`, `general/`
+
+Before solving a generic technical problem, first search the vault: `mempunk search "<query>" --json`.
+
+### Smart backlog
+
+Task state changes are recorded **immediately** via the CLI, not at session close:
+- Starting a task → `mempunk backlog update <task_id> --status in_progress`
+- Finishing a task → `mempunk backlog update <task_id> --status done`
+- New tasks that emerge → `mempunk backlog add <project_id> "<title>"`
+
+After updating the backlog, reflect the updated top 3 in the project's `INDEX.md`.
+
+### Consolidated daily
+
+When closing the session, in addition to `mempunk session log`, Claude must write or update `daily/YYYY-MM-DD.md` with this format:
 
 ```markdown
 # YYYY-MM-DD
 
-## Proyectos trabajados
-- **[proyecto]:** [una linea de lo que se hizo]
+## Projects worked on
+- **[project]:** [one line of what was done]
 
-## Decisiones del dia
-- [decisiones relevantes tomadas]
+## Decisions of the day
+- [relevant decisions made]
 
-## Resumen ejecutivo
-[2-3 lineas de lo mas importante del dia]
+## Executive summary
+[2-3 lines of the most important things of the day]
 ```
 
-Si ya existe la entrada del dia (porque hubo otra sesion antes), agregar debajo sin borrar lo anterior.
+If the day's entry already exists (because there was an earlier session), append below without deleting anything.
 
-### Contexto de areas/
+### Areas context
 
-- Si el usuario pide algo relacionado con universidad, leer `areas/universidad/INDEX.md` antes de responder
-- Si el usuario pide algo relacionado con infraestructura, VPS, Dokploy, o servidores, leer `areas/infraestructura/INDEX.md` antes de responder
-
----
-
-## Como navegar este vault
-
-**Regla fundamental:** nunca ir directo a un archivo interno. Siempre entrar por el INDEX.md correspondiente y seguir el enlace desde ahi.
-
-### Para trabajar en un proyecto:
-1. Ir al INDEX.md del proyecto (enlazado en "Proyectos activos" arriba)
-2. Decidir si profundizar → seguir enlace a `overview.md` desde el INDEX
-3. Acceder a backlog, architecture, session-log solo via los enlaces del INDEX
-
-### Para decisiones tecnicas:
-- Crear ADR automaticamente en `projects/[nombre]/decisions/`
-
-### Para problemas tecnicos genericos:
-- Buscar en [[resources/INDEX|Resources]] primero
-- Si no existe una nota relevante, guardar la solucion para futuras sesiones
-
-### Para contexto de areas:
-- Ir a [[areas/INDEX|Areas]] y seguir el enlace al area correspondiente
-
-### Para historial del dia:
-- Ir a [[daily/INDEX|Daily]] y buscar la entrada del dia
+- If the user asks about something related to a registered area, read `areas/[area]/INDEX.md` before answering.
 
 ---
 
-## Preferencias (personalizar)
+## How to navigate this vault
+
+**Fundamental rule:** never jump straight to an internal file. Always enter through the corresponding INDEX.md and follow the link from there. For anything stored in SQLite (sessions, backlog, skills metadata), use the CLI with `--json` instead of looking for files.
+
+### To work on a project:
+1. Go to the project's INDEX.md (linked in "Active projects" above)
+2. Decide whether to go deeper → follow the link to `overview.md` from the INDEX
+3. Read backlog and session history via the CLI (`mempunk backlog list`, `mempunk session last`)
+
+### For technical decisions:
+- Create the ADR via `mempunk decision add` — it lands in `projects/[name]/decisions/`
+
+### For generic technical problems:
+- Search first: `mempunk search "<query>" --json`
+- If no relevant note exists, save the solution for future sessions
+
+### For area context:
+- Go to [[areas/INDEX|Areas]] and follow the link to the corresponding area
+
+### For the day's history:
+- Go to [[daily/INDEX|Daily]] and find the day's entry
+
+---
+
+## Preferences (customize)
 
 <!-- MEMPUNK:PREFS:START -->
-### Stack preferido
+### Preferred stack
 - **Backend:**
 - **Frontend:**
-- **Base de datos:**
+- **Database:**
 - **Deploy:**
 
-### Estilo de codigo
-- Modular, con separacion clara de responsabilidades
+### Code style
+- Modular, with clear separation of responsibilities
 
-### Comunicacion
-- Respuestas directas y concisas
-- Preguntar antes de hacer cambios destructivos o irreversibles
-- Confirmar entendimiento del contexto al inicio de sesion
+### Communication
+- Direct, concise answers
+- Ask before making destructive or irreversible changes
+- Confirm understanding of the context at session start
 <!-- MEMPUNK:PREFS:END -->
 
 ---
 
-## Reglas que Claude NO debe romper
+## Rules Claude must NOT break
 
-1. **Nunca modificar codigo de produccion sin confirmacion explicita del usuario**
-2. **Nunca almacenar credenciales, API keys, o contrasenas en el vault**
-3. **Nunca saltarse el protocolo de inicio de sesion**
-4. **Nunca asumir que proyecto es relevante** — preguntar si hay ambiguedad
-5. **Siempre escribir el session-log al terminar**
-6. **Siempre actualizar backlog e INDEX.md al cerrar sesion**
-7. **Siempre crear ADR cuando se tome una decision tecnica relevante**
+1. **Never modify production code without explicit user confirmation**
+2. **Never store credentials, API keys, or passwords in the vault**
+3. **Never skip the session start protocol**
+4. **Never assume which project is relevant** — ask if there is ambiguity
+5. **Always run `mempunk session log` when finishing**
+6. **Always update the backlog (via CLI) and INDEX.md when closing a session**
+7. **Always create an ADR when a relevant technical decision is made**

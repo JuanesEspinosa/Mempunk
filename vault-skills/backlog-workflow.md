@@ -1,72 +1,74 @@
-# Flujo del backlog
+# Backlog workflow
+
+The backlog lives in SQLite and is managed exclusively through the `mempunk` CLI — there is no `backlog.md` file to edit. Use `--json` when listing and parse the output.
 
 ---
 
-## Cuándo agregar una tarea
+## When to add a task
 
-Agrega una tarea al backlog solo si cumple ambas condiciones:
+Add a task to the backlog only if it meets both conditions:
 
-1. Tiene entidad propia — no es un paso dentro de otra tarea mayor
-2. Tomará más de 10 minutos completarla
+1. It stands on its own — it is not a step inside a larger task
+2. It will take more than 10 minutes to complete
 
-No agregues tareas triviales, recordatorios de corto plazo ni cosas que resolverás en la misma sesión.
+Do not add trivial tasks, short-term reminders, or things you will resolve in the same session.
 
 ```
-mempunk backlog add <project_id> "<título descriptivo>" --priority <1|2|3>
+mempunk backlog add <project_id> "<descriptive title>" --priority <1|2|3>
 ```
 
 ---
 
-## Escala de prioridad
+## Priority scale
 
-| Valor | Significado |
-|-------|-------------|
-| `1`   | Urgente o bloqueante — debe resolverse antes de continuar |
-| `2`   | Normal — se trabaja en el orden natural del proyecto |
-| `3`   | Cuando haya tiempo — nice-to-have, deuda técnica, mejoras |
+| Value | Meaning |
+|-------|---------|
+| `1`   | Urgent or blocking — must be resolved before continuing |
+| `2`   | Normal — worked in the project's natural order |
+| `3`   | When there is time — nice-to-have, tech debt, improvements |
 
-Si no sabes qué prioridad asignar, usa `2`.
+If you are unsure which priority to assign, use `2`.
 
 ---
 
-## Cuándo actualizar el status
+## When to update the status
 
-Actualiza **inmediatamente**, no al final de la sesión:
+Update **immediately**, not at the end of the session:
 
-- Al **empezar** a trabajar en una tarea:
+- When **starting** to work on a task:
 ```
 mempunk backlog update <id> --status in_progress
 ```
 
-- Al **terminar** una tarea:
+- When **finishing** a task:
 ```
 mempunk backlog update <id> --status done
 ```
 
-- Si una tarea en progreso se detiene sin terminar, déjala en `in_progress`. Solo vuelve a `pending` si se descarta y se retomará desde cero.
+- If an in-progress task stops without finishing, leave it as `in_progress`. Only move it back to `pending` if it is dropped and will be restarted from scratch.
 
 ---
 
-## Cómo manejar subtareas
+## How to handle subtasks
 
-No existe un tipo "subtarea" — crea ítems separados con títulos que referencien la tarea padre.
+There is no "subtask" type — create separate items whose titles reference the parent task.
 
-Ejemplo para la tarea "Implementar autenticación":
+Example for the task "Implement authentication":
 ```
-mempunk backlog add <proj> "Autenticación: endpoint POST /login"
-mempunk backlog add <proj> "Autenticación: middleware de validación de token"
-mempunk backlog add <proj> "Autenticación: tests de integración"
+mempunk backlog add <proj> "Auth: POST /login endpoint"
+mempunk backlog add <proj> "Auth: token validation middleware"
+mempunk backlog add <proj> "Auth: integration tests"
 ```
 
-Así cada ítem es independiente, trazable y puede cambiar de estado por separado.
+That way each item is independent, traceable, and can change state separately.
 
 ---
 
-## Al revisar el backlog al inicio de sesión
+## Reviewing the backlog at session start
 
-Carga las tareas pendientes con:
+Load the pending tasks with:
 ```
-mempunk backlog list <project_id> --status pending
+mempunk backlog list <project_id> --status pending --json
 ```
 
-Identifica cuáles están en `in_progress` — esas son las que quedaron a medias en la sesión anterior. Retómalas antes de empezar algo nuevo, a menos que el usuario indique lo contrario.
+Identify which ones are `in_progress` — those were left unfinished in the previous session. Resume them before starting something new, unless the user says otherwise.

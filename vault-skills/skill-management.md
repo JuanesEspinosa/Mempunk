@@ -1,60 +1,65 @@
-# Gestión de skills
+# Skill management
 
-Los skills son archivos markdown que almacenan contexto recurrente de un proyecto. Se cargan al inicio de cada sesión y reemplazan la necesidad de re-explicar el stack y las convenciones.
+Skills are markdown files that store a project's recurring context. They are loaded at the start of each session and replace the need to re-explain the stack and conventions. Their metadata lives in SQLite — always manage them through the `mempunk` CLI.
 
 ---
 
-## Qué va en cada skill estándar
+## What goes in each standard skill
 
 ### `stack.md`
-- Tecnologías principales con sus versiones
-- Configuraciones no obvias que afectan el desarrollo
-- Dependencias clave y por qué se eligieron
-- URLs de entornos (staging, producción, base de datos) si son relevantes
+- Main technologies with their versions
+- Non-obvious configurations that affect development
+- Key dependencies and why they were chosen
+- Environment URLs (staging, production, database) if relevant
 
 ### `patterns.md`
-- Patrones arquitecturales adoptados en el proyecto
-- Estructura de carpetas y qué va en cada una
-- Cómo se organiza el código (módulos, capas, features)
-- Decisiones de diseño que se repiten en todo el proyecto
+- Architectural patterns adopted in the project
+- Folder structure and what goes where
+- How the code is organized (modules, layers, features)
+- Design decisions repeated across the project
 
 ### `conventions.md`
-- Naming de variables, funciones, archivos y carpetas
-- Formato de commits (prefijos, estructura del mensaje)
-- Reglas específicas de código que no están en el linter
-- Estilo de código que el equipo acordó explícitamente
+- Naming for variables, functions, files, and folders
+- Commit format (prefixes, message structure)
+- Code rules that are not in the linter
+- Code style the team agreed on explicitly
 
 ---
 
-## Cuándo crear un skill nuevo
+## When to create a new skill
 
-Crea un skill cuando tengas contexto recurrente que no encaja en los tres anteriores. Ejemplos válidos:
+Create a skill when you have recurring context that does not fit the three above. Valid examples:
 
-- `testing.md` → si el proyecto tiene una estrategia de tests no obvia
-- `api-contracts.md` → si hay contratos con sistemas externos que se consultan frecuentemente
-- `deployment.md` → si el proceso de deploy tiene pasos no estándar
+- `testing.md` → if the project has a non-obvious testing strategy
+- `api-contracts.md` → if there are contracts with external systems consulted frequently
+- `deployment.md` → if the deploy process has non-standard steps
 
-No crees un skill para contexto de una sola sesión. Si el contexto no va a ser útil en la próxima sesión, no merece un skill.
+Do not create a skill for single-session context. If the context will not be useful in the next session, it does not deserve a skill.
 
 ---
 
-## Cuándo actualizar vs crear
+## When to update vs create
 
-- **Si el skill ya existe**: siempre actualiza con `mempunk skill update`. Nunca crees un segundo skill con el mismo propósito.
-- **Si el skill no existe**: crea uno con `mempunk skill add`.
+- **If the skill already exists**: always update with `mempunk skill update`. Never create a second skill with the same purpose.
+- **If the skill does not exist**: create one with `mempunk skill add <project_id> <name>`.
 
-### Flujo de actualización
+To find a skill's `id` and `file_path`, run:
+```
+mempunk skill list <project_id> --json
+```
 
-1. Edita el archivo en `file_path` con el contenido nuevo
-2. Ejecuta:
+### Update flow
+
+1. Edit the file at `file_path` with the new content
+2. Run:
 ```
 mempunk skill update <id> --file <file_path>
 ```
 
-Actualiza inmediatamente cuando el contexto cambia, no al final de la sesión.
+Update immediately when the context changes, not at the end of the session.
 
 ---
 
-## Regla de oro
+## Golden rule
 
-Un skill debe poder leerse en menos de 30 segundos y dar contexto suficiente para trabajar. Si se vuelve muy largo, divídelo en dos skills con nombres específicos.
+A skill should be readable in under 30 seconds and give enough context to work. If it grows too long, split it into two skills with specific names.

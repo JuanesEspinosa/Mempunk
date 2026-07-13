@@ -73,7 +73,7 @@ mempunk hooks uninstall                              → elimina hooks, agentes 
 
 Si los agentes están instalados (`mempunk hooks install`), úsalos en vez de los protocolos manuales:
 
-- **`@mempunk-loader`** — carga el contexto del proyecto al inicio de sesión (reemplaza el protocolo manual)
+- **`@mempunk-loader`** — carga el contexto del proyecto al inicio de sesión (reemplaza el protocolo manual). Regla de precedencia: si el contexto ya fue cargado en la sesión (p.ej. via un skill /mempunk o el auto-start), el loader NO re-carga — solo confirma el proyecto activo.
 - **`@mempunk-saver`** — guarda decisiones, session logs y actualizaciones al vault en background
 - **`@mempunk-recover`** — recupera contexto de una sesión cerrada manualmente (complementa el hook automático)
 

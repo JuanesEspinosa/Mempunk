@@ -1,71 +1,71 @@
-# Inicio de sesión
+# Session start
 
-Si los hooks están instalados (`mempunk hooks install`), los pasos de inicio y cierre se ejecutan automáticamente. Verifica con `mempunk hooks install --check` si están activos.
+If the hooks are installed (`mempunk hooks install`), the start and close steps run automatically. Check with `mempunk hooks install --check` whether they are active. If the `@mempunk-loader` agent already loaded the context this session, do not repeat these steps — just confirm the active project.
 
-Ejecuta estos comandos en orden antes de escribir una sola línea de código o responder al usuario.
-
----
-
-## Paso 1 — Última sesión
-
-```
-mempunk session last <project_id>
-```
-
-Lee el output completo. Extrae:
-- Qué se hizo en la sesión anterior (campo `summary`)
-- Qué archivos se tocaron (campo `files_touched`)
-- Cuándo fue (campo `ended_at`)
-
-**Si el comando retorna "No hay sesiones registradas":** es la primera sesión del proyecto. Salta al paso 4 en lugar del paso 3.
+Run these commands in order before writing a single line of code or answering the user. Use `--json` on every read command and parse the JSON output — never scrape table output.
 
 ---
 
-## Paso 2 — Skills del proyecto
+## Step 1 — Last session
 
 ```
-mempunk skill list <project_id>
+mempunk session last <project_id> --json
 ```
 
-Para cada skill que aparezca en la tabla, lee el archivo en `file_path`:
+Parse the JSON object. Extract:
+- What the previous session did (`summary` field)
+- Which files were touched (`files_touched` field)
+- When it happened (`ended_at` field)
+
+**If the command returns `null`:** this is the project's first session. Skip to step 4 instead of step 3.
+
+---
+
+## Step 2 — Project skills
+
+```
+mempunk skill list <project_id> --json
+```
+
+For each skill in the JSON array, read the file at its `file_path`:
 
 ```
 Read <file_path>
 ```
 
-Carga ese contexto antes de continuar. Los skills contienen el stack, los patrones y las convenciones del proyecto — son más importantes que el session log.
+Load that context before continuing. Skills contain the project's stack, patterns, and conventions — they matter more than the session log.
 
-**Si no hay skills:** continúa. No hay contexto de proyecto que cargar todavía.
-
----
-
-## Paso 3 — Tareas pendientes
-
-```
-mempunk backlog list <project_id> --status pending
-```
-
-Revisa qué tareas están abiertas. No hagas nada con ellas todavía — solo cárgalas como contexto para cuando el usuario indique qué trabajar.
+**If there are no skills:** continue. There is no project context to load yet.
 
 ---
 
-## Paso 4 — Primera sesión del proyecto
+## Step 3 — Pending tasks
 
-Si `session last` no retornó nada, ejecuta:
+```
+mempunk backlog list <project_id> --status pending --json
+```
+
+Review which tasks are open. Do nothing with them yet — just load them as context for when the user says what to work on.
+
+---
+
+## Step 4 — First session of the project
+
+If `session last` returned `null`, run:
 
 ```
 mempunk sync --project <project_id>
 ```
 
-Revisa el output:
-- Si hay `unregistered_files`: hay archivos en disco sin registro en la BD. Infórmale al usuario.
-- Si hay `missing_files`: hay registros en la BD sin archivo en disco. Infórmale al usuario.
-- Si dice "Vault sincronizado correctamente": el estado inicial está limpio, continúa.
+Review the output:
+- If there are `unregistered_files`: files exist on disk without a DB record. Inform the user.
+- If there are `missing_files`: DB records exist without a file on disk. Inform the user.
+- If it reports the vault is in sync: the initial state is clean, continue.
 
 ---
 
-## Reglas
+## Rules
 
-- **No leas INDEX.md** a menos que el usuario lo pida explícitamente.
-- Usa `mempunk search "<término>"` si necesitas encontrar algo específico en el vault.
-- No preguntes al usuario qué cargar — carga todo lo anterior en silencio y luego responde.
+- **Do not read INDEX.md** unless the user explicitly asks for it.
+- Use `mempunk search "<term>" --json` if you need to find something specific in the vault.
+- Do not ask the user what to load — load all of the above silently and then respond.
