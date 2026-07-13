@@ -165,7 +165,7 @@ try {
   process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) input += chunk;
 
-  const data = JSON.parse(input || '{}');
+  const data = JSON.parse(input.replace(/^\uFEFF/, '') || '{}');
   const { source, session_id: sessionId, cwd } = data;
 
   // ── Lógica siempre activa (startup, resume y compact) ──────────────────────

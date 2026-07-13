@@ -175,7 +175,7 @@ try {
   process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) input += chunk;
 
-  const data = JSON.parse(input || '{}');
+  const data = JSON.parse(input.replace(/^\uFEFF/, '') || '{}');
   // El stdin de PreCompact trae `trigger` ("manual"/"auto") en snake_case —
   // los campos compactType/messageCount no existen en el evento real
   const {

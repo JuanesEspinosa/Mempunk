@@ -194,7 +194,7 @@ try {
   process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) input += chunk;
 
-  const data = JSON.parse(input || '{}');
+  const data = JSON.parse(input.replace(/^\uFEFF/, '') || '{}');
   const { session_id: sessionId, transcript_path: transcriptPath, cwd } = data;
 
   if (!sessionId || !transcriptPath) {

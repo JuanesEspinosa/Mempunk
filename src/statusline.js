@@ -15,7 +15,7 @@ process.stdin.setEncoding('utf8');
 for await (const chunk of process.stdin) input += chunk;
 
 let data = {};
-try { data = JSON.parse(input || '{}'); } catch (_) {}
+try { data = JSON.parse(input.replace(/^\uFEFF/, '') || '{}'); } catch (_) {}
 
 // ── Extraer campos ────────────────────────────────────────────────────────────
 
