@@ -8,7 +8,9 @@
   },
   "scripts": {
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch"
+    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "c8 --include \"src/**\" --reporter text --reporter lcov --check-coverage --lines 80 node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+    "lint": "eslint ."
   },
   "jest": {
     "testEnvironment": "node",
@@ -39,6 +41,10 @@
     "better-sqlite3": "^12.10.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "c8": "^11.0.0",
+    "eslint": "^10.7.0",
+    "globals": "^17.7.0",
     "jest": "^30.4.2"
   }
 }

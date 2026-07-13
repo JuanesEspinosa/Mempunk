@@ -6,8 +6,6 @@
 //
 // Instalación: mempunk hooks install (añade este script a ~/.claude/settings.json)
 
-import fs from 'node:fs';
-
 // ── Leer stdin ────────────────────────────────────────────────────────────────
 
 let input = '';

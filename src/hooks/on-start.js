@@ -166,7 +166,7 @@ try {
   for await (const chunk of process.stdin) input += chunk;
 
   const data = JSON.parse(input.replace(/^\uFEFF/, '') || '{}');
-  const { source, session_id: sessionId, cwd } = data;
+  const { source, cwd } = data;
 
   // ── Lógica siempre activa (startup, resume y compact) ──────────────────────
 

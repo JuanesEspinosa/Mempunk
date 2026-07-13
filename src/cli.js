@@ -1082,9 +1082,6 @@ function cmdHooksUninstall() {
 // ── Helpers — archivos de config ─────────────────────────────────────────────
 
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
-const MEMPUNK_HOOK_MARKER  = 'mempunk-auto-start';
-const MEMPUNK_HOOK_PROMPT  =
-  'mempunk-auto-start: The user has mempunk auto-start enabled. Use @mempunk-loader to load the vault context for the current project.';
 
 function readJsonFile(filePath) {
   if (!fs.existsSync(filePath)) return {};

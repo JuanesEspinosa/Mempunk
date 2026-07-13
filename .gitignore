@@ -12,7 +12,7 @@ desktop.ini
 
 # Node
 node_modules/
-package-lock.json
+coverage/
 
 # Claude Code local
 .claude/
