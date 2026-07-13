@@ -58,6 +58,9 @@ mempunk sync                                         → verifica consistencia v
 mempunk sync --project <project_id>                  → sync limitado a un proyecto
 mempunk session recover <project_id>                 → muestra el último snapshot disponible (checkpoint o compact)
 mempunk session checkpoints <project_id>             → lista todos los checkpoints y compact_snapshots del proyecto
+mempunk vault backup                                 → copia verificada de mempunk.db en .mempunk/backups/ (retiene 10)
+mempunk export [--out <file>]                        → dump JSON portable de todas las tablas del vault
+mempunk <comando de lectura> --json                  → salida JSON parseable (list, session last/checkpoints, search)
 mempunk hooks install                                → instala hooks + agentes en ~/.claude/ (global, todos los proyectos)
 mempunk hooks install --local                        → instala hooks + agentes en .claude/ del proyecto actual
 mempunk hooks install --check                        → verifica hooks, agentes y statusline instalados

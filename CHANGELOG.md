@@ -7,7 +7,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [2.0.4] — 2026-07-12
+## [2.1.0] — 2026-07-13
+
+> Supersedes 2.0.4, which was never published to npm.
+
+### Added
+
+- **English CLI by default** with full Spanish support via `MEMPUNK_LANG=es` (144-key message catalog in `src/lib/i18n.js`; user-facing hook messages are bilingual too).
+- `mempunk vault backup` — consistent copy via `VACUUM INTO` to `.mempunk/backups/`, integrity-checked, keeps the last 10.
+- `mempunk export [--out <file>]` — portable JSON dump of all vault tables.
+- `--json` flag on read commands (`project/backlog/decision/skill/resource/daily list`, `session last/checkpoints`, `search`) for scripts and agents.
+- **CI**: GitHub Actions with lint, test matrix (Ubuntu/Windows/macOS × Node 18/22), 80% line-coverage gate, gitleaks secret scan, and an npm publish workflow with provenance.
+- ESLint (flat config) and real coverage measurement with `c8` (subprocess-aware).
+
+### Changed
+
+- **Hooks are now built artifacts**: shared code lives once in `src/hooks-lib/common.js`; `npm run build` (esbuild) bundles each hook self-contained into `dist/hooks/`, which is what `hooks install` copies.
+- **`cli.js` modularized**: 2054-line monolith split into `src/commands/` (18 modules) + `src/lib/` (5 modules); entrypoint is a thin dispatcher.
+- Hooks and statusline tolerate a UTF-8 BOM on stdin.
+- `package-lock.json` is now committed (reproducible CI builds).
+
+## [2.0.4] — 2026-07-12 (unpublished)
 
 ### Added
 

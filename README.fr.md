@@ -177,6 +177,9 @@ SAVE session: project=<id> summary="Implemente endpoint de login"
 |----------|-------------|---------|
 | `mempunk project add <id> <name> [--path <dir>]` | Enregistrer un nouveau projet (mappe le repertoire courant, ou `--path`, comme son repo) | `mempunk project add api "Backend API"` |
 | `mempunk project list` | Lister tous les projets | `mempunk project list` |
+| `mempunk vault backup` | Copie verifiee de la base de donnees dans `.mempunk/backups/` (conserve les 10 dernieres) | `mempunk vault backup` |
+| `mempunk export [--out <file>]` | Dump JSON portable de toutes les tables du vault | `mempunk export` |
+| `mempunk <commande de lecture> --json` | Sortie JSON pour scripts et agents (lists, `session last/checkpoints`, `search`) | `mempunk backlog list api --json` |
 | `mempunk project activate <id> [--here]` | Definir le projet actif ; `--here` mappe le repertoire courant pour que les hooks resolvent le projet par cwd | `mempunk project activate api --here` |
 | `mempunk log <id>` | Ouvrir l'INDEX.md du projet dans l'editeur | `mempunk log api` |
 | `mempunk remove <id> --yes` | Supprimer un projet (BD + disque, irreversible) | `mempunk remove api --yes` |
@@ -294,6 +297,8 @@ mempunk vault upgrade
 ## Langues
 
 Documentation disponible en: **English** (defaut), **Espanol**, **Portugues**, **Francais**
+
+Le CLI parle **anglais par defaut**. Definissez `MEMPUNK_LANG=es` pour une sortie en espagnol.
 
 ## Licence
 
