@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // # mempunk-hook
 
 // Evento: SessionStart — al inicio de cada sesión de Claude Code.
@@ -6,32 +5,18 @@
 // - Si auto-start.flag existe y source !== "compact": inyecta instrucción @mempunk-loader.
 // - Si source === "compact": restaura contexto del último compact_snapshot e inyecta additionalContext.
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import {
+  MEMPUNK_DIR,
+  ACTIVE_FILE,
+  runCli,
+  createLogger,
+  readStdinJson,
+  getProjectId,
+} from '../hooks-lib/common.js';
 
-const VAULT_PATH   = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
-const MEMPUNK_DIR  = path.join(VAULT_PATH, '.mempunk');
-const ACTIVE_FILE  = path.join(MEMPUNK_DIR, 'active-project.json');
-const PATHS_FILE   = path.join(MEMPUNK_DIR, 'project-paths.json');
 const TOUCHED_FILE = path.join(MEMPUNK_DIR, 'session-touched.json');
-const LOG_FILE     = path.join(MEMPUNK_DIR, 'hooks.log');
-
-// MEMPUNK_CLI permite sobrescribir "mempunk" por "node /path/to/cli.js" en tests
-const [CLI_BIN, ...CLI_ARGS_PREFIX] = (process.env.MEMPUNK_CLI ?? 'mempunk').split(' ');
-
-/** Ejecuta el CLI de mempunk. En Windows el binario global de npm es un shim
- *  .cmd que spawnSync no puede ejecutar sin shell (ENOENT); con shell hay que
- *  citar manualmente los argumentos que contengan espacios. */
-function runCli(args) {
-  const opts = { encoding: 'utf8', env: { ...process.env, MEMPUNK_VAULT: VAULT_PATH } };
-  if (process.env.MEMPUNK_CLI || process.platform !== 'win32') {
-    return spawnSync(CLI_BIN, [...CLI_ARGS_PREFIX, ...args], opts);
-  }
-  const quoted = args.map((a) => (/[\s"^&|<>]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a));
-  return spawnSync(CLI_BIN, quoted, { ...opts, shell: true });
-}
 
 // Límite de additionalContext que Claude Code acepta en SessionStart
 const MAX_CONTEXT_CHARS = 8000;
@@ -39,46 +24,7 @@ const MAX_CONTEXT_CHARS = 8000;
 // Flag file que indica si auto-start está activo (vive dentro del vault para ser aislable en tests)
 const AUTO_START_FLAG = path.join(MEMPUNK_DIR, 'auto-start.flag');
 
-function log(message) {
-  try {
-    fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} [on-start] ${message}\n`);
-  } catch (_) {}
-}
-
-/** Normaliza rutas igual que el CLI al escribir project-paths.json */
-function normalizePathForMatch(p) {
-  let normalized = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
-  if (process.platform === 'win32') normalized = normalized.toLowerCase();
-  return normalized;
-}
-
-/** Resuelve el proyecto: env → mapa de rutas por cwd (prefijo más largo) → activo global.
- *  El mapa por cwd evita que una sesión restaure el snapshot de otro proyecto
- *  cuando el active-project.json global apunta a otra cosa. */
-function getProjectId(cwd) {
-  if (process.env.CLAUDE_PROJECT_ID) return process.env.CLAUDE_PROJECT_ID;
-
-  if (cwd) {
-    try {
-      const map = JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8'));
-      const target = normalizePathForMatch(cwd);
-      let best = null;
-      for (const [root, projectId] of Object.entries(map)) {
-        if (target === root || target.startsWith(root + '/')) {
-          if (!best || root.length > best.root.length) best = { root, projectId };
-        }
-      }
-      if (best) return best.projectId;
-    } catch (_) {}
-  }
-
-  try {
-    const data = JSON.parse(fs.readFileSync(ACTIVE_FILE, 'utf8'));
-    return data.project_id ?? null;
-  } catch (_) {
-    return null;
-  }
-}
+const log = createLogger('on-start');
 
 /** Llama al CLI para obtener el último compact_snapshot como objeto */
 function fetchLastCompactSnapshot(projectId) {
@@ -160,12 +106,7 @@ function extractFirstText(content) {
 try {
   fs.mkdirSync(MEMPUNK_DIR, { recursive: true });
 
-  // Leer stdin JSON de Claude Code (puede estar vacío en versiones antiguas)
-  let input = '';
-  process.stdin.setEncoding('utf8');
-  for await (const chunk of process.stdin) input += chunk;
-
-  const data = JSON.parse(input.replace(/^\uFEFF/, '') || '{}');
+  const data = await readStdinJson();
   const { source, cwd } = data;
 
   // ── Lógica siempre activa (startup, resume y compact) ──────────────────────

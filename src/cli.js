@@ -908,13 +908,15 @@ function _unregisterHooksFromSettings(hooksDir) {
 }
 
 function cmdHooksInstall() {
-  const sourceDir = path.join(__cliDir, 'hooks');
+  // Los hooks instalables son los bundles autocontenidos de dist/hooks
+  // (src/hooks importa de hooks-lib y no funciona copiado suelto)
+  const sourceDir = path.join(__cliDir, '..', 'dist', 'hooks');
   const targetDir = hooksTargetDir();
 
   // Verificar que los hooks fuente existen antes de proceder
   for (const file of HOOK_FILES) {
     if (!fs.existsSync(path.join(sourceDir, file))) {
-      fail(`Hook fuente no encontrado: ${path.join(sourceDir, file)}`);
+      fail(`Hook bundleado no encontrado: ${path.join(sourceDir, file)} — ejecuta npm run build`);
     }
   }
 

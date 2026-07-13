@@ -15,8 +15,10 @@ const TEMP_VAULT   = path.join(os.tmpdir(), `mempunk-hooks-test-${Date.now()}`);
 const MEMPUNK_DIR  = path.join(TEMP_VAULT, '.mempunk');
 const MEMPUNK_CLI  = `node ${CLI_PATH}`;
 
+// Los tests corren contra los BUNDLES de dist/hooks — lo que realmente se
+// instala en ~/.claude/hooks/. npm test los regenera via pretest (npm run build).
 function runHook(hookFile, input, extraEnv = {}) {
-  return spawnSync('node', [path.join(PROJECT_ROOT, 'src', 'hooks', hookFile)], {
+  return spawnSync('node', [path.join(PROJECT_ROOT, 'dist', 'hooks', hookFile)], {
     input: typeof input === 'string' ? input : JSON.stringify(input),
     encoding: 'utf8',
     cwd: PROJECT_ROOT,

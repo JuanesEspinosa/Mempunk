@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // # mempunk-hook
 
 // Evento: UserPromptSubmit — antes de cada mensaje del usuario
@@ -7,13 +6,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import readline from 'node:readline';
+import { MEMPUNK_DIR, createLogger, readStdinJson } from '../hooks-lib/common.js';
 
-const VAULT_PATH  = process.env.MEMPUNK_VAULT?.trim() || path.join(os.homedir(), 'Dev-Brain');
-const MEMPUNK_DIR = path.join(VAULT_PATH, '.mempunk');
-const LOG_FILE    = path.join(MEMPUNK_DIR, 'hooks.log');
-const WARN_FILE   = path.join(MEMPUNK_DIR, 'context-warn-state.json');
+const WARN_FILE = path.join(MEMPUNK_DIR, 'context-warn-state.json');
 
 // Ventana de contexto: los mensajes assistant del transcript traen message.model;
 // los modelos de contexto extendido llevan el sufijo "[1m]" (1M tokens).
@@ -23,11 +19,7 @@ const EXTENDED_WINDOW = 1_000_000;
 const THRESHOLD_WARN  = 70;
 const THRESHOLD_ALERT = 80;
 
-function log(message) {
-  try {
-    fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} [on-prompt] ${message}\n`);
-  } catch (_) {}
-}
+const log = createLogger('on-prompt');
 
 function exit(output = {}) {
   process.stdout.write(JSON.stringify(output));
@@ -103,12 +95,7 @@ async function getContextPct(transcriptPath) {
 try {
   fs.mkdirSync(MEMPUNK_DIR, { recursive: true });
 
-  // Leer stdin JSON de Claude Code
-  let input = '';
-  process.stdin.setEncoding('utf8');
-  for await (const chunk of process.stdin) input += chunk;
-
-  const data = JSON.parse(input.replace(/^\uFEFF/, '') || '{}');
+  const data = await readStdinJson();
   const { session_id: sessionId, transcript_path: transcriptPath } = data;
 
   if (!sessionId || !transcriptPath) {

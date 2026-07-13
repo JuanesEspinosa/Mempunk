@@ -13,6 +13,7 @@ desktop.ini
 # Node
 node_modules/
 coverage/
+dist/
 
 # Claude Code local
 .claude/
