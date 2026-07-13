@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import Database from 'better-sqlite3';
 import VaultStore, { VAULT_VERSION, normalizeRootPath } from './store/VaultStore.js';
 
 // Versión semántica del paquete — leída desde package.json en tiempo de ejecución
@@ -51,6 +52,11 @@ function printTable(headers, rows) {
   console.log(formatRow(headers));
   console.log(widths.map((w) => '─'.repeat(w)).join('  '));
   rows.forEach((row) => console.log(formatRow(row)));
+}
+
+/** Salida JSON para consumo por scripts y agentes (flag --json en comandos de lectura) */
+function printJson(data) {
+  console.log(JSON.stringify(data, null, 2));
 }
 
 // ── Guard de vault ────────────────────────────────────────────────────────────
@@ -104,6 +110,8 @@ const { values: opts, positionals } = parseArgs({
     yes:          { type: 'boolean' },  // remove --yes
     path:         { type: 'string'  },  // project add --path <dir> → ruta del repo real
     here:         { type: 'boolean' },  // project activate --here → mapear cwd al proyecto
+    json:         { type: 'boolean' },  // comandos de lectura → salida JSON para scripts/agentes
+    out:          { type: 'string'  },  // export --out <file>
     v:            { type: 'boolean' },  // -v
     version:      { type: 'boolean' },  // --version
     cli:          { type: 'string'  },  // link/unlink --cli <name>
@@ -188,6 +196,7 @@ function cmdProjectList() {
   requireVault();
   const store = openStore();
   const rows = store.listProjects();
+  if (opts.json) return printJson(rows);
   printTable(
     ['id', 'name', 'status', 'updated_at'],
     rows.map((r) => [r.id, r.name, r.status, r.updated_at])
@@ -274,6 +283,7 @@ function cmdBacklogList(projectId) {
 
   const store = openStore();
   const rows = store.listBacklog(projectId, opts.status ?? null);
+  if (opts.json) return printJson(rows);
   printTable(
     ['id', 'title', 'status', 'priority', 'updated_at'],
     rows.map((r) => [r.id, r.title, r.status, r.priority, r.updated_at])
@@ -337,6 +347,7 @@ function cmdDecisionList(projectId) {
 
   const store = openStore();
   const rows = store.listDecisions(projectId);
+  if (opts.json) return printJson(rows);
 
   printTable(
     ['id', 'title', 'tags', 'created_at', 'file_path'],
@@ -376,6 +387,7 @@ function cmdSkillList(projectId) {
 
   const store = openStore();
   const rows  = store.getSkills(projectId);
+  if (opts.json) return printJson(rows);
   printTable(
     ['id', 'name', 'file_path', 'updated_at'],
     rows.map((r) => [r.id, r.name, r.file_path, r.updated_at])
@@ -415,6 +427,7 @@ function cmdResourceList(projectId) {
 
   const store = openStore();
   const rows  = store.listResources(projectId);
+  if (opts.json) return printJson(rows);
   printTable(
     ['id', 'title', 'url', 'created_at'],
     rows.map((r) => [r.id, r.title, r.url ?? '', r.created_at])
@@ -442,6 +455,7 @@ function cmdDailyList(projectId) {
 
   const store = openStore();
   const rows  = store.listDailyLogs(projectId);
+  if (opts.json) return printJson(rows);
   printTable(
     ['date', 'file_path'],
     rows.map((r) => [r.date, r.file_path])
@@ -472,6 +486,7 @@ function cmdSessionLast(projectId) {
 
   const store   = openStore();
   const session = store.getLastSession(projectId);
+  if (opts.json) return printJson(session ?? null);
 
   if (!session) {
     console.log(`No hay sesiones registradas para el proyecto "${projectId}"`);
@@ -547,6 +562,7 @@ function cmdSessionCheckpoints(projectId) {
 
   const store       = openStore();
   const checkpoints = store.listCheckpoints(projectId);
+  if (opts.json) return printJson(checkpoints);
 
   if (checkpoints.length === 0) {
     console.log(`No hay checkpoints para el proyecto "${projectId}"`);
@@ -661,6 +677,7 @@ function cmdSearch(query) {
 
   const store   = openStore();
   const results = store.search(query, opts.project ?? null);
+  if (opts.json) return printJson(results);
 
   if (results.length === 0) {
     console.log('Sin resultados');
@@ -785,6 +802,73 @@ function cmdVaultUpgrade() {
   _writeProjectPathsFile(store);
 
   console.log(`Vault actualizado a v${VAULT_VERSION} (${store._migrationsRan} migración(es) aplicadas)`);
+}
+
+// Backups a retener en .mempunk/backups/ — los más viejos se podan
+const MAX_BACKUPS = 10;
+
+/** Copia consistente y verificada de mempunk.db en .mempunk/backups/ */
+function cmdVaultBackup() {
+  requireVault();
+  const store = openStore();
+
+  const backupsDir = path.join(VAULT_PATH, '.mempunk', 'backups');
+  fs.mkdirSync(backupsDir, { recursive: true });
+
+  const stamp      = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const backupPath = path.join(backupsDir, `mempunk-${stamp}.db`);
+
+  // VACUUM INTO produce una copia consistente y compacta incluso con WAL activo
+  store.db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+
+  // Verificar la integridad de la COPIA — un backup corrupto es peor que ninguno
+  const copy   = new Database(backupPath, { readonly: true });
+  const result = copy.pragma('integrity_check');
+  copy.close();
+  if (result?.[0]?.integrity_check !== 'ok') {
+    try { fs.rmSync(backupPath, { force: true }); } catch (_) {}
+    fail(`El backup no pasó la verificación de integridad: ${JSON.stringify(result)}`);
+  }
+
+  // Retención: conservar solo los últimos MAX_BACKUPS
+  const backups = fs.readdirSync(backupsDir)
+    .filter((f) => f.startsWith('mempunk-') && f.endsWith('.db'))
+    .sort();
+  for (const old of backups.slice(0, Math.max(0, backups.length - MAX_BACKUPS))) {
+    try { fs.rmSync(path.join(backupsDir, old), { force: true }); } catch (_) {}
+  }
+
+  console.log(`Backup creado: ${backupPath} (integridad ✓)`);
+}
+
+/** Dump JSON portable de todas las tablas del vault (excepto el índice FTS, que es derivado) */
+function cmdExport() {
+  requireVault();
+  const store = openStore();
+
+  const TABLES = [
+    'projects', 'backlog', 'decisions', 'session_log', 'project_skills',
+    'resources', 'daily_logs', 'session_checkpoints', 'compact_snapshots',
+  ];
+
+  const data = {
+    mempunk_version: CLI_VERSION,
+    vault_version:   store.getVaultVersion(),
+    vault_path:      VAULT_PATH,
+    exported_at:     new Date().toISOString(),
+    tables:          {},
+  };
+  for (const table of TABLES) {
+    data.tables[table] = store.db.prepare(`SELECT * FROM ${table}`).all();
+  }
+
+  const d = new Date();
+  const today   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const outPath = path.resolve(opts.out ?? `mempunk-export-${today}.json`);
+  fs.writeFileSync(outPath, JSON.stringify(data, null, 2), 'utf8');
+
+  const totalRows = TABLES.reduce((n, t) => n + data.tables[t].length, 0);
+  console.log(`Export creado: ${outPath} (${TABLES.length} tablas, ${totalRows} filas)`);
 }
 
 // ── Handlers — Hooks ──────────────────────────────────────────────────────────
@@ -1852,8 +1936,13 @@ try {
       switch (subcommand) {
         case 'version': cmdVaultVersion(); break;
         case 'upgrade': cmdVaultUpgrade(); break;
-        default: fail(`Subcomando desconocido: vault ${subcommand ?? ''}. Usa: version | upgrade`);
+        case 'backup':  cmdVaultBackup(); break;
+        default: fail(`Subcomando desconocido: vault ${subcommand ?? ''}. Usa: version | upgrade | backup`);
       }
+      break;
+
+    case 'export':
+      cmdExport();
       break;
 
     case 'hooks':

@@ -758,6 +758,73 @@ describe('mempunk remove', () => {
   });
 });
 
+// ── Backup, export y --json ───────────────────────────────────────────────────
+
+describe('mempunk vault backup', () => {
+  it('crea una copia verificada en .mempunk/backups/', () => {
+    const output = run('vault backup');
+    expect(output).toContain('Backup creado');
+    expect(output).toContain('integridad ✓');
+
+    const backupsDir = path.join(TEMP_VAULT, '.mempunk', 'backups');
+    const backups = fs.readdirSync(backupsDir).filter((f) => f.endsWith('.db'));
+    expect(backups.length).toBeGreaterThanOrEqual(1);
+
+    // La copia es una BD SQLite válida con las tablas del vault
+    const db = new Database(path.join(backupsDir, backups[backups.length - 1]), { readonly: true });
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((t) => t.name);
+    db.close();
+    expect(tables).toContain('projects');
+  });
+});
+
+describe('mempunk export', () => {
+  it('genera un dump JSON con todas las tablas', () => {
+    const outFile = path.join(TEMP_VAULT, 'export-test.json');
+    const output = run(`export --out "${outFile}"`);
+    expect(output).toContain('Export creado');
+
+    const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+    expect(data.vault_version).toBeGreaterThanOrEqual(4);
+    expect(Array.isArray(data.tables.projects)).toBe(true);
+    expect(data.tables.projects.some((p) => p.id === 'myproj')).toBe(true);
+    expect(data.tables).toHaveProperty('session_checkpoints');
+
+    fs.unlinkSync(outFile);
+  });
+});
+
+describe('salida --json en comandos de lectura', () => {
+  it('project list --json retorna un array JSON parseable', () => {
+    const output = run('project list --json');
+    const rows = JSON.parse(output);
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.some((r) => r.id === 'myproj')).toBe(true);
+  });
+
+  it('backlog list --json retorna objetos con sus campos', () => {
+    const output = run('backlog list myproj --json');
+    const rows = JSON.parse(output);
+    expect(Array.isArray(rows)).toBe(true);
+    if (rows.length > 0) {
+      expect(rows[0]).toHaveProperty('id');
+      expect(rows[0]).toHaveProperty('status');
+    }
+  });
+
+  it('session last --json retorna null cuando no hay sesiones', () => {
+    run('project add json-empty "Json Empty"');
+    const output = run('session last json-empty --json');
+    expect(JSON.parse(output)).toBeNull();
+    run('remove json-empty --yes');
+  });
+
+  it('search --json retorna resultados como JSON', () => {
+    const output = run('search "cualquiercosa" --json');
+    expect(Array.isArray(JSON.parse(output))).toBe(true);
+  });
+});
+
 // ── Sync --project — huérfanos de resources y daily ──────────────────────────
 
 describe('mempunk sync --project', () => {
