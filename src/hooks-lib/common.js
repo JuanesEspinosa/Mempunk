@@ -54,9 +54,12 @@ export async function readStdinJson() {
 }
 
 /** Normaliza rutas igual que el CLI al escribir project-paths.json:
+ *  ruta física (symlinks resueltos — macOS: /var → /private/var),
  *  separadores /, sin slash final, lowercase en Windows. */
 export function normalizePathForMatch(p) {
-  let normalized = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+  let resolved = path.resolve(p);
+  try { resolved = fs.realpathSync(resolved); } catch (_) { /* la ruta puede no existir */ }
+  let normalized = resolved.replace(/\\/g, '/').replace(/\/+$/, '');
   if (process.platform === 'win32') normalized = normalized.toLowerCase();
   return normalized;
 }

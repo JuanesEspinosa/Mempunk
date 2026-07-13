@@ -161,12 +161,16 @@ const MAX_SNAPSHOTS_PER_PROJECT   = 10;
 
 /**
  * Normaliza una ruta para comparación entre CLI y hooks:
- * separadores /, sin slash final, y case-insensitive en Windows.
+ * ruta física (symlinks resueltos — en macOS /var es symlink a /private/var
+ * y process.cwd() devuelve la física), separadores /, sin slash final,
+ * y case-insensitive en Windows.
  * @param {string} p
  * @returns {string}
  */
 export function normalizeRootPath(p) {
-  let normalized = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+  let resolved = path.resolve(p);
+  try { resolved = fs.realpathSync(resolved); } catch (_) { /* la ruta puede no existir aún */ }
+  let normalized = resolved.replace(/\\/g, '/').replace(/\/+$/, '');
   if (process.platform === 'win32') normalized = normalized.toLowerCase();
   return normalized;
 }

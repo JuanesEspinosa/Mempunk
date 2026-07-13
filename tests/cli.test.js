@@ -122,7 +122,9 @@ describe('project-paths.json (resolución por cwd)', () => {
   const pathsFile = path.join(TEMP_VAULT, '.mempunk', 'project-paths.json');
 
   function normalizeLikeCli(p) {
-    let n = path.resolve(p).replace(/\\/g, '/').replace(/\/+$/, '');
+    let resolved = path.resolve(p);
+    try { resolved = fs.realpathSync(resolved); } catch (_) { /* puede no existir */ }
+    let n = resolved.replace(/\\/g, '/').replace(/\/+$/, '');
     if (process.platform === 'win32') n = n.toLowerCase();
     return n;
   }

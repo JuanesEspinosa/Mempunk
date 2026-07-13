@@ -26,7 +26,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node: [18, 22]
+        # Node 18 es EOL desde 2025-04 y las dependencias ya no instalan ahí
+        node: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,7 +39,9 @@ jobs:
 
   coverage:
     name: Coverage (>= 80% lines)
-    runs-on: ubuntu-latest
+    # windows: las ramas win32-only (quoting de shell, normalización de paths)
+    # quedan sin cubrir en linux y bajarían el total real por debajo del gate
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
