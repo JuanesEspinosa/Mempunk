@@ -26,8 +26,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        # Node 18 es EOL desde 2025-04 y las dependencias ya no instalan ahí
-        node: [20, 22]
+        # Node 18 y 20 son EOL — better-sqlite3 ya no publica prebuilds para
+        # ellos en Windows y npm ci cae a node-gyp (verificado empiricamente)
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

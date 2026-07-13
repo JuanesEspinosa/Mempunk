@@ -9,6 +9,7 @@
   "scripts": {
     "build": "node scripts/build-hooks.mjs",
     "pretest": "npm run build",
+    "pretest:coverage": "npm run build",
     "prepack": "npm run build",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
@@ -30,7 +31,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "repository": {
     "type": "git",

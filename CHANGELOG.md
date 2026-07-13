@@ -26,7 +26,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **`cli.js` modularized**: 2054-line monolith split into `src/commands/` (18 modules) + `src/lib/` (5 modules); entrypoint is a thin dispatcher.
 - Hooks and statusline tolerate a UTF-8 BOM on stdin.
 - `package-lock.json` is now committed (reproducible CI builds).
-- **Node.js >= 20 required** (18 is EOL and dependencies no longer install there).
+- **Node.js >= 22 required** (18 and 20 are EOL; `better-sqlite3` no longer ships prebuilt binaries for them on Windows).
 - Path normalization resolves symlinks (`fs.realpathSync`) — fixes cwd-based project resolution on macOS, where `/var` is a symlink to `/private/var`.
 
 ## [2.0.4] — 2026-07-12 (unpublished)
