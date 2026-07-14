@@ -7,7 +7,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [2.1.1] — Unreleased
+## [2.1.1] — 2026-07-14
+
+### Fixed
+
+- **CI green on the first run**: hooks are now built before the coverage job (the bundle in `dist/hooks/` is a build artifact and was missing), the matrix requires Node >= 22, symlink resolution is handled on macOS, and coverage runs correctly on Windows.
 
 ### Changed
 
