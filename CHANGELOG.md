@@ -7,6 +7,39 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.2.0] — 2026-09-09
+
+### Added
+
+- **Vault sync over git** — three top-level commands so an AI CLI can ship the vault between machines without knowing git (`mempunk sync` keeps its meaning: vault ↔ DB consistency check):
+  - `mempunk remote set <url> [--branch <branch>] [--auto]` — registers the vault's git remote (`git init` + `origin` if needed) in `.mempunk/remote.json` (`{ url, branch, auto: { pull_on_start, push_on_end }, created_at }`, versioned, travels with the vault). Without `--branch` it uses the branch currently checked out in `~/Dev-Brain` if it is already a git repo, else `main`. `--auto` enables pull on session start and push on session end. Per-machine timestamps live in `.mempunk/remote-state.json` (gitignored). Credentials are never stored — git's credential helper or SSH keys handle auth.
+  - `mempunk remote show [--json]` — url (masked), branch, automation flags, last push/pull. `mempunk remote unset` — removes `remote.json` without touching `.git`.
+  - `mempunk push [--message-file <path> | --message-stdin | -m "<msg>"] [--project <id>] [--strict]` — `PRAGMA wal_checkpoint(TRUNCATE)` on the DB, `git add -A` + commit of local changes, fetch + merge of `origin/<branch>`, DB integrity check, then push. Commit message prefix: `vault(<project>):` with `--project`, `vault:` without; default message `vault: session <YYYY-MM-DD> — <n> files`. "Nothing to push" exits 0.
+  - `mempunk pull` — verified backup of the local DB (`VACUUM INTO` + `integrity_check`), commit of local changes (`vault: local changes before pull`), fetch + merge of `origin/<branch>`, `PRAGMA integrity_check` on the merged DB (restores the backup on failure), regenerates this machine's `project-paths.json` and lists the projects with no path here with the exact `mempunk project activate <id> --here` hint.
+  - New-machine bootstrap: clone the vault into `~/Dev-Brain` before running any mempunk command there. `mempunk init` followed by `remote set`/`pull` produces an "unrelated histories" error; the CLI prints a hint to clone instead.
+- **Binary conflict rule for `mempunk.db`**: when both sides changed the DB, the copy with the most recent activity (`MAX(created_at)` across sessions, daily logs, decisions and backlog) wins; the loser is saved as `.mempunk/backups/conflict-<stamp>-<ours|theirs>.db` and both dates are printed. `--strict` makes `push` exit 1 after resolving. If markdown files conflict, the command stops with the list and the merge stays in progress until the user resolves it (`git add` + `git commit` in `~/Dev-Brain`, or `git merge --abort`); `push`/`pull` refuse to run while a merge is in progress or `.git/index.lock` exists.
+- **Agent `@mempunk-syncer`** (Haiku, background, installed by `mempunk hooks install`): maps `SYNC push: project=<id> summary="<summary>"` to `mempunk push --project <id> --message-stdin` with the summary in a quoted heredoc, and `SYNC pull:` to `mempunk pull`. It never runs git directly, never creates `remote.json`, never relays raw git stderr, and reports `MEMPUNK-SYNCER: no remote configured — run: mempunk remote set <url>` when there is no remote or `MEMPUNK-SYNCER ERROR: mempunk push failed (exit N) — run it manually in the terminal to see details` on failure.
+- **`on-end.js` hook** on Claude Code's `SessionEnd` event: runs `mempunk push` (60 s timeout) when `auto.push_on_end` is true. `on-start.js` runs `mempunk pull` (45 s timeout) before loading context when `auto.pull_on_start` is true. Both are registered in `settings.json` with `timeout: 90`; on failure only a fixed classified message (network / auth / timeout / conflict) reaches Claude's context and details go to `.mempunk/hooks.log`. `hooks install --check` lists `on-end.js` and `mempunk-syncer.md`.
+- **Per-machine project paths (vault schema v5)**: new table `project_paths (project_id, host, root_path)`. Repo paths are keyed by normalized hostname (lowercase, `.local`/`.lan` stripped; `MEMPUNK_HOST` overrides it and is normalized the same way), so `project activate <id> --here` and `project add --path` map the folder on *this* machine only and no longer overwrite the other machine's mapping when the DB travels through git. Existing vaults must run `mempunk vault upgrade` (the migration copies each project's current `path` into `project_paths` for the current host).
+- Docs: `CLAUDE.md` / `templates/CLAUDE.md` gain the remote/push/pull commands, the `@mempunk-syncer` agent, a "Sync between machines" section and a final `SYNC push` step in the session close protocol; README gains the same subsection.
+
+### Changed
+
+- `mempunk sync` is unchanged in behavior but is now documented explicitly as the disk ↔ DB consistency check, distinct from `push`/`pull`.
+- Vault version is now 5; the vault template's close protocol ends with `SYNC push` when a remote is configured.
+
+### Security
+
+- `mempunk push` message sources, in precedence order: `--message-file <path>`, `--message-stdin`, `-m "<msg>"`, default. Messages are sanitized (control characters removed, 2000 chars max); `--project <id>` must be a plain identifier (letters, digits, `_`, `-`, `.`).
+- `@mempunk-syncer` sends the summary through a quoted heredoc on stdin (`--message-stdin`), never on the command line, and never relays raw git stderr — only fixed status lines reach Claude's context.
+- `mempunk remote set` rejects URLs with embedded credentials (`https://user:token@…`) and points to git credential helpers / SSH keys; the url is always shown masked; accepted forms are https/ssh/git/file URLs, scp-style `git@host:path` and local paths. Branch names are validated with `git check-ref-format`, including the one read from `remote.json`. Per-machine files previously committed (`auto-start.flag`, `hooks.log`, backups) are untracked, and a warning states that the DB contains session snapshots with conversation excerpts, so the remote must be a private repository.
+- `pull`/`push` no longer stash: local changes are committed first, then fetched and merged; markdown conflicts halt the command with the merge in progress, and both commands refuse to run while a merge is in progress or `.git/index.lock` exists. The DB integrity check runs after any merge. Git runs non-interactively (`GIT_TERMINAL_PROMPT=0`) with timeouts, so a missing credential fails fast instead of opening a prompt.
+- Sync hooks run with their own timeouts (45 s pull / 60 s push, `timeout: 90` in `settings.json`) and only inject a fixed classified message (network / auth / timeout / conflict) into Claude's context; details go to `.mempunk/hooks.log`.
+
+### Fixed
+
+- `addProject`: re-registering an existing project no longer wipes the paths recorded by other machines and preserves the original `created_at`.
+
 ## [2.1.1] — 2026-07-14
 
 ### Fixed

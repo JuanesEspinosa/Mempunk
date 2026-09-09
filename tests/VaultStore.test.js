@@ -633,9 +633,9 @@ describe('Migración', () => {
 // ── Vault version ─────────────────────────────────────────────────────────────
 
 describe('Vault version', () => {
-  it('getVaultVersion() retorna 4 después de todas las migraciones', () => {
-    // El store global ya tiene v1 a v4 aplicadas
-    expect(store.getVaultVersion()).toBe(4);
+  it('getVaultVersion() retorna 5 después de todas las migraciones', () => {
+    // El store global ya tiene v1 a v5 aplicadas
+    expect(store.getVaultVersion()).toBe(5);
   });
 
   it('getVaultVersion() retorna 0 en una base de datos sin vault_version en vault_meta', () => {

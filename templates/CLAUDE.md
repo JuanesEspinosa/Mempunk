@@ -83,6 +83,11 @@ mempunk backlog update <task_id> --status <value>    → update a task status
 mempunk decision add <id> "<title>"                  → create an ADR (markdown + DB)
 mempunk skill list <id> --json                       → project skills (read their file_path)
 mempunk search "<query>" --json                      → full-text search in the vault
+mempunk remote set <url> [--branch <b>] [--auto]     → register the vault's git remote (git init + origin if needed); without --branch uses the branch checked out in the vault (else main); URLs with embedded credentials are rejected; --auto pulls on start, pushes on session end
+mempunk remote show [--json]                         → url (masked), branch, automation and last push/pull
+mempunk remote unset                                 → remove .mempunk/remote.json (leaves .git untouched)
+mempunk push [--message-file <path> | --message-stdin | -m "<msg>"] [--project <id>] [--strict] → DB WAL checkpoint, commit local changes, fetch + merge origin/<branch>, integrity check, push
+mempunk pull                                         → verified backup, commit local changes, fetch + merge origin/<branch>, DB integrity check, re-map this machine's paths
 ```
 
 Always add `--json` to read commands and parse the JSON — never scrape table output.
@@ -131,6 +136,8 @@ when this session opened. Just confirm the project and continue.
 
 > If `@mempunk-saver` is available, you can use it for saving.
 > Otherwise, follow the manual protocol.
+> If `@mempunk-syncer` is available and the vault has a remote (`mempunk remote show`),
+> invoke it last with `SYNC push: project=<id> summary="<summary>"`.
 
 ### Manual close
 
@@ -142,9 +149,24 @@ when this session opened. Just confirm the project and continue.
 4. Update the project's `INDEX.md` with the latest session and the backlog top 3
 5. Update `wiki/state.md` if it exists — rewrite with the compiled state and append a line to `wiki/log.md`
 6. Write or update `daily/YYYY-MM-DD.md` (see skill: Consolidated daily)
+7. If the vault has a remote configured (`mempunk remote show`): invoke `@mempunk-syncer` with `SYNC push: project=<id> summary="<summary>"`, or run `mempunk push -m "<summary>" --project <id>`
 
 The CLI writes (steps 1-3) are mandatory — they persist to SQLite. The markdown
-notes (steps 4-6) are the narrative layer on top.
+notes (steps 4-6) are the narrative layer on top. Step 7 ships the vault to the
+other machines.
+
+---
+
+## Sync between machines
+
+- New machine: clone the vault into `~/Dev-Brain` **before** running any mempunk command there. Running `mempunk init` first and then `remote set`/`pull` fails with an "unrelated histories" error (the CLI prints a hint to clone instead).
+- Once per machine: `mempunk remote set <url> --auto` (without `--branch` it uses the branch checked out in `~/Dev-Brain`, else `main`). Accepted: https/ssh/git/file URLs, `git@host:path` and local paths; URLs with embedded credentials are rejected (use git's credential helper or SSH keys) and the url is always shown masked. The remote must be a **private** repository: the DB contains session snapshots with conversation excerpts. Config lives in `.mempunk/remote.json` and travels with the vault; per-machine timestamps in `.mempunk/remote-state.json` (gitignored).
+- Session start: `mempunk pull` (with `--auto` the `on-start.js` hook runs it). It backs up the DB, commits local changes (`vault: local changes before pull`), fetches and merges the remote branch, checks integrity, and lists projects with no path on this machine with the exact `mempunk project activate <id> --here` to run.
+- Session end: `SYNC push: project=<id> summary="<summary>"` via `@mempunk-syncer` (with `--auto`, `on-end.js` pushes a safety-net commit on `SessionEnd`). Manual alternative: `mempunk push -m "<summary>" --project <id>`, or `--message-file <path>` / `--message-stdin` for long summaries. Messages are sanitized (control characters removed, 2000 chars max); `--project` accepts only letters, digits, `_`, `-` and `.`.
+- `@mempunk-syncer` only runs `mempunk push` / `mempunk pull`; it never runs git directly or creates the remote. It passes the summary through stdin (`--message-stdin` + quoted heredoc), never on the command line, and never relays raw git stderr. If no remote is configured it reports `MEMPUNK-SYNCER: no remote configured — run: mempunk remote set <url>` — tell the user, do not set it up yourself. On failure it reports `MEMPUNK-SYNCER ERROR: mempunk push failed (exit N) — run it manually in the terminal to see details`.
+- `mempunk.db` conflict: the DB with the most recent activity wins; the loser is kept in `.mempunk/backups/conflict-<stamp>-<ours|theirs>.db`. Markdown conflicts stop the command with the file list and leave the merge in progress: resolve by hand, then `git add` + `git commit` in the vault (or `git merge --abort`). While a merge is in progress or `.git/index.lock` exists, `push`/`pull` refuse to run. The DB integrity check runs after any merge.
+- Git runs non-interactively (`GIT_TERMINAL_PROMPT=0`) with timeouts: a missing credential fails fast. The hooks (`on-start.js` 45 s, `on-end.js` 60 s) only pass a fixed classified message (network / auth / timeout / conflict) into Claude's context; details go to `.mempunk/hooks.log`.
+- Vault v5: repo paths are per machine (`project_paths`, keyed by normalized hostname — lowercase, `.local`/`.lan` stripped; `MEMPUNK_HOST` overrides it and is normalized the same way); `--here` maps this machine only. Existing vaults need `mempunk vault upgrade`.
 
 ---
 

@@ -149,10 +149,55 @@ const MIGRATIONS = [
       db.exec(`ALTER TABLE projects ADD COLUMN root_path TEXT`);
     },
   },
+  {
+    version: 5,
+    up(db) {
+      // Rutas del repo POR MÁQUINA. mempunk.db viaja con el vault (git sync):
+      // una sola projects.root_path hacía que dos máquinas se pisaran la ruta.
+      // projects.root_path se conserva como "última ruta conocida".
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project_paths (
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          host       TEXT NOT NULL,
+          root_path  TEXT NOT NULL,
+          updated_at TEXT,
+          PRIMARY KEY (project_id, host)
+        )
+      `);
+
+      // Seed: la ruta existente pertenece a la máquina que ejecuta el upgrade
+      db.prepare(
+        `INSERT OR IGNORE INTO project_paths (project_id, host, root_path, updated_at)
+         SELECT id, ?, root_path, updated_at FROM projects
+         WHERE root_path IS NOT NULL AND root_path != ''`
+      ).run(currentHost());
+    },
+  },
 ];
 
 // Versión más alta que este código conoce — se actualiza al agregar migraciones
 export const VAULT_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
+
+/**
+ * Normaliza un hostname: minúsculas y sin sufijo `.local`/`.lan`. macOS alterna
+ * `Name.local`/`Name-2.local` y Windows cambia mayúsculas — sin esto la misma
+ * máquina aparecería como dos hosts y `pull` listaría proyectos "sin ruta".
+ * @param {string|undefined} name
+ * @returns {string}
+ */
+export function normalizeHost(name) {
+  return (name ?? '').trim().toLowerCase().replace(/\.(local|lan)$/, '');
+}
+
+/**
+ * Identidad de esta máquina para project_paths. MEMPUNK_HOST permite
+ * simular otra máquina (tests) o fijar un nombre estable si el hostname cambia;
+ * se normaliza igual que os.hostname().
+ * @returns {string}
+ */
+export function currentHost() {
+  return normalizeHost(process.env.MEMPUNK_HOST) || normalizeHost(os.hostname());
+}
 
 // Retención de snapshots automáticos por proyecto — sin poda, mempunk.db
 // crece sin límite (cada checkpoint guarda ~10 mensajes completos)
@@ -309,37 +354,98 @@ class VaultStore {
    */
   addProject(id, name, projectPath, rootPath = null) {
     const now = new Date().toISOString();
-    this.db
-      .prepare(
-        `INSERT OR REPLACE INTO projects (id, name, path, root_path, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'active', ?, ?)`
-      )
-      .run(id, name, projectPath, rootPath ? normalizeRootPath(rootPath) : null, now, now);
+    const normalized = rootPath ? normalizeRootPath(rootPath) : null;
+    this.db.transaction(() => {
+      // UPSERT y no INSERT OR REPLACE: REPLACE borra la fila y el ON DELETE
+      // CASCADE se llevaría las rutas de las OTRAS máquinas
+      this.db
+        .prepare(
+          `INSERT INTO projects (id, name, path, root_path, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'active', ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name, path = excluded.path, status = 'active',
+             root_path = COALESCE(excluded.root_path, projects.root_path),
+             updated_at = excluded.updated_at`
+        )
+        .run(id, name, projectPath, normalized, now, now);
+      if (normalized) this._upsertHostPath(id, normalized, now);
+    })();
   }
 
   /**
-   * Asigna (o limpia con null) la ruta del repositorio real de un proyecto.
+   * Asigna (o limpia con null) la ruta del repositorio real de un proyecto
+   * para ESTA máquina. projects.root_path queda como última ruta conocida.
    * @param {string}      id
    * @param {string|null} rootPath
    */
   setProjectRootPath(id, rootPath) {
+    const now = new Date().toISOString();
+    const normalized = rootPath ? normalizeRootPath(rootPath) : null;
+    this.db.transaction(() => {
+      this.db
+        .prepare('UPDATE projects SET root_path = ?, updated_at = ? WHERE id = ?')
+        .run(normalized, now, id);
+      if (normalized) {
+        this._upsertHostPath(id, normalized, now);
+      } else {
+        this.db
+          .prepare('DELETE FROM project_paths WHERE project_id = ? AND host = ?')
+          .run(id, currentHost());
+      }
+    })();
+  }
+
+  /** Inserta o reemplaza la fila de project_paths de la máquina actual */
+  _upsertHostPath(id, normalizedRootPath, now) {
     this.db
-      .prepare('UPDATE projects SET root_path = ?, updated_at = ? WHERE id = ?')
-      .run(rootPath ? normalizeRootPath(rootPath) : null, new Date().toISOString(), id);
+      .prepare(
+        `INSERT OR REPLACE INTO project_paths (project_id, host, root_path, updated_at)
+         VALUES (?, ?, ?, ?)`
+      )
+      .run(id, currentHost(), normalizedRootPath, now);
   }
 
   /**
-   * Mapa ruta-de-repo → project_id de todos los proyectos con root_path.
+   * Mapa ruta-de-repo → project_id SOLO con las rutas de esta máquina.
    * Los hooks lo consumen via .mempunk/project-paths.json (no leen SQLite).
    * @returns {Record<string, string>}
    */
   getProjectPathMap() {
-    const map = {};
     const rows = this.db
-      .prepare('SELECT id, root_path FROM projects WHERE root_path IS NOT NULL')
-      .all();
-    for (const row of rows) map[row.root_path] = row.id;
-    return map;
+      .prepare('SELECT project_id, root_path FROM project_paths WHERE host = ?')
+      .all(currentHost());
+    return Object.fromEntries(rows.map((row) => [row.root_path, row.project_id]));
+  }
+
+  /**
+   * Proyectos activos que aún no tienen ruta mapeada en esta máquina.
+   * known_root_path es la última ruta conocida (de cualquier máquina) o null.
+   * @returns {{ id: string, name: string, known_root_path: string|null }[]}
+   */
+  getProjectsMissingLocalPath() {
+    return this.db
+      .prepare(
+        `SELECT p.id, p.name, p.root_path AS known_root_path
+         FROM projects p
+         WHERE p.status = 'active'
+           AND NOT EXISTS (
+             SELECT 1 FROM project_paths pp
+             WHERE pp.project_id = p.id AND pp.host = ?
+           )
+         ORDER BY p.id`
+      )
+      .all(currentHost());
+  }
+
+  /**
+   * Rutas registradas de un proyecto en todas las máquinas.
+   * @param {string} id
+   * @returns {{ host: string, root_path: string, updated_at: string|null }[]}
+   */
+  getProjectPathHosts(id) {
+    return this.db
+      .prepare('SELECT host, root_path, updated_at FROM project_paths WHERE project_id = ? ORDER BY host')
+      .all(id);
   }
 
   // ---------------------------------------------------------------------------

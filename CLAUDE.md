@@ -56,6 +56,11 @@ mempunk search "<query>"                             → búsqueda full-text en 
 mempunk search "<query>" --project <project_id>      → búsqueda limitada a un proyecto
 mempunk sync                                         → verifica consistencia vault ↔ BD
 mempunk sync --project <project_id>                  → sync limitado a un proyecto
+mempunk remote set <url> [--branch <rama>] [--auto]  → registra el repo git destino del vault (git init + origin si hace falta); sin --branch usa la rama activa de ~/Dev-Brain (o main); rechaza URLs con credenciales embebidas; --auto activa pull al inicio y push al cierre de sesión
+mempunk remote show [--json]                         → muestra url (enmascarada), rama, automatización y último push/pull
+mempunk remote unset                                 → elimina .mempunk/remote.json (no toca .git)
+mempunk push [--message-file <path> | --message-stdin | -m "<msg>"] [--project <id>] [--strict] → checkpoint WAL de la BD, commit de los cambios locales, fetch + merge de origin/<rama>, integrity check y push
+mempunk pull                                         → backup verificado, commit de los cambios locales, fetch + merge de origin/<rama>, integrity check de la BD, re-mapeo de rutas de esta máquina
 mempunk session recover <project_id>                 → muestra el último snapshot disponible (checkpoint o compact)
 mempunk session checkpoints <project_id>             → lista todos los checkpoints y compact_snapshots del proyecto
 mempunk vault backup                                 → copia verificada de mempunk.db en .mempunk/backups/ (retiene 10)
@@ -76,9 +81,11 @@ Si los agentes están instalados (`mempunk hooks install`), úsalos en vez de lo
 - **`@mempunk-loader`** — carga el contexto del proyecto al inicio de sesión (reemplaza el protocolo manual). Regla de precedencia: si el contexto ya fue cargado en la sesión (p.ej. via un skill /mempunk o el auto-start), el loader NO re-carga — solo confirma el proyecto activo.
 - **`@mempunk-saver`** — guarda decisiones, session logs y actualizaciones al vault en background
 - **`@mempunk-recover`** — recupera contexto de una sesión cerrada manualmente (complementa el hook automático)
+- **`@mempunk-syncer`** — sube (push) o baja (pull) el vault a su remote git en background. Úsalo al cerrar sesión o cuando el usuario diga que trabajó en otra máquina. Solo ejecuta `mempunk push` / `mempunk pull`; nunca toca git directamente ni crea el remote. El resumen lo pasa por stdin (`mempunk push --project <id> --message-stdin <<'MEMPUNK_EOF' … MEMPUNK_EOF`), nunca en la línea de comandos, y nunca reenvía el stderr de git.
 
 El agente saver se activa automáticamente cuando detectas una decisión técnica o tarea completada.
 Para guardado explícito: `SAVE decision: project=<id> title="<decisión>"` o `SAVE session: project=<id> summary="<resumen>"`.
+Para sincronizar: `SYNC push: project=<id> summary="<resumen>"` o `SYNC pull:`. Si no hay remote configurado, el syncer responde `MEMPUNK-SYNCER: no remote configured — run: mempunk remote set <url>` — díselo al usuario, no lo configures tú. Si el comando falla responde `MEMPUNK-SYNCER ERROR: mempunk push failed (exit N) — run it manually in the terminal to see details` — pide al usuario que lo ejecute en la terminal.
 
 ---
 
@@ -116,6 +123,7 @@ Ejecuta en orden al terminar:
 1. `mempunk backlog update` por cada tarea que cambió de estado en la sesión
 2. `mempunk decision add` por cada decisión importante no guardada durante la sesión
 3. `mempunk session log` con summary de lo que se hizo y los archivos tocados
+4. Invocar `@mempunk-syncer` con `SYNC push: project=<id> summary="<resumen>"` si el vault tiene remote configurado (`mempunk remote show`)
 
 El session-end es una compilación de lo que ya se guardó, no el único momento de guardado.
 
@@ -124,6 +132,19 @@ El session-end es una compilación de lo que ya se guardó, no el único momento
 ## Cuándo usar mempunk sync
 
 Solo cuando sospeches inconsistencia entre archivos en disco y la base de datos. No ejecutar en cada sesión.
+`mempunk sync` no sube nada a git: para eso están `mempunk push` / `mempunk pull`.
+
+---
+
+## Sincronización entre máquinas
+
+- Máquina nueva: clonar el vault en `~/Dev-Brain` **antes** de ejecutar cualquier comando mempunk ahí. Si se hace `mempunk init` primero y luego `remote set`/`pull`, git falla con "unrelated histories" (el CLI avisa que hay que clonar).
+- Una vez por máquina: `mempunk remote set <url> --auto` (sin `--branch` usa la rama activa de `~/Dev-Brain`, o `main`). Acepta URLs https/ssh/git/file, `git@host:ruta` y rutas locales; rechaza URLs con credenciales embebidas (usa el credential helper de git o claves SSH) y muestra la url siempre enmascarada. El remote debe ser un repo **privado**: la BD contiene snapshots de sesión con extractos de conversación. La configuración queda en `.mempunk/remote.json` y viaja con el vault; los timestamps de esta máquina en `.mempunk/remote-state.json` (gitignored).
+- Al empezar: `mempunk pull` (con `--auto` lo hace el hook `on-start.js`). Hace backup, commitea los cambios locales (`vault: local changes before pull`), trae y fusiona la rama remota, verifica la BD y lista los proyectos sin ruta en esta máquina con el `mempunk project activate <id> --here` exacto.
+- Al cerrar: `SYNC push: project=<id> summary="<resumen>"` via `@mempunk-syncer` (o `mempunk push -m "<resumen>" --project <id>`; para resúmenes largos, `--message-file <path>` o `--message-stdin`). Con `--auto`, `on-end.js` hace un push de respaldo al terminar la sesión. Los mensajes se sanean (sin caracteres de control, máx. 2000 caracteres) y `--project` solo admite letras, dígitos, `_`, `-` y `.`.
+- Conflicto en `mempunk.db`: gana la BD con actividad más reciente; la perdedora queda en `.mempunk/backups/conflict-<stamp>-<ours|theirs>.db`. Si el conflicto es en markdown, el comando se detiene con la lista de archivos y el merge queda en curso: resolver a mano y `git add` + `git commit` en `~/Dev-Brain` (o `git merge --abort`). Mientras haya un merge en curso o exista `.git/index.lock`, `push`/`pull` se niegan a ejecutar. Tras cualquier merge se corre el integrity check de la BD.
+- Git corre sin prompts (`GIT_TERMINAL_PROMPT=0`) y con timeout: si faltan credenciales falla rápido. Los hooks (`on-start.js` 45 s, `on-end.js` 60 s) solo pasan a Claude un mensaje fijo clasificado (network / auth / timeout / conflict); el detalle va a `.mempunk/hooks.log`.
+- Vault v5: las rutas de repo viven en `project_paths` por máquina (hostname normalizado: minúsculas, sin `.local`/`.lan`; override con `MEMPUNK_HOST`, normalizado igual); `--here` solo mapea esta máquina. Vaults existentes requieren `mempunk vault upgrade`.
 
 ---
 
@@ -143,7 +164,7 @@ Actualizar vault después de instalar una nueva versión de Mempunk:
 mempunk vault upgrade
 ```
 
-Versión actual del vault: 4
+Versión actual del vault: 5
 Versión mínima requerida por este CLI: 2
 
 Si el vault está desactualizado, los comandos abortan con un mensaje claro en vez de migrar en silencio. Ejecuta `mempunk vault upgrade` para actualizarlo.

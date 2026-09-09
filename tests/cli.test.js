@@ -394,9 +394,9 @@ describe('mempunk vault', () => {
 
   it('vault version muestra la versión correcta cuando el vault está actualizado', () => {
     const output = run('vault version');
-    // "Vault v4" explícito — un toContain('v2') genérico matchearía "CLI v2.x.x"
+    // "Vault v5" explícito — un toContain('v2') genérico matchearía "CLI v2.x.x"
     // y aprobaría con cualquier versión de vault
-    expect(output).toMatch(/Vault v4/);
+    expect(output).toMatch(/Vault v5/);
     expect(output).toContain('OK');
   });
 
@@ -419,7 +419,7 @@ describe('mempunk vault', () => {
       env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: isolated },
       encoding: 'utf8',
     });
-    expect(output).toContain('v4');
+    expect(output).toContain('v5');
 
     // Verificar que vault version ahora dice OK
     const versionOutput = execSync('node src/cli.js vault version', {

@@ -119,7 +119,10 @@ When hooks are installed (`mempunk hooks install`), Mempunk automatically respon
 | `on-prompt.js` | Before each turn | **ContextWarning** — alerts at 70%, 80%, and 84% context usage |
 | `on-stop.js` | After each response | **AutoCheckpoint** — saves an incremental checkpoint every 5 turns |
 | `on-compact.js` | Before context compaction | **CompactGuard** — captures a full snapshot before Claude compacts |
-| `on-start.js` | Session start | **CompactRestore** — restores context from the last snapshot after compaction |
+| `on-start.js` | Session start | **CompactRestore** — restores context from the last snapshot after compaction; runs `mempunk pull` first (45 s timeout) if `remote set --auto` is on |
+| `on-end.js` | Session end | **AutoPush** — runs `mempunk push` (60 s timeout) if `remote set --auto` is on |
+
+Both sync hooks are registered with `timeout: 90` in `settings.json`. If `pull`/`push` fails, only a fixed classified message (network / auth / timeout / conflict) reaches Claude's context; details go to `.mempunk/hooks.log`.
 
 AutoCheckpoint interval is configurable via the `MEMPUNK_CHECKPOINT_INTERVAL` environment variable (default: 5).
 
@@ -140,13 +143,14 @@ mempunk session checkpoints <project_id> # list all saved checkpoints
 
 ## Agents (Claude Code)
 
-Three sub-agents are installed alongside hooks:
+Four sub-agents are installed alongside hooks:
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
 | `@mempunk-loader` | Sonnet | Loads project context at session start — lists projects, activates one, returns compact summary |
 | `@mempunk-saver` | Haiku (background) | Saves decisions, session logs, and backlog updates mid-session without interrupting the conversation |
 | `@mempunk-recover` | Sonnet | Recovers context from a closed or interrupted session manually |
+| `@mempunk-syncer` | Haiku (background) | Pushes/pulls the vault to its git remote via `mempunk push` / `mempunk pull`; the summary goes through stdin, never on the command line (see [Sync between machines](#sync-between-machines)) |
 
 `@mempunk-loader` replaces the manual session-start protocol. If `auto-start` is enabled (`mempunk auto-start on`), it runs automatically each time Claude Code opens.
 
@@ -235,6 +239,38 @@ SAVE session: project=<id> summary="Implemented login endpoint"
 | `mempunk hooks install --local` | Install hooks in `.claude/` of the current project | `mempunk hooks install --local` |
 | `mempunk hooks install --check` | Verify hooks, agents, and statusline are installed | `mempunk hooks install --check` |
 | `mempunk hooks uninstall` | Remove Mempunk hooks | `mempunk hooks uninstall` |
+
+### Sync between machines
+
+The vault is a git repo; these commands push and pull it without you touching git. Config lives in `.mempunk/remote.json` (travels with the vault); per-machine timestamps in `.mempunk/remote-state.json` (gitignored).
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mempunk remote set <url> [--branch <b>] [--auto]` | Register the vault's git remote (`git init` + `origin` if needed); without `--branch` uses the branch checked out in `~/Dev-Brain` (else `main`); `--auto` pulls on session start and pushes on session end | `mempunk remote set git@github.com:me/brain.git --auto` |
+| `mempunk remote show [--json]` | Show url (masked), branch, automation flags and last push/pull | `mempunk remote show` |
+| `mempunk remote unset` | Remove `.mempunk/remote.json` (leaves `.git` untouched) | `mempunk remote unset` |
+| `mempunk push [--message-file <path> \| --message-stdin \| -m "<msg>"] [--project <id>] [--strict]` | WAL checkpoint of the DB, commit local changes, fetch + merge `origin/<branch>`, integrity check, then push | `mempunk push -m "auth done" --project api` |
+| `mempunk pull` | Verified backup, commit local changes, fetch + merge `origin/<branch>`, DB integrity check, re-map this machine's project paths | `mempunk pull` |
+
+**New machine.** Clone the vault into `~/Dev-Brain` *before* running any mempunk command there. Running `mempunk init` first and then `remote set`/`pull` fails with an "unrelated histories" error; the CLI prints a hint to clone instead.
+
+**Remote URL.** Accepted forms: https/ssh/git/file URLs, scp-style `git@host:path`, and local paths. URLs that embed credentials (`https://user:token@…`) are rejected — use git's credential helper or SSH keys. Branch names are validated with `git check-ref-format`. `remote set` also untracks per-machine files that were previously committed (`auto-start.flag`, `hooks.log`, backups) and warns that the DB contains session snapshots with conversation excerpts, so the remote must be a **private** repository.
+
+**Commit messages.** Sources in precedence order: `--message-file <path>`, `--message-stdin` (whole message from stdin), `-m "<msg>"`, default `vault: session <YYYY-MM-DD> — <n> files`. The message is prefixed `vault(<project>):` with `--project` or `vault:` without. Messages are sanitized (control characters removed, 2000 chars max); `--project` must be a plain identifier (letters, digits, `_`, `-`, `.`).
+
+**Conflicts.** Neither command stashes: local uncommitted changes are committed first (`pull` uses `vault: local changes before pull`), then the remote branch is fetched and merged. If both machines wrote to `mempunk.db`, the DB with the most recent activity wins and the loser is saved as `.mempunk/backups/conflict-<stamp>-<ours|theirs>.db` (`--strict` exits 1 after resolving). If markdown files conflict, the command stops with the list and the merge stays in progress: resolve, then `git add`/`git commit` in `~/Dev-Brain` (or `git merge --abort`). A subsequent `push`/`pull` refuses to run while a merge is in progress or `.git/index.lock` exists. Both commands run the DB integrity check after any merge. Git runs non-interactively (`GIT_TERMINAL_PROMPT=0`) with timeouts, so a missing credential fails fast instead of opening a prompt.
+
+**Per-machine paths (vault v5).** Repo paths live in `project_paths` keyed by hostname, normalized (lowercase, `.local`/`.lan` stripped); `MEMPUNK_HOST` overrides it and is normalized the same way. `project activate <id> --here` maps the folder on this machine only, and `mempunk pull` lists the projects that still need it. Existing vaults need `mempunk vault upgrade`.
+
+**Agent.** `@mempunk-syncer` (installed by `mempunk hooks install`) runs `mempunk push` / `mempunk pull` in the background from `SYNC push: project=<id> summary="<summary>"` or `SYNC pull:`. It sends the summary through a quoted heredoc, never on the command line:
+
+```bash
+mempunk push --project <id> --message-stdin <<'MEMPUNK_EOF'
+<summary>
+MEMPUNK_EOF
+```
+
+It never runs git directly and never relays raw git stderr. With no remote configured it prints `MEMPUNK-SYNCER: no remote configured — run: mempunk remote set <url>`; on failure it prints `MEMPUNK-SYNCER ERROR: mempunk push failed (exit N) — run it manually in the terminal to see details`. With `--auto`, `on-start.js` pulls at `SessionStart` and `on-end.js` pushes at `SessionEnd`.
 
 ## Vault Maintenance
 

@@ -14,10 +14,19 @@ import {
   createLogger,
   readStdinJson,
   getProjectId,
+  readRemoteConfig,
+  hookTimeoutMs,
+  classifyCliFailure,
   hookT,
 } from '../hooks-lib/common.js';
 
 const TOUCHED_FILE = path.join(MEMPUNK_DIR, 'session-touched.json');
+
+// Tope del pull automático: un remote colgado no debe bloquear el arranque de la sesión
+const PULL_TIMEOUT_MS = 45_000;
+
+// Solo se registra este prefijo del stderr en hooks.log (nunca va al contexto de Claude)
+const MAX_LOGGED_STDERR = 500;
 
 // Límite de additionalContext que Claude Code acepta en SessionStart
 const MAX_CONTEXT_CHARS = 8000;
@@ -90,6 +99,37 @@ function buildAdditionalContext(snapshot, projectId) {
     : full;
 }
 
+/** Pull automático del vault si remote.json lo pide. Nunca aborta la sesión.
+ *  Devuelve el aviso FIJO (clasificado) para Claude si el pull falló, o null:
+ *  el stderr crudo solo va a hooks.log — un remote malicioso puede inyectar
+ *  texto en el contexto via las líneas `remote:` de git. */
+function autoPullVault() {
+  const remote = readRemoteConfig();
+  if (!remote?.auto?.pull_on_start) return null;
+
+  const result = runCli(['pull'], { timeout: hookTimeoutMs(PULL_TIMEOUT_MS) });
+  if (result.status === 0) {
+    log('Pull automático del vault OK');
+    return null;
+  }
+  const kind = classifyCliFailure(result);
+  const err  = (result.stderr?.trim() || result.error?.message || 'sin detalle').slice(0, MAX_LOGGED_STDERR);
+  log(`Pull automático del vault falló (${kind}, status=${result.status ?? 'null'}): ${err}`);
+  return hookT(`remote.pull.${kind}`);
+}
+
+/** Emite la respuesta JSON de SessionStart. Contexto vacío → {}. */
+function writeSessionStartOutput(contextLines) {
+  const additionalContext = contextLines.filter(Boolean).join('\n').slice(0, MAX_CONTEXT_CHARS);
+  if (!additionalContext) {
+    process.stdout.write('{}');
+    return;
+  }
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext },
+  }));
+}
+
 function tryParseJson(value, fallback) {
   if (Array.isArray(value)) return value;
   try { return JSON.parse(value ?? '[]'); } catch (_) { return fallback; }
@@ -131,18 +171,17 @@ try {
   // ── Auto-start: inyectar instrucción @mempunk-loader en sesiones normales ────
 
   if (source !== 'compact') {
+    // Pull del vault antes de cargar contexto (solo si remote.json lo pide)
+    const pullWarning = autoPullVault();
+
+    let autoStartContext = null;
     if (fs.existsSync(AUTO_START_FLAG)) {
       log(`SessionStart source=${source ?? 'startup'} — auto-start activo, inyectando @mempunk-loader`);
-      process.stdout.write(JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'SessionStart',
-          additionalContext: hookT('autostart.context'),
-        },
-      }));
+      autoStartContext = hookT('autostart.context');
     } else {
       log(`SessionStart source=${source ?? 'startup'} — sin restauración ni auto-start`);
-      process.stdout.write('{}');
     }
+    writeSessionStartOutput([autoStartContext, pullWarning]);
     process.exit(0);
   }
 

@@ -58,7 +58,17 @@ const MAX_BACKUPS = 10;
 export function cmdVaultBackup() {
   requireVault();
   const store = openStore();
+  const backupPath = createVerifiedBackup(store);
+  console.log(t('vault.backupCreated', { path: backupPath }));
+}
 
+/**
+ * VACUUM INTO + integrity_check + retención en .mempunk/backups/.
+ * Aborta (fail) si la copia no pasa la verificación.
+ * @param {import('../store/VaultStore.js').default} store - Store abierto sobre el vault
+ * @returns {string} Ruta absoluta del backup creado
+ */
+export function createVerifiedBackup(store) {
   const backupsDir = path.join(VAULT_PATH, '.mempunk', 'backups');
   fs.mkdirSync(backupsDir, { recursive: true });
 
@@ -85,7 +95,7 @@ export function cmdVaultBackup() {
     try { fs.rmSync(path.join(backupsDir, old), { force: true }); } catch (_) {}
   }
 
-  console.log(t('vault.backupCreated', { path: backupPath }));
+  return backupPath;
 }
 
 /** Dump JSON portable de todas las tablas del vault (excepto el índice FTS, que es derivado) */

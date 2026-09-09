@@ -62,7 +62,9 @@ Wait for the user's response before continuing.
 
 ### Step 4 — Load context for the selected project
 
-Run in order (skip any that fail silently):
+First, check whether the vault has a git remote: read `$MEMPUNK_VAULT/.mempunk/remote.json` (default vault: `~/Dev-Brain`). If the file does not exist, say nothing about remotes. If it exists and `auto.pull_on_start` is `false`, do not pull — just add this line to RESUME FROM: "Vault remote configured; run `mempunk pull` if you worked on another machine." If `auto.pull_on_start` is `true`, the SessionStart hook already pulled — never pull twice.
+
+Then run in order (skip any that fail silently):
 1. `mempunk session last <project_id> --json` — last session (`summary`, `ended_at`, `files_touched`; `null` if none)
 2. `mempunk backlog list <project_id> --status pending --json` — pending tasks
 3. `mempunk skill list <project_id> --json` — skills; each entry has a `file_path`

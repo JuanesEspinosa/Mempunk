@@ -25,6 +25,7 @@ import { cmdStatus } from './commands/status.js';
 import { cmdRemove } from './commands/remove.js';
 import { cmdDoctor } from './commands/doctor.js';
 import { cmdOpenLog } from './commands/log.js';
+import { cmdRemoteSet, cmdRemoteShow, cmdRemoteUnset, cmdPush, cmdPull } from './commands/remote.js';
 
 // ── Router principal ──────────────────────────────────────────────────────────
 
@@ -124,6 +125,23 @@ try {
 
     case 'export':
       cmdExport();
+      break;
+
+    case 'remote':
+      switch (subcommand) {
+        case 'set':   cmdRemoteSet(args[0]); break;
+        case 'show':  cmdRemoteShow(); break;
+        case 'unset': cmdRemoteUnset(); break;
+        default: fail(t('cli.unknownSubcommand', { command: 'remote', sub: subcommand ?? '', valid: 'set | show | unset' }));
+      }
+      break;
+
+    case 'push':
+      cmdPush();
+      break;
+
+    case 'pull':
+      cmdPull();
       break;
 
     case 'hooks':

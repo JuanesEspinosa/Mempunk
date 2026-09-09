@@ -10,8 +10,8 @@ import { CLAUDE_SETTINGS_PATH, readJsonFile, writeJsonFile } from '../lib/config
 // ── Handlers — Hooks ──────────────────────────────────────────────────────────
 
 // Archivos que Mempunk instala — el mismo orden se usa en install y uninstall
-const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
-const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
+const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js', 'on-end.js'];
+const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md', 'mempunk-syncer.md'];
 
 // Identificadores únicos para distinguir archivos de Mempunk de otros del usuario
 const HOOK_MARKER  = '# mempunk-hook';
@@ -23,7 +23,13 @@ const HOOK_EVENT_MAP = {
   'on-stop.js':    'Stop',
   'on-compact.js': 'PreCompact',
   'on-prompt.js':  'UserPromptSubmit',
+  'on-end.js':     'SessionEnd',
 };
+
+// Timeout (segundos, campo `timeout` de Claude Code) para los hooks que hacen
+// push/pull del vault: por encima del tope interno del hook (45 s / 60 s) para
+// que sea el hook quien corte el git colgado y registre el motivo, no Claude Code.
+const HOOK_TIMEOUT_SECONDS = { 'on-start.js': 90, 'on-end.js': 90 };
 
 // Flag file para auto-start — vive dentro del vault para ser aislable en tests
 const AUTO_START_FLAG = path.join(VAULT_PATH, '.mempunk', 'auto-start.flag');
@@ -92,10 +98,12 @@ function _registerHooksInSettings(hooksDir) {
     // Comillas: node puede vivir en una ruta con espacios (C:/Program Files/...)
     const commandStr = `"${nodeExe}" "${scriptPath}"`;
 
+    const timeout = HOOK_TIMEOUT_SECONDS[file];
+
     if (!settings.hooks[event]) settings.hooks[event] = [];
     settings.hooks[event].push({
       matcher: '',
-      hooks: [{ type: 'command', command: commandStr }],
+      hooks: [{ type: 'command', command: commandStr, ...(timeout ? { timeout } : {}) }],
     });
   }
 

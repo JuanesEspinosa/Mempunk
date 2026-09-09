@@ -56,6 +56,13 @@ Sessions and logs:
   daily    list <proj>              List the project's daily logs
   search   "<query>"                Full-text search across the vault
 
+Remote:
+  remote   set <url> [--branch b] [--auto]  Register the git remote for the vault
+  remote   show                     Show the configured remote
+  remote   unset                    Remove the remote configuration
+  push     [-m "<msg>" | --message-file <path> | --message-stdin] [--project <id>]  Commit and push the vault to the remote
+  pull                              Pull the vault from the remote
+
 Maintenance:
   sync                              Check vault ↔ database consistency
   vault    version                  Show the vault and CLI versions
@@ -150,6 +157,54 @@ Maintenance:
     'vault.backupIntegrityFailed': 'The backup failed the integrity check: {result}',
     'vault.backupCreated': 'Backup created: {path} (integrity ✓)',
     'export.created': 'Export created: {path} ({tables} tables, {rows} rows)',
+
+    // git (lib)
+    'git.notAvailable': 'git is not available on PATH. Install git to use remote, push and pull.',
+    'git.failed': 'git {args} failed: {stderr}',
+    'git.timeout': 'git {command} timed out — check the network connection and the remote, then retry.',
+
+    // remote
+    'remote.urlRequired': 'Usage: mempunk remote set <url> [--branch <branch>] [--auto]',
+    'remote.invalidUrl': 'Invalid remote URL: "{url}". Use https://, ssh://, git://, file://, user@host:path or an absolute local path.',
+    'remote.urlHasCredentials': 'The remote URL contains embedded credentials. Remove them and let a git credential helper (git config credential.helper) or an SSH key handle authentication.',
+    'remote.invalidBranch': 'Invalid branch name: "{branch}". Use a plain git branch name (no leading dash, no whitespace).',
+    'remote.invalidProject': 'Invalid --project value: "{project}". Use only letters, digits, dots, dashes and underscores.',
+    'remote.privateWarning': '⚠ The vault database contains session snapshots with conversation excerpts — use a private repository.',
+    'remote.mergeInProgress': 'A merge is in progress in the vault ({path}). Conflicted files:\n{files}\nResolve them, then run git add and git commit there (or git merge --abort), and retry.',
+    'remote.indexLock': 'The vault ({path}) has a .git/index.lock file — another git process is running or one crashed. Wait for it to finish (or delete .git/index.lock if no git process is running), then retry.',
+    'remote.notConfigured': 'No remote configured. Run: mempunk remote set <url>',
+    'remote.set': 'Remote configured: {url} (branch {branch}, auto sync {auto})',
+    'remote.showUrl': 'Remote:     {url}',
+    'remote.showBranch': 'Branch:     {branch}',
+    'remote.showAuto': 'Auto:       pull_on_start={pull} push_on_end={push}',
+    'remote.showLastPush': 'Last push:  {at}',
+    'remote.showLastPull': 'Last pull:  {at}',
+    'remote.never': 'never',
+    'remote.unset': 'Remote configuration removed: {path} (.git and the git origin were left untouched)',
+    'remote.nothingToUnset': 'No remote configured — nothing to remove',
+
+    // push
+    'push.nothing': 'Nothing to push — the vault is already in sync with origin/{branch}',
+    'push.noIdentity': 'git has no identity configured. Run:\n  git config --global user.name "Your Name"\n  git config --global user.email "you@example.com"',
+    'push.conflict': 'Merge conflict in:\n{files}\nResolve them in the vault ({path}), run git add and git commit there, then run mempunk push again.',
+    'push.failed': 'git push failed: {stderr}',
+    'push.messageFileUnreadable': 'Could not read --message-file {path}: {message}',
+    'push.done': '✓ {message} · {hash} · {files} file(s) · pushed to origin/{branch}',
+
+    // pull
+    'pull.noRemoteBranch': 'The remote branch origin/{branch} does not exist yet — nothing to pull. Run mempunk push to publish the vault.',
+    'pull.failed': 'git merge failed: {stderr}',
+    'pull.bootstrapHint': 'The local vault and the remote have unrelated histories ({stderr}). On a new machine, clone the vault into {path} instead of running mempunk init first:\n  git clone <url> "{path}"',
+    'pull.integrityFailed': 'The merged database failed the integrity check: {result}. Restored the backup {backup}',
+    'pull.done': '✓ {commits} commit(s) received · backup {backup}',
+    'pull.missingPaths': '! {count} project(s) have no path on this machine:',
+    'pull.missingPathHint': '    mempunk project activate {id} --here   (in the repo folder)',
+
+    // conflicto binario en mempunk.db
+    'conflict.resolved': '⚠ Conflict in mempunk.db resolved: kept {winner} (ours {oursAt} · theirs {theirsAt}). The other copy is saved at {backup}',
+    'conflict.strict': 'A database conflict was resolved automatically and --strict was given',
+    'conflict.resolveFailed': 'Could not resolve the mempunk.db conflict automatically: {message}. Run git merge --abort in the vault ({path}) to return to the previous state, then retry.',
+    'conflict.invalidSide': '⚠ The {side} copy of mempunk.db is not a valid SQLite database — the other copy was kept.',
 
     // hooks (comandos)
     'hooks.bundleMissing': 'Bundled hook not found: {path} — run npm run build',
@@ -299,6 +354,13 @@ Sesiones y logs:
   daily    list <proj>              Lista los logs diarios del proyecto
   search   "<query>"                Búsqueda full-text en el vault
 
+Remote:
+  remote   set <url> [--branch b] [--auto]  Registra el remote git del vault
+  remote   show                     Muestra el remote configurado
+  remote   unset                    Elimina la configuración del remote
+  push     [-m "<msg>" | --message-file <path> | --message-stdin] [--project <id>]  Commit y push del vault al remote
+  pull                              Trae el vault desde el remote
+
 Mantenimiento:
   sync                              Verifica consistencia vault ↔ BD
   vault    version                  Muestra la versión del vault y del CLI
@@ -393,6 +455,54 @@ Mantenimiento:
     'vault.backupIntegrityFailed': 'El backup no pasó la verificación de integridad: {result}',
     'vault.backupCreated': 'Backup creado: {path} (integridad ✓)',
     'export.created': 'Export creado: {path} ({tables} tablas, {rows} filas)',
+
+    // git (lib)
+    'git.notAvailable': 'git no está disponible en el PATH. Instala git para usar remote, push y pull.',
+    'git.failed': 'git {args} falló: {stderr}',
+    'git.timeout': 'git {command} superó el tiempo máximo — revisa la conexión de red y el remote y vuelve a intentar.',
+
+    // remote
+    'remote.urlRequired': 'Uso: mempunk remote set <url> [--branch <rama>] [--auto]',
+    'remote.invalidUrl': 'URL de remote inválida: "{url}". Usa https://, ssh://, git://, file://, usuario@host:ruta o una ruta local absoluta.',
+    'remote.urlHasCredentials': 'La URL del remote contiene credenciales embebidas. Quítalas y deja que un credential helper de git (git config credential.helper) o una clave SSH se encarguen de la autenticación.',
+    'remote.invalidBranch': 'Rama inválida: "{branch}". Usa un nombre de rama válido para git (sin guion inicial ni espacios).',
+    'remote.invalidProject': 'Valor de --project inválido: "{project}". Usa solo letras, dígitos, puntos, guiones y guiones bajos.',
+    'remote.privateWarning': '⚠ La base de datos del vault contiene snapshots de sesión con extractos de conversación — usa un repositorio privado.',
+    'remote.mergeInProgress': 'Hay un merge en curso en el vault ({path}). Archivos en conflicto:\n{files}\nResuélvelos, haz git add y git commit allí (o git merge --abort) y vuelve a intentar.',
+    'remote.indexLock': 'El vault ({path}) tiene un archivo .git/index.lock — hay otro git corriendo o uno murió a medias. Espera a que termine (o borra .git/index.lock si no hay ningún git en ejecución) y vuelve a intentar.',
+    'remote.notConfigured': 'No hay remote configurado. Ejecuta: mempunk remote set <url>',
+    'remote.set': 'Remote configurado: {url} (rama {branch}, sync automático {auto})',
+    'remote.showUrl': 'Remote:        {url}',
+    'remote.showBranch': 'Rama:          {branch}',
+    'remote.showAuto': 'Auto:          pull_on_start={pull} push_on_end={push}',
+    'remote.showLastPush': 'Último push:   {at}',
+    'remote.showLastPull': 'Último pull:   {at}',
+    'remote.never': 'nunca',
+    'remote.unset': 'Configuración del remote eliminada: {path} (.git y el origin de git quedan intactos)',
+    'remote.nothingToUnset': 'No hay remote configurado — nada que eliminar',
+
+    // push
+    'push.nothing': 'Nada que subir — el vault ya está sincronizado con origin/{branch}',
+    'push.noIdentity': 'git no tiene identidad configurada. Ejecuta:\n  git config --global user.name "Tu Nombre"\n  git config --global user.email "tu@correo.com"',
+    'push.conflict': 'Conflicto de merge en:\n{files}\nResuélvelos en el vault ({path}), haz git add y git commit allí y vuelve a ejecutar mempunk push.',
+    'push.failed': 'git push falló: {stderr}',
+    'push.messageFileUnreadable': 'No se pudo leer --message-file {path}: {message}',
+    'push.done': '✓ {message} · {hash} · {files} archivo(s) · subido a origin/{branch}',
+
+    // pull
+    'pull.noRemoteBranch': 'La rama remota origin/{branch} todavía no existe — nada que traer. Ejecuta mempunk push para publicar el vault.',
+    'pull.failed': 'git merge falló: {stderr}',
+    'pull.bootstrapHint': 'El vault local y el remote tienen historias no relacionadas ({stderr}). En una máquina nueva, clona el vault en {path} en vez de ejecutar mempunk init primero:\n  git clone <url> "{path}"',
+    'pull.integrityFailed': 'La base de datos fusionada no pasó la verificación de integridad: {result}. Se restauró el backup {backup}',
+    'pull.done': '✓ {commits} commit(s) recibidos · backup {backup}',
+    'pull.missingPaths': '! {count} proyecto(s) no tienen ruta en esta máquina:',
+    'pull.missingPathHint': '    mempunk project activate {id} --here   (en la carpeta del repo)',
+
+    // conflicto binario en mempunk.db
+    'conflict.resolved': '⚠ Conflicto en mempunk.db resuelto: se conservó {winner} (ours {oursAt} · theirs {theirsAt}). La otra copia quedó en {backup}',
+    'conflict.strict': 'Se resolvió automáticamente un conflicto de base de datos y se indicó --strict',
+    'conflict.resolveFailed': 'No se pudo resolver automáticamente el conflicto de mempunk.db: {message}. Ejecuta git merge --abort en el vault ({path}) para volver al estado anterior y vuelve a intentar.',
+    'conflict.invalidSide': '⚠ La copia {side} de mempunk.db no es una base de datos SQLite válida — se conservó la otra copia.',
 
     // hooks (comandos)
     'hooks.bundleMissing': 'Hook bundleado no encontrado: {path} — ejecuta npm run build',

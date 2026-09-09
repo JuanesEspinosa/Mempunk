@@ -25,6 +25,12 @@ const { values: opts, positionals } = parseArgs({
     version:      { type: 'boolean' },  // --version
     cli:          { type: 'string'  },  // link/unlink --cli <name>
     'setup-mode': { type: 'string'  },  // setup --setup-mode auto|manual|vault-skills
+    message:      { type: 'string', short: 'm' },  // push -m "<msg>" / --message
+    'message-file':  { type: 'string'  },  // push --message-file <path> → mensaje desde archivo (sin shell)
+    'message-stdin': { type: 'boolean' },  // push --message-stdin → mensaje leído de stdin (sin shell)
+    branch:       { type: 'string'  },  // remote set --branch <rama>
+    auto:         { type: 'boolean' },  // remote set --auto → pull_on_start + push_on_end
+    strict:       { type: 'boolean' },  // push/pull --strict → exit 1 si se resolvió un conflicto de BD
   },
   allowPositionals: true,
   strict: false, // ignorar opciones no declaradas sin lanzar error
