@@ -74,9 +74,9 @@ describe('currentHost()', () => {
 // ── Migración v5 ──────────────────────────────────────────────────────────────
 
 describe('Migración v5 (project_paths)', () => {
-  it('VAULT_VERSION es 5 y existe la tabla project_paths', () => {
-    expect(VAULT_VERSION).toBe(5);
-    expect(store.getVaultVersion()).toBe(5);
+  it('VAULT_VERSION >= 5 y existe la tabla project_paths', () => {
+    expect(VAULT_VERSION).toBeGreaterThanOrEqual(5);
+    expect(store.getVaultVersion()).toBe(VAULT_VERSION);
 
     const cols = store.db.prepare('PRAGMA table_info(project_paths)').all().map((c) => c.name);
     expect(cols).toEqual(expect.arrayContaining(['project_id', 'host', 'root_path', 'updated_at']));

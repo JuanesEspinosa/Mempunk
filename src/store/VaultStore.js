@@ -173,7 +173,70 @@ const MIGRATIONS = [
       ).run(currentHost());
     },
   },
+  {
+    version: 6,
+    up(db, store) {
+      // Rutas relativas al vault. Hasta v5 se guardaban absolutas y, como
+      // mempunk.db viaja por git, en otra máquina (otro usuario, otra unidad)
+      // apuntaban a archivos inexistentes.
+      for (const [table, column, suffixRe] of LEGACY_PATH_COLUMNS) {
+        const rows = db.prepare(`SELECT id, ${column} AS p FROM ${table}`).all();
+        const update = db.prepare(`UPDATE ${table} SET ${column} = ? WHERE id = ?`);
+        for (const { id, p } of rows) {
+          const rel = relativizeLegacyPath(p, store.vaultPath, suffixRe);
+          if (rel !== p) update.run(rel, id);
+        }
+      }
+    },
+  },
 ];
+
+// Columnas con rutas de archivos del vault y el sufijo que las identifica
+// aunque vengan de otra máquina (otro prefijo absoluto)
+const LEGACY_PATH_COLUMNS = [
+  ['decisions',      'file_path', /(?:^|\/)(projects\/[^/]+\/decisions\/[^/]+)$/],
+  ['project_skills', 'file_path', /(?:^|\/)(projects\/[^/]+\/skills\/[^/]+)$/],
+  ['resources',      'file_path', /(?:^|\/)(resources\/[^/]+)$/],
+  ['daily_logs',     'file_path', /(?:^|\/)(daily\/[^/]+)$/],
+  ['projects',       'path',      /(?:^|\/)(projects\/[^/]+)$/],
+];
+
+/** true si p es absoluta en cualquier plataforma (una ruta C:/ en POSIX también cuenta) */
+function isAnyAbsolute(p) {
+  return path.isAbsolute(p) || /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('/');
+}
+
+/**
+ * Ruta absoluta dentro del vault → relativa con '/'. Fuera del vault → igual.
+ * @param {string} p
+ * @param {string} vaultPath
+ * @returns {string}
+ */
+export function toVaultRelative(p, vaultPath) {
+  // Solo absolutas de ESTA plataforma: una C:… en POSIX se resolvería contra
+  // el cwd (y si el cwd está en el vault saldría una "relativa" basura)
+  if (!p || !path.isAbsolute(p)) return p;
+  const rel = path.relative(vaultPath, path.resolve(p));
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return p;
+  return rel.split(path.sep).join('/');
+}
+
+/**
+ * Convierte una ruta absoluta heredada a relativa al vault ('/' como separador).
+ * Primero por prefijo del vault actual; si es de otra máquina, por sufijo
+ * anclado. Lo que no se reconoce se devuelve igual.
+ * @param {string} p
+ * @param {string} vaultPath
+ * @param {RegExp} suffixRe
+ * @returns {string}
+ */
+export function relativizeLegacyPath(p, vaultPath, suffixRe) {
+  if (!p || !isAnyAbsolute(p)) return p;
+  const rel = toVaultRelative(p, vaultPath);
+  if (rel !== p) return rel;
+  const match = p.replace(/\\/g, '/').replace(/\/+$/, '').match(suffixRe);
+  return match ? match[1] : p;
+}
 
 // Versión más alta que este código conoce — se actualiza al agregar migraciones
 export const VAULT_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
@@ -256,6 +319,33 @@ class VaultStore {
   }
 
   // ---------------------------------------------------------------------------
+  // Rutas — la BD guarda rutas relativas al vault; la API expone absolutas
+  // ---------------------------------------------------------------------------
+
+  /** Absoluta → relativa al vault (para escribir en la BD) */
+  _toRel(p) {
+    return toVaultRelative(p, this.vaultPath);
+  }
+
+  /**
+   * Relativa al vault → absoluta (para devolver al caller). Absolutas: igual.
+   * Una relativa que escape del vault (BD manipulada: "../../x") → null, para
+   * que ningún caller escriba ni borre fuera del vault.
+   */
+  _toAbs(p) {
+    if (!p || isAnyAbsolute(p)) return p;
+    const abs = path.resolve(this.vaultPath, ...p.split('/'));
+    const rel = path.relative(this.vaultPath, abs);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+    return abs;
+  }
+
+  /** Copia de las filas con la columna de ruta convertida a absoluta */
+  _absRows(rows, column = 'file_path') {
+    return rows.map((row) => (row[column] ? { ...row, [column]: this._toAbs(row[column]) } : row));
+  }
+
+  // ---------------------------------------------------------------------------
   // Migraciones
   // ---------------------------------------------------------------------------
 
@@ -293,7 +383,7 @@ class VaultStore {
 
       // Cada migración corre en su propia transacción para poder hacer rollback si falla
       this.db.transaction(() => {
-        migration.up(this.db);
+        migration.up(this.db, this);
         this.db.prepare('INSERT INTO _migrations (version, applied_at) VALUES (?, ?)').run(
           migration.version,
           new Date().toISOString()
@@ -367,7 +457,7 @@ class VaultStore {
              root_path = COALESCE(excluded.root_path, projects.root_path),
              updated_at = excluded.updated_at`
         )
-        .run(id, name, projectPath, normalized, now, now);
+        .run(id, name, this._toRel(projectPath), normalized, now, now);
       if (normalized) this._upsertHostPath(id, normalized, now);
     })();
   }
@@ -415,6 +505,17 @@ class VaultStore {
       .prepare('SELECT project_id, root_path FROM project_paths WHERE host = ?')
       .all(currentHost());
     return Object.fromEntries(rows.map((row) => [row.root_path, row.project_id]));
+  }
+
+  /**
+   * Rutas de repo de esta máquina como lista: a diferencia de
+   * getProjectPathMap(), conserva varios proyectos mapeados a la misma ruta.
+   * @returns {{ project_id: string, root_path: string }[]}
+   */
+  getLocalProjectPaths() {
+    return this.db
+      .prepare('SELECT project_id, root_path FROM project_paths WHERE host = ? ORDER BY project_id')
+      .all(currentHost());
   }
 
   /**
@@ -483,7 +584,7 @@ class VaultStore {
             `INSERT INTO decisions (id, project_id, title, file_path, tags, created_at)
              VALUES (?, ?, ?, ?, ?, ?)`
           )
-          .run(id, projectId, title, filePath, tagsJson, now);
+          .run(id, projectId, title, this._toRel(filePath), tagsJson, now);
 
         this.db
           .prepare(
@@ -548,7 +649,7 @@ class VaultStore {
             `INSERT INTO resources (id, project_id, title, url, file_path, created_at)
              VALUES (?, ?, ?, ?, ?, ?)`
           )
-          .run(id, projectId, title, url ?? null, filePath, now);
+          .run(id, projectId, title, url ?? null, this._toRel(filePath), now);
 
         this.db
           .prepare(
@@ -634,7 +735,7 @@ class VaultStore {
               `INSERT INTO daily_logs (id, project_id, date, file_path, created_at)
                VALUES (?, ?, ?, ?, ?)`
             )
-            .run(id, projectId, today, filePath, now);
+            .run(id, projectId, today, this._toRel(filePath), now);
 
           this.db
             .prepare(
@@ -793,7 +894,7 @@ class VaultStore {
             `INSERT INTO project_skills (id, project_id, name, file_path, updated_at)
              VALUES (?, ?, ?, ?, ?)`
           )
-          .run(id, projectId, name, filePath, now);
+          .run(id, projectId, name, this._toRel(filePath), now);
       })();
     } catch (err) {
       // Revertir SOLO archivos creados en esta llamada: borrar uno preexistente
@@ -813,9 +914,9 @@ class VaultStore {
    * @returns {{ id: string, name: string, file_path: string, updated_at: string }[]}
    */
   getSkills(projectId) {
-    return this.db
+    return this._absRows(this.db
       .prepare('SELECT id, name, file_path, updated_at FROM project_skills WHERE project_id = ?')
-      .all(projectId);
+      .all(projectId));
   }
 
   /**
@@ -831,8 +932,10 @@ class VaultStore {
     if (!row) throw new Error(`Skill no encontrado: ${id}`);
 
     // Sobreescribir el archivo en disco
-    fs.writeFileSync(row.file_path, content, 'utf8');
-    this.trackFile(row.file_path);
+    const filePath = this._toAbs(row.file_path);
+    if (!filePath) throw new Error(`Ruta de skill fuera del vault: ${row.file_path}`);
+    fs.writeFileSync(filePath, content, 'utf8');
+    this.trackFile(filePath);
 
     // Actualizar timestamp en la BD
     this.db
@@ -882,13 +985,13 @@ class VaultStore {
    */
   listProjects(status = null) {
     if (status) {
-      return this.db
+      return this._absRows(this.db
         .prepare('SELECT id, name, path, status, updated_at FROM projects WHERE status = ? ORDER BY name')
-        .all(status);
+        .all(status), 'path');
     }
-    return this.db
+    return this._absRows(this.db
       .prepare('SELECT id, name, path, status, updated_at FROM projects ORDER BY name')
-      .all();
+      .all(), 'path');
   }
 
   /**
@@ -925,14 +1028,14 @@ class VaultStore {
    * @returns {object[]}
    */
   listDecisions(projectId) {
-    return this.db
+    return this._absRows(this.db
       .prepare(
         `SELECT id, title, tags, created_at, file_path
          FROM decisions
          WHERE project_id = ?
          ORDER BY created_at DESC`
       )
-      .all(projectId);
+      .all(projectId));
   }
 
   /**
@@ -941,14 +1044,14 @@ class VaultStore {
    * @returns {object[]}
    */
   listSkills(projectId) {
-    return this.db
+    return this._absRows(this.db
       .prepare(
         `SELECT id, name, file_path, updated_at
          FROM project_skills
          WHERE project_id = ?
          ORDER BY updated_at DESC`
       )
-      .all(projectId);
+      .all(projectId));
   }
 
   /**
@@ -957,14 +1060,14 @@ class VaultStore {
    * @returns {object[]}
    */
   listResources(projectId) {
-    return this.db
+    return this._absRows(this.db
       .prepare(
         `SELECT id, title, url, file_path, created_at
          FROM resources
          WHERE project_id = ?
          ORDER BY created_at DESC`
       )
-      .all(projectId);
+      .all(projectId));
   }
 
   /**
@@ -973,14 +1076,14 @@ class VaultStore {
    * @returns {object[]}
    */
   listDailyLogs(projectId) {
-    return this.db
+    return this._absRows(this.db
       .prepare(
         `SELECT id, date, file_path, created_at
          FROM daily_logs
          WHERE project_id = ?
          ORDER BY date DESC`
       )
-      .all(projectId);
+      .all(projectId));
   }
 
   // ---------------------------------------------------------------------------
@@ -1180,12 +1283,12 @@ class VaultStore {
     `;
 
     if (projectId) {
-      return this.db
+      return this._absRows(this.db
         .prepare(`${baseQuery} AND search_index.project_id = ?`)
-        .all(ftsQuery, projectId);
+        .all(ftsQuery, projectId));
     }
 
-    return this.db.prepare(baseQuery).all(ftsQuery);
+    return this._absRows(this.db.prepare(baseQuery).all(ftsQuery));
   }
 
   // ---------------------------------------------------------------------------
@@ -1210,9 +1313,9 @@ class VaultStore {
 
     // ── Decisions ────────────────────────────────────────────────────────────
 
-    const allDecisions = this.db
+    const allDecisions = this._absRows(this.db
       .prepare('SELECT id, file_path, project_id FROM decisions')
-      .all();
+      .all());
 
     for (const dec of allDecisions) {
       if (!fs.existsSync(dec.file_path)) {
@@ -1241,9 +1344,9 @@ class VaultStore {
 
     // ── Skills ───────────────────────────────────────────────────────────────
 
-    const allSkills = this.db
+    const allSkills = this._absRows(this.db
       .prepare('SELECT id, file_path, project_id FROM project_skills')
-      .all();
+      .all());
 
     for (const sk of allSkills) {
       if (!fs.existsSync(sk.file_path)) {
@@ -1272,9 +1375,9 @@ class VaultStore {
 
     // ── Resources ────────────────────────────────────────────────────────────
 
-    const allResources = this.db
+    const allResources = this._absRows(this.db
       .prepare('SELECT id, file_path, project_id FROM resources')
-      .all();
+      .all());
 
     for (const res of allResources) {
       if (!fs.existsSync(res.file_path)) {
@@ -1296,9 +1399,9 @@ class VaultStore {
 
     // ── Daily logs ───────────────────────────────────────────────────────────
 
-    const allDailyLogs = this.db
+    const allDailyLogs = this._absRows(this.db
       .prepare('SELECT id, file_path, project_id FROM daily_logs')
-      .all();
+      .all());
 
     for (const log of allDailyLogs) {
       if (!fs.existsSync(log.file_path)) {

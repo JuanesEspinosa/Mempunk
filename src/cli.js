@@ -8,7 +8,8 @@ import { cmdInit } from './commands/init.js';
 import { cmdProjectAdd, cmdProjectList, cmdProjectActivate } from './commands/project.js';
 import { cmdBacklogAdd, cmdBacklogList, cmdBacklogUpdate } from './commands/backlog.js';
 import { cmdDecisionAdd, cmdDecisionList } from './commands/decision.js';
-import { cmdSkillAdd, cmdSkillList, cmdSkillUpdate } from './commands/skill.js';
+import { cmdAssetAdd, cmdAssetList, cmdAssetUpdate } from './commands/asset.js';
+import { cmdMaterialize, cmdProfileList, cmdProjectProfile } from './commands/materialize.js';
 import { cmdResourceAdd, cmdResourceList } from './commands/resource.js';
 import { cmdDailyLog, cmdDailyList } from './commands/daily.js';
 import {
@@ -46,7 +47,8 @@ try {
         case 'add':      cmdProjectAdd(args[0], args[1]); break;
         case 'list':     cmdProjectList(); break;
         case 'activate': cmdProjectActivate(args[0]); break;
-        default: fail(t('cli.unknownSubcommand', { command: 'project', sub: subcommand ?? '', valid: 'add | list | activate' }));
+        case 'profile':  cmdProjectProfile(args[0]); break;
+        default: fail(t('cli.unknownSubcommand', { command: 'project', sub: subcommand ?? '', valid: 'add | list | activate | profile' }));
       }
       break;
 
@@ -69,11 +71,31 @@ try {
 
     case 'skill':
       switch (subcommand) {
-        case 'add':    cmdSkillAdd(args[0], args[1]); break;
-        case 'list':   cmdSkillList(args[0]); break;
-        case 'update': cmdSkillUpdate(args[0]); break;
+        case 'add':    cmdAssetAdd('skill', args); break;
+        case 'list':   cmdAssetList('skill', args); break;
+        case 'update': cmdAssetUpdate('skill', args[0]); break;
         default: fail(t('cli.unknownSubcommand', { command: 'skill', sub: subcommand ?? '', valid: 'add | list | update' }));
       }
+      break;
+
+    case 'agent':
+      switch (subcommand) {
+        case 'add':    cmdAssetAdd('agent', args); break;
+        case 'list':   cmdAssetList('agent', args); break;
+        case 'update': cmdAssetUpdate('agent', args[0]); break;
+        default: fail(t('cli.unknownSubcommand', { command: 'agent', sub: subcommand ?? '', valid: 'add | list | update' }));
+      }
+      break;
+
+    case 'profile':
+      switch (subcommand) {
+        case 'list': cmdProfileList(); break;
+        default: fail(t('cli.unknownSubcommand', { command: 'profile', sub: subcommand ?? '', valid: 'list' }));
+      }
+      break;
+
+    case 'materialize':
+      cmdMaterialize();
       break;
 
     case 'resource':

@@ -67,8 +67,8 @@ First, check whether the vault has a git remote: read `$MEMPUNK_VAULT/.mempunk/r
 Then run in order (skip any that fail silently):
 1. `mempunk session last <project_id> --json` — last session (`summary`, `ended_at`, `files_touched`; `null` if none)
 2. `mempunk backlog list <project_id> --status pending --json` — pending tasks
-3. `mempunk skill list <project_id> --json` — skills; each entry has a `file_path`
-4. For each skill's `file_path`, read it with the Read tool — summarize in 2 lines max
+3. `mempunk skill list <project_id> --json` — skills. Entries with `scope` global/profile/project are installed as native Claude Code skills and load on demand: list their `name` and `description` only, do not read them. Only entries with `scope: "legacy"` must be read from `file_path` (summarize in 2 lines max)
+4. `mempunk agent list <project_id> --json` — project agents: list `name` and `description` only
 5. `mempunk decision list <project_id> --json` — recent decisions (keep the last 5)
 
 ### Step 5 — Return the context summary
@@ -85,8 +85,8 @@ PENDING BACKLOG (<n> tasks):
 - [P<priority>] <id> — <title>
 (max 8 items, highest priority first. "No pending tasks." if empty.)
 
-PROJECT SKILLS:
-- <skill_name>: <2-line summary>
+PROJECT SKILLS / AGENTS:
+- <name> (<scope>): <description, or 2-line summary for legacy>
 ("No skills registered." if empty.)
 
 RECENT DECISIONS:

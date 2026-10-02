@@ -206,9 +206,13 @@ SAVE session: project=<id> summary="Implemented login endpoint"
 | `mempunk decision add <project_id> "<title>"` | Create an ADR with markdown file | `mempunk decision add api "Use JWT for auth"` |
 | `mempunk decision add ... --tags "t1,t2"` | Add decision with tags | `mempunk decision add api "Use JWT" --tags "auth,security"` |
 | `mempunk decision list <project_id>` | List project decisions | `mempunk decision list api` |
-| `mempunk skill add <project_id> <name>` | Create a project skill file | `mempunk skill add api stack` |
-| `mempunk skill list <project_id>` | List project skills | `mempunk skill list api` |
-| `mempunk skill update <id> --file <path>` | Overwrite skill content from a file | `mempunk skill update sk_123 --file stack.md` |
+| `mempunk skill add <name> --global\|--profile <p>\|--project <id> --description "..."` | Create a Claude Code skill (`skills/<name>/SKILL.md`) in that scope | `mempunk skill add commits --global --description "Commit conventions"` |
+| `mempunk skill list <project_id>` | Skills available to a project (global + profiles + project, resolved) | `mempunk skill list api --json` |
+| `mempunk skill update <id> --file <path>` | Replace a skill's content (keeps the frontmatter if the file has none) | `mempunk skill update project:api:stack --file stack.md` |
+| `mempunk agent add\|list\|update ...` | Same as `skill`, for subagents (`agents/<name>.md`) | `mempunk agent add reviewer --project api --description "..."` |
+| `mempunk profile list` | Profiles (skills/agents shared by stack) | `mempunk profile list` |
+| `mempunk project profile <id> [--add <p>] [--remove <p>]` | Profiles applied to a project | `mempunk project profile api --add nestjs` |
+| `mempunk materialize [--global\|--project <id>] [--dry-run]` | Install vault skills/agents into `~/.claude/` and each repo's `.claude/` (private: added to `.git/info/exclude`). Runs on every session start | `mempunk materialize --dry-run` |
 | `mempunk resource add <project_id> "<title>"` | Capture an external resource | `mempunk resource add api "JWT spec" --url https://jwt.io` |
 | `mempunk resource list <project_id>` | List project resources | `mempunk resource list api` |
 

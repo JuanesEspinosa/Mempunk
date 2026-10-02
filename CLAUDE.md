@@ -14,7 +14,11 @@ CLI tool que da memoria persistente entre sesiones de Claude Code via SQLite + m
 │   └── <id>/
 │       ├── INDEX.md          → metadatos del proyecto (nombre, fecha, status)
 │       ├── decisions/        → ADRs del proyecto
-│       └── skills/           → stack, patrones y convenciones del proyecto
+│       ├── skills/<name>/SKILL.md → skills de Claude Code del proyecto
+│       ├── agents/<name>.md  → subagentes del proyecto
+│       └── mempunk.json      → {"profiles": [...]} perfiles aplicados
+├── global/{skills,agents}/   → skills/agentes para todos los proyectos (→ ~/.claude/)
+├── profiles/<p>/{skills,agents}/ → compartidos por stack (nestjs, nextjs…)
 ├── areas/                    → contexto de áreas de trabajo (no proyectos)
 ├── resources/                → links y referencias capturadas
 ├── daily/                    → logs diarios narrativos
@@ -41,9 +45,15 @@ mempunk backlog update <id> --priority <valor>       → actualiza prioridad de 
 mempunk decision add <project_id> "<title>"          → crea una decisión (ADR) con archivo markdown
 mempunk decision add <project_id> "<title>" --tags "t1,t2"  → igual con etiquetas
 mempunk decision list <project_id>                   → lista decisiones del proyecto
-mempunk skill add <project_id> <name>                → crea un skill del proyecto
-mempunk skill list <project_id>                      → lista skills del proyecto
-mempunk skill update <id> --file <path>              → sobreescribe el markdown de un skill
+mempunk skill add <name> --global|--profile <p>|--project <id> --description "..."  → crea skills/<name>/SKILL.md en ese scope (description obligatoria: Claude la usa para activarla)
+mempunk skill add <project_id> <name> --description "..."  → forma heredada = --project
+mempunk skill list <project_id> [--json]             → skills disponibles para el proyecto (globales + perfiles + proyecto, resueltas; id = <scope>:<owner>:<name>)
+mempunk skill list --global | --profile <p>          → skills de un scope
+mempunk skill update <id> --file <path>              → reemplaza el contenido (id de list o id heredado); si el archivo no trae frontmatter se conserva el actual
+mempunk agent add|list|update ...                    → igual que skill, para subagentes (agents/<name>.md)
+mempunk profile list                                 → perfiles existentes con conteo de skills/agentes
+mempunk project profile <id> [--add <p>] [--remove <p>]  → perfiles aplicados al proyecto (orden = precedencia; el proyecto gana)
+mempunk materialize [--global | --project <id>] [--dry-run] [--json]  → copia skills/agentes del vault a ~/.claude/ (global) y a <repo>/.claude/ (perfil+proyecto, privado vía .git/info/exclude). Lo ejecuta on-start.js en cada sesión; nunca pisa copias editadas a mano (conflicto)
 mempunk resource add <project_id> "<title>" --url <url>  → captura un resource externo con url y contenido
 mempunk resource add <project_id> "<title>" --url <url> --content "<texto>"  → igual con contenido
 mempunk resource list <project_id>                   → lista resources del proyecto
@@ -164,7 +174,7 @@ Actualizar vault después de instalar una nueva versión de Mempunk:
 mempunk vault upgrade
 ```
 
-Versión actual del vault: 5
+Versión actual del vault: 6 (rutas relativas al vault en la BD; un CLI viejo aborta ante un vault más nuevo pidiendo actualizar mempunk)
 Versión mínima requerida por este CLI: 2
 
 Si el vault está desactualizado, los comandos abortan con un mensaje claro en vez de migrar en silencio. Ejecuta `mempunk vault upgrade` para actualizarlo.

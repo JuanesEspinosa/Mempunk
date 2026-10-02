@@ -2,6 +2,8 @@
 
 // Evento: SessionStart — al inicio de cada sesión de Claude Code.
 // - Inicializa session-touched.json y persiste el proyecto activo (siempre).
+// - Si source !== "compact": auto-pull (si remote.json lo pide) y materialize de
+//   skills/agentes del vault a ~/.claude y a los repos de esta máquina.
 // - Si auto-start.flag existe y source !== "compact": inyecta instrucción @mempunk-loader.
 // - Si source === "compact": restaura contexto del último compact_snapshot e inyecta additionalContext.
 
@@ -24,6 +26,9 @@ const TOUCHED_FILE = path.join(MEMPUNK_DIR, 'session-touched.json');
 
 // Tope del pull automático: un remote colgado no debe bloquear el arranque de la sesión
 const PULL_TIMEOUT_MS = 45_000;
+
+// Tope de la instalación de skills/agentes: solo copia archivos locales
+const MATERIALIZE_TIMEOUT_MS = 20_000;
 
 // Solo se registra este prefijo del stderr en hooks.log (nunca va al contexto de Claude)
 const MAX_LOGGED_STDERR = 500;
@@ -118,6 +123,27 @@ function autoPullVault() {
   return hookT(`remote.pull.${kind}`);
 }
 
+/** Copia skills/agentes del vault a sus carpetas .claude/. Nunca aborta la sesión.
+ *  Devuelve un aviso fijo para Claude si hubo conflictos, o null. */
+function materializeAssets() {
+  const result = runCli(['materialize', '--json'], { timeout: hookTimeoutMs(MATERIALIZE_TIMEOUT_MS) });
+  if (result.status !== 0) {
+    const err = (result.stderr?.trim() || result.error?.message || 'sin detalle').slice(0, MAX_LOGGED_STDERR);
+    log(`materialize falló (status=${result.status ?? 'null'}): ${err}`);
+    return null;
+  }
+  try {
+    const { targets } = JSON.parse(result.stdout);
+    const sum = (key) => targets.reduce((n, t) => n + (Array.isArray(t[key]) ? t[key].length : 0), 0);
+    log(`materialize OK: ${sum('created')} creados, ${sum('updated')} actualizados, ${sum('removed')} eliminados, ${sum('conflicts')} conflictos`);
+    const conflicts = sum('conflicts');
+    return conflicts > 0 ? hookT('materialize.conflicts', { count: conflicts }) : null;
+  } catch (_) {
+    log('materialize devolvió JSON inválido');
+    return null;
+  }
+}
+
 /** Emite la respuesta JSON de SessionStart. Contexto vacío → {}. */
 function writeSessionStartOutput(contextLines) {
   const additionalContext = contextLines.filter(Boolean).join('\n').slice(0, MAX_CONTEXT_CHARS);
@@ -174,6 +200,9 @@ try {
     // Pull del vault antes de cargar contexto (solo si remote.json lo pide)
     const pullWarning = autoPullVault();
 
+    // Después del pull: así llegan las skills/agentes creados en la otra máquina
+    const materializeWarning = materializeAssets();
+
     let autoStartContext = null;
     if (fs.existsSync(AUTO_START_FLAG)) {
       log(`SessionStart source=${source ?? 'startup'} — auto-start activo, inyectando @mempunk-loader`);
@@ -181,7 +210,7 @@ try {
     } else {
       log(`SessionStart source=${source ?? 'startup'} — sin restauración ni auto-start`);
     }
-    writeSessionStartOutput([autoStartContext, pullWarning]);
+    writeSessionStartOutput([autoStartContext, pullWarning, materializeWarning]);
     process.exit(0);
   }
 

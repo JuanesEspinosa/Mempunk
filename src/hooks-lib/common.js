@@ -190,6 +190,7 @@ const HOOK_MESSAGES = {
     'remote.pull.network': 'Mempunk: automatic vault pull failed (network) — run `mempunk pull` manually.',
     'remote.pull.conflict': 'Mempunk: automatic vault pull failed (conflict) — run `mempunk pull` manually and resolve the conflicts in the vault.',
     'remote.pull.error': 'Mempunk: automatic vault pull failed — run `mempunk pull` manually to see details.',
+    'materialize.conflicts': 'Mempunk: {count} skill/agent file(s) were not updated because they were edited outside the vault — run `mempunk materialize --dry-run` to see which.',
   },
   es: {
     'context.alert': '🚨 Contexto al {pct}% — compactación inminente (auto-compact ocurre al ~83.5%). ' +
@@ -213,6 +214,7 @@ const HOOK_MESSAGES = {
     'remote.pull.network': 'Mempunk: el pull automático del vault falló (red) — ejecuta `mempunk pull` manualmente.',
     'remote.pull.conflict': 'Mempunk: el pull automático del vault falló (conflicto) — ejecuta `mempunk pull` manualmente y resuelve los conflictos del vault.',
     'remote.pull.error': 'Mempunk: el pull automático del vault falló — ejecuta `mempunk pull` manualmente para ver el detalle.',
+    'materialize.conflicts': 'Mempunk: {count} archivo(s) de skills/agentes no se actualizaron porque fueron editados fuera del vault — ejecuta `mempunk materialize --dry-run` para ver cuáles.',
   },
 };
 

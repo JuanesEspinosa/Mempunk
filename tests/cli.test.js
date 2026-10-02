@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
+import { VAULT_VERSION as VAULT_VERSION_EXPECTED } from '../src/store/VaultStore.js';
 
 const __dirname    = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.join(__dirname, '..');
@@ -224,14 +225,99 @@ describe('mempunk decision add', () => {
 // ── Skill ─────────────────────────────────────────────────────────────────────
 
 describe('mempunk skill add', () => {
-  it('crea el archivo markdown del skill y muestra el path en el output', () => {
-    const output = run('skill add myproj stack');
+  it('forma heredada <proj> <name>: crea SKILL.md del proyecto y muestra el path', () => {
+    const output = run('skill add myproj stack --description "Stack del proyecto"');
 
     expect(output).toContain('stack');
-    expect(output).toContain('.md');
+    expect(output).toContain('SKILL.md');
 
-    const skillFile = path.join(TEMP_VAULT, 'projects', 'myproj', 'skills', 'stack.md');
-    expect(fs.existsSync(skillFile)).toBe(true);
+    const skillFile = path.join(TEMP_VAULT, 'projects', 'myproj', 'skills', 'stack', 'SKILL.md');
+    expect(fs.readFileSync(skillFile, 'utf8')).toContain('description: "Stack del proyecto"');
+  });
+
+  it('sin --description falla y no crea nada', () => {
+    const res = spawnSync('node', ['src/cli.js', 'skill', 'add', 'myproj', 'sin-desc'], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+      encoding: 'utf8',
+    });
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain('--description');
+    expect(fs.existsSync(path.join(TEMP_VAULT, 'projects', 'myproj', 'skills', 'sin-desc'))).toBe(false);
+  });
+});
+
+// ── Skills y agentes por scope + materialize ─────────────────────────────────
+
+describe('skills/agentes por scope y materialize', () => {
+  const REPO = path.join(os.tmpdir(), `mempunk-cli-repo-${Date.now()}`);
+  const runIn = (args) => execSync(`node "${path.join(PROJECT_ROOT, 'src', 'cli.js')}" ${args}`, {
+    cwd: REPO,
+    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+    encoding: 'utf8',
+  });
+
+  beforeAll(() => {
+    fs.mkdirSync(REPO, { recursive: true });
+    spawnSync('git', ['init', '-q'], { cwd: REPO });
+    runIn('project add assetproj "Asset Project"');
+  });
+
+  afterAll(() => {
+    fs.rmSync(REPO, { recursive: true, force: true });
+  });
+
+  it('crea assets en cada scope y los lista resueltos para el proyecto', () => {
+    run('skill add commits --global --description "Convención de commits"');
+    run('skill add testing --profile nestjs --description "Tests en NestJS"');
+    run('agent add revisor --project assetproj --description "Revisa PRs del proyecto"');
+    expect(run('project profile assetproj --add nestjs')).toContain('nestjs');
+
+    const skills = JSON.parse(run('skill list assetproj --json'));
+    expect(skills.map((s) => s.id).sort()).toEqual(['global::commits', 'profile:nestjs:testing']);
+    const agents = JSON.parse(run('agent list assetproj --json'));
+    expect(agents.map((a) => a.id)).toEqual(['project:assetproj:revisor']);
+    expect(JSON.parse(run('profile list --json'))).toEqual([{ name: 'nestjs', skills: 1, agents: 0 }]);
+  });
+
+  it('materialize instala global en HOME/.claude y el proyecto en su repo, privado en git', () => {
+    const out = runIn('materialize --project assetproj');
+    expect(out).toContain('assetproj: 2 creados');
+
+    expect(fs.existsSync(path.join(REPO, '.claude', 'skills', 'testing', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(REPO, '.claude', 'agents', 'revisor.md'))).toBe(true);
+    const status = spawnSync('git', ['status', '--porcelain', '-uall'], { cwd: REPO, encoding: 'utf8' }).stdout;
+    expect(status).not.toContain('.claude');
+
+    runIn('materialize --global');
+    expect(fs.existsSync(path.join(TEMP_HOME, '.claude', 'skills', 'commits', 'SKILL.md'))).toBe(true);
+  });
+
+  it('skill update por id de scope conserva el frontmatter si el contenido no lo trae', () => {
+    const body = path.join(REPO, 'nuevo.md');
+    fs.writeFileSync(body, '# testing\n\nUsa jest con --runInBand.\n');
+    run(`skill update profile:nestjs:testing --file "${body}"`);
+    const file = path.join(TEMP_VAULT, 'profiles', 'nestjs', 'skills', 'testing', 'SKILL.md');
+    const content = fs.readFileSync(file, 'utf8');
+    expect(content).toContain('description: "Tests en NestJS"');
+    expect(content).toContain('--runInBand');
+
+    const json = JSON.parse(runIn('materialize --project assetproj --json'));
+    expect(json.targets[0].updated).toHaveLength(1);
+  });
+
+  it('dos proyectos en el mismo repo comparten .claude/ sin borrarse entre sí', () => {
+    runIn('project add vecino "Vecino"');
+    run('agent add ayudante --project vecino --description "Agente del vecino"');
+
+    const first = JSON.parse(runIn('materialize --project assetproj --json'));
+    expect(first.targets.map((t) => t.target)).toEqual(['assetproj+vecino']);
+    expect(fs.existsSync(path.join(REPO, '.claude', 'agents', 'ayudante.md'))).toBe(true);
+    expect(fs.existsSync(path.join(REPO, '.claude', 'agents', 'revisor.md'))).toBe(true);
+
+    const second = JSON.parse(runIn('materialize --project vecino --json'));
+    expect(second.targets[0].removed).toEqual([]);
+    expect(second.targets[0].created).toEqual([]);
   });
 });
 
@@ -394,9 +480,9 @@ describe('mempunk vault', () => {
 
   it('vault version muestra la versión correcta cuando el vault está actualizado', () => {
     const output = run('vault version');
-    // "Vault v5" explícito — un toContain('v2') genérico matchearía "CLI v2.x.x"
+    // "Vault vN" explícito — un toContain('v2') genérico matchearía "CLI v2.x.x"
     // y aprobaría con cualquier versión de vault
-    expect(output).toMatch(/Vault v5/);
+    expect(output).toMatch(new RegExp(`Vault v${VAULT_VERSION_EXPECTED}(?!\\d)`));
     expect(output).toContain('OK');
   });
 
@@ -419,7 +505,7 @@ describe('mempunk vault', () => {
       env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: isolated },
       encoding: 'utf8',
     });
-    expect(output).toContain('v5');
+    expect(output).toContain(`v${VAULT_VERSION_EXPECTED}`);
 
     // Verificar que vault version ahora dice OK
     const versionOutput = execSync('node src/cli.js vault version', {
@@ -735,9 +821,10 @@ describe('mempunk remove', () => {
     // Resource del proyecto a borrar
     run('resource add rm-files "Spec temporal" --url https://example.com --content "cuerpo"');
     const db1 = new Database(path.join(TEMP_VAULT, '.mempunk', 'mempunk.db'));
-    const resourcePath = db1
+    // La BD guarda la ruta relativa al vault (v6)
+    const resourcePath = path.join(TEMP_VAULT, db1
       .prepare('SELECT file_path FROM resources WHERE project_id = ?')
-      .get('rm-files').file_path;
+      .get('rm-files').file_path);
     db1.close();
     expect(fs.existsSync(resourcePath)).toBe(true);
 
@@ -745,9 +832,9 @@ describe('mempunk remove', () => {
     run('daily log rm-files "entrada del proyecto a borrar"');
     run('daily log rm-other "entrada del proyecto que sobrevive"');
     const db2 = new Database(path.join(TEMP_VAULT, '.mempunk', 'mempunk.db'));
-    const dailyPath = db2
+    const dailyPath = path.join(TEMP_VAULT, db2
       .prepare('SELECT file_path FROM daily_logs WHERE project_id = ?')
-      .get('rm-files').file_path;
+      .get('rm-files').file_path);
     db2.close();
 
     run('remove rm-files --yes');
