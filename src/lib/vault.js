@@ -45,6 +45,12 @@ export function openStore(skipVersionCheck = false) {
     return store;
   }
 
+  // BD migrada por un mempunk más nuevo (p. ej. en la otra máquina): este CLI
+  // no entiende su schema/rutas — escribir en ella podría corromperla
+  if (!skipVersionCheck && vaultVersion > VAULT_VERSION) {
+    fail(t('vault.newer', { current: vaultVersion, supported: VAULT_VERSION }));
+  }
+
   if (!skipVersionCheck && vaultVersion < VAULT_VERSION) {
     fail(t('vault.outdated', { current: vaultVersion, required: VAULT_VERSION }));
   }

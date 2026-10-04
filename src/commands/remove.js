@@ -27,7 +27,7 @@ export function cmdRemove(projectId) {
   const resourceFiles = store.db
     .prepare('SELECT file_path FROM resources WHERE project_id = ?')
     .all(projectId)
-    .map((r) => r.file_path);
+    .map((r) => store._toAbs(r.file_path));
 
   const soleOwnerDailyFiles = store.db
     .prepare(
@@ -39,7 +39,7 @@ export function cmdRemove(projectId) {
          )`
     )
     .all(projectId, projectId)
-    .map((r) => r.file_path);
+    .map((r) => store._toAbs(r.file_path));
 
   // Transacción: un fallo intermedio no debe dejar el proyecto medio borrado.
   // Incluye checkpoints y snapshots — sin esto, un proyecto recreado con el
@@ -62,7 +62,7 @@ export function cmdRemove(projectId) {
 
   // Borrado de archivos DESPUÉS de la transacción exitosa: si la transacción
   // fallara, las filas seguirían apuntando a archivos existentes (consistente)
-  for (const filePath of [...resourceFiles, ...soleOwnerDailyFiles]) {
+  for (const filePath of [...resourceFiles, ...soleOwnerDailyFiles].filter(Boolean)) {
     try { fs.rmSync(filePath, { force: true }); } catch (_) {}
   }
 

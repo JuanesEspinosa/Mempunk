@@ -7,6 +7,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Skills and agents by scope** — global (`global/`), profile (`profiles/<p>/`, shared by stack) and project (`projects/<id>/`), each with `skills/<name>/SKILL.md` and `agents/<name>.md`. Discovered from the filesystem only (no DB table), so they merge through git like any markdown. A project's assets resolve as profiles (in order) → project; the most specific wins.
+  - `mempunk skill|agent add <name> --global|--profile <p>|--project <id> --description "..."` (description is required — it is what Claude uses to activate the asset), `list` (resolved for a project, ids `<scope>:<owner>:<name>`), `update <id> --file` (keeps the frontmatter when the new content has none).
+  - `mempunk profile list`, `mempunk project profile <id> [--add <p>] [--remove <p>]` (stored in `projects/<id>/mempunk.json`).
+  - `mempunk materialize [--global|--project <id>] [--dry-run] [--json]`: copies global assets to `~/.claude/` and profile+project assets to `<repo on this machine>/.claude/`, listed in `.git/info/exclude` so they are never committed. A per-target manifest (`.claude/.mempunk-managed.json`, sha256 per file) means copies edited by hand or files not created by Mempunk are never overwritten or deleted (reported as conflicts; the whole asset is skipped). Runs from `on-start.js` after the auto-pull; only a fixed one-line notice reaches Claude when there are conflicts.
+- Guard: commands abort when the vault DB is **newer** than the installed CLI (e.g. upgraded on the other machine) instead of writing to it.
+
+### Changed
+
+- **Vault schema v6 — paths relative to the vault**: `decisions/resources/daily_logs/project_skills.file_path` and `projects.path` are stored relative to the vault (with `/`) and returned absolute by the API. The migration converts paths from this machine by prefix and paths written on another machine by anchored suffix, so a DB that travels through git resolves on every machine. Run `mempunk vault upgrade` on each machine (update mempunk on both first).
+- `skill add` creates `skills/<name>/SKILL.md` (native Claude Code skill) instead of a flat `.md`; flat skills are still listed as `scope: "legacy"`. `@mempunk-loader` no longer reads native skills (they load on demand) — only legacy ones.
+- `src/commands/skill.js` replaced by the generic `src/commands/asset.js`.
+
 ## [2.2.0] — 2026-09-09
 
 ### Added

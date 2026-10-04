@@ -65,6 +65,11 @@ function readCalls() {
   return fs.readFileSync(CALLS_LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
 }
 
+/** Solo las llamadas de sync (on-start también invoca materialize) */
+function syncCalls() {
+  return readCalls().filter((c) => c[0] === 'pull' || c[0] === 'push');
+}
+
 function writeRemote(auto) {
   fs.writeFileSync(REMOTE_FILE, JSON.stringify({
     url: 'https://example.invalid/vault.git', branch: 'main', auto, created_at: new Date().toISOString(),
@@ -161,7 +166,7 @@ describe('on-start.js (SessionStart auto-pull)', () => {
     writeRemote({ pull_on_start: true, push_on_end: false });
     const r = runHook('on-start.js', { session_id: 's6', source: 'startup', cwd: PROJECT_ROOT });
     expect(r.status).toBe(0);
-    expect(readCalls()).toEqual([['pull']]);
+    expect(syncCalls()).toEqual([['pull']]);
     expect(JSON.parse(r.stdout)).toEqual({});
   });
 
@@ -169,7 +174,7 @@ describe('on-start.js (SessionStart auto-pull)', () => {
     writeRemote({ pull_on_start: false, push_on_end: false });
     const r = runHook('on-start.js', { session_id: 's7', source: 'startup', cwd: PROJECT_ROOT });
     expect(r.status).toBe(0);
-    expect(readCalls()).toEqual([]);
+    expect(syncCalls()).toEqual([]);
     expect(JSON.parse(r.stdout)).toEqual({});
   });
 
@@ -183,7 +188,17 @@ describe('on-start.js (SessionStart auto-pull)', () => {
   it('no llama pull sin remote.json', () => {
     const r = runHook('on-start.js', { session_id: 's9', source: 'startup', cwd: PROJECT_ROOT });
     expect(r.status).toBe(0);
-    expect(readCalls()).toEqual([]);
+    expect(syncCalls()).toEqual([]);
+  });
+
+  it('ejecuta materialize después del pull (no en compact)', () => {
+    writeRemote({ pull_on_start: true, push_on_end: false });
+    runHook('on-start.js', { session_id: 's9b', source: 'startup', cwd: PROJECT_ROOT });
+    expect(readCalls()).toEqual([['pull'], ['materialize', '--json']]);
+
+    fs.rmSync(CALLS_LOG, { force: true });
+    runHook('on-start.js', { session_id: 's9c', source: 'compact', cwd: PROJECT_ROOT });
+    expect(readCalls().some((c) => c[0] === 'materialize')).toBe(false);
   });
 
   it('inyecta un aviso fijo con "mempunk pull" (sin stderr crudo) cuando el pull falla', () => {

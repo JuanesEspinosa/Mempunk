@@ -15,6 +15,10 @@ const TEMP_VAULT   = path.join(os.tmpdir(), `mempunk-hooks-test-${Date.now()}`);
 const MEMPUNK_DIR  = path.join(TEMP_VAULT, '.mempunk');
 const MEMPUNK_CLI  = `node ${CLI_PATH}`;
 
+// HOME temporal: on-start materializa skills/agentes globales en ~/.claude —
+// sin esto los tests tocarían la instalación real del desarrollador
+const TEMP_HOME    = path.join(os.tmpdir(), `mempunk-hooks-home-${Date.now()}`);
+
 // Los tests corren contra los BUNDLES de dist/hooks — lo que realmente se
 // instala en ~/.claude/hooks/. npm test los regenera via pretest (npm run build).
 function runHook(hookFile, input, extraEnv = {}) {
@@ -22,7 +26,7 @@ function runHook(hookFile, input, extraEnv = {}) {
     input: typeof input === 'string' ? input : JSON.stringify(input),
     encoding: 'utf8',
     cwd: PROJECT_ROOT,
-    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI, ...extraEnv },
+    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI, HOME: TEMP_HOME, USERPROFILE: TEMP_HOME, ...extraEnv },
   });
 }
 
@@ -59,6 +63,7 @@ let transcriptPath;
 
 beforeAll(() => {
   fs.mkdirSync(MEMPUNK_DIR, { recursive: true });
+  fs.mkdirSync(TEMP_HOME, { recursive: true });
   runCli('init');
   runCli('project add testproj "Test Project"');
   fs.writeFileSync(path.join(MEMPUNK_DIR, 'active-project.json'), JSON.stringify({ project_id: 'testproj' }));
@@ -68,6 +73,7 @@ beforeAll(() => {
 
 afterAll(() => {
   fs.rmSync(TEMP_VAULT, { recursive: true, force: true });
+  fs.rmSync(TEMP_HOME, { recursive: true, force: true });
 });
 
 // ── on-prompt.js ──────────────────────────────────────────────────────────────

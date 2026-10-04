@@ -43,9 +43,14 @@ Backlog:
 Knowledge:
   decision add <proj> "<title>"     Create a decision (ADR)
   decision list <proj>              List project decisions
-  skill    add <proj> <name>        Create a project skill
-  skill    list <proj>              List project skills
-  skill    update <id>              Update a skill's content
+  skill    add <name> --global|--profile <p>|--project <id> --description "..."
+                                    Create a Claude Code skill in that scope
+  skill    list <proj> | --global | --profile <p>   List skills (project: resolved)
+  skill    update <id> --file <md>  Replace a skill's content
+  agent    add|list|update ...      Same as skill, for subagents
+  profile  list                     List profiles (stack-shared skills/agents)
+  project  profile <id> [--add <p>] [--remove <p>]  Profiles applied to a project
+  materialize [--global|--project <id>] [--dry-run]  Install skills/agents into ~/.claude and each repo's .claude/
   resource add <proj> "<title>"     Capture an external resource
   resource list <proj>              List project resources
 
@@ -77,6 +82,7 @@ Maintenance:
 
     // lib/vault.js
     'vault.notInitialized': 'Vault not found at {path}. Run "mempunk init" first.',
+    'vault.newer': 'The vault is at version {current} but this mempunk only supports up to {supported}. Update mempunk on this machine: npm i -g mempunk@latest',
     'vault.outdated': 'Vault out of date (v{current} → v{required}). Run mempunk vault upgrade.',
 
     // lib/config-files.js
@@ -108,6 +114,23 @@ Maintenance:
     'skill.created': 'Skill {name} created at {path}',
     'skill.fileNotFound': 'File not found: {path}',
     'skill.updated': 'Skill {id} updated',
+    // skills/agentes por scope
+    'asset.created': '{kind} {name} created at {path}',
+    'asset.hintMaterialize': 'Edit it and run "mempunk materialize" (or open a new Claude session) to install it.',
+    'asset.scopeConflict': 'Use only one of --global, --profile, --project',
+    'asset.notFound': '{kind} not found: {id}',
+    'asset.legacyHint': '{count} legacy skill(s) (flat .md) are not installed in Claude Code. Recreate them with: mempunk skill add <name> --project {id} --description "..."',
+    'profile.none': 'No profiles yet. Create one with: mempunk skill add <name> --profile <profile> --description "..."',
+    'profile.ofProject': 'Profiles of {id}: {profiles}',
+    'profile.empty': '(none)',
+    'profile.notCreatedYet': 'Note: profile "{profile}" has no skills or agents yet (profiles/{profile}/).',
+    'materialize.target': '{target}: {created} created, {updated} updated, {removed} removed, {unchanged} unchanged',
+    'materialize.conflict': '  ! {asset} {path}: {reason}',
+    'materialize.warning': '  ! {path}: {reason}',
+    'materialize.missingRoot': '{id}: repo path {root} does not exist on this machine — skipped',
+    'materialize.noLocalPath': 'Project {id} has no repo path on this machine. Run in the repo: mempunk project activate {id} --here',
+    'materialize.dryRun': '(dry run — nothing was written)',
+    'materialize.locked': 'Another materialize is running — skipped.',
 
     // resource
     'resource.saved': 'Resource saved to {path}',
@@ -341,9 +364,14 @@ Backlog:
 Conocimiento:
   decision add <proj> "<title>"     Crea una decisión (ADR)
   decision list <proj>              Lista decisiones del proyecto
-  skill    add <proj> <name>        Crea un skill de proyecto
-  skill    list <proj>              Lista skills del proyecto
-  skill    update <id>              Actualiza contenido de un skill
+  skill    add <nombre> --global|--profile <p>|--project <id> --description "..."
+                                    Crea una skill de Claude Code en ese scope
+  skill    list <proj> | --global | --profile <p>   Lista skills (proyecto: resueltas)
+  skill    update <id> --file <md>  Reemplaza el contenido de una skill
+  agent    add|list|update ...      Igual que skill, para subagentes
+  profile  list                     Lista perfiles (skills/agentes compartidos por stack)
+  project  profile <id> [--add <p>] [--remove <p>]  Perfiles aplicados a un proyecto
+  materialize [--global|--project <id>] [--dry-run]  Instala skills/agentes en ~/.claude y en el .claude/ de cada repo
   resource add <proj> "<title>"     Captura un resource externo
   resource list <proj>              Lista resources del proyecto
 
@@ -375,6 +403,7 @@ Mantenimiento:
 
     // lib/vault.js
     'vault.notInitialized': 'El vault no existe en {path}. Ejecuta "mempunk init" primero.',
+    'vault.newer': 'El vault está en la versión {current} pero este mempunk solo soporta hasta la {supported}. Actualiza mempunk en esta máquina: npm i -g mempunk@latest',
     'vault.outdated': 'Vault desactualizado (v{current} → v{required}). Ejecuta mempunk vault upgrade.',
 
     // lib/config-files.js
@@ -406,6 +435,23 @@ Mantenimiento:
     'skill.created': 'Skill {name} creado en {path}',
     'skill.fileNotFound': 'Archivo no encontrado: {path}',
     'skill.updated': 'Skill {id} actualizado',
+    // skills/agentes por scope
+    'asset.created': '{kind} {name} creado en {path}',
+    'asset.hintMaterialize': 'Edítalo y ejecuta "mempunk materialize" (o abre una sesión nueva de Claude) para instalarlo.',
+    'asset.scopeConflict': 'Usa solo uno de --global, --profile, --project',
+    'asset.notFound': '{kind} no encontrado: {id}',
+    'asset.legacyHint': '{count} skill(s) heredada(s) (.md plano) no se instalan en Claude Code. Recréalas con: mempunk skill add <nombre> --project {id} --description "..."',
+    'profile.none': 'Aún no hay perfiles. Crea uno con: mempunk skill add <nombre> --profile <perfil> --description "..."',
+    'profile.ofProject': 'Perfiles de {id}: {profiles}',
+    'profile.empty': '(ninguno)',
+    'profile.notCreatedYet': 'Nota: el perfil "{profile}" todavía no tiene skills ni agentes (profiles/{profile}/).',
+    'materialize.target': '{target}: {created} creados, {updated} actualizados, {removed} eliminados, {unchanged} sin cambios',
+    'materialize.conflict': '  ! {asset} {path}: {reason}',
+    'materialize.warning': '  ! {path}: {reason}',
+    'materialize.missingRoot': '{id}: la ruta del repo {root} no existe en esta máquina — omitido',
+    'materialize.noLocalPath': 'El proyecto {id} no tiene ruta de repo en esta máquina. Ejecuta en el repo: mempunk project activate {id} --here',
+    'materialize.dryRun': '(simulación — no se escribió nada)',
+    'materialize.locked': 'Otro materialize está en curso — omitido.',
 
     // resource
     'resource.saved': 'Resource guardado en {path}',

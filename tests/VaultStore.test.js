@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import VaultStore from '../src/store/VaultStore.js';
+import VaultStore, { VAULT_VERSION } from '../src/store/VaultStore.js';
 
 // Vault temporal aislado — nunca toca ~/Dev-Brain
 const TEMP_VAULT = path.join(os.tmpdir(), `mempunk-test-${Date.now()}`);
@@ -633,9 +633,9 @@ describe('Migración', () => {
 // ── Vault version ─────────────────────────────────────────────────────────────
 
 describe('Vault version', () => {
-  it('getVaultVersion() retorna 5 después de todas las migraciones', () => {
+  it('getVaultVersion() retorna VAULT_VERSION después de todas las migraciones', () => {
     // El store global ya tiene v1 a v5 aplicadas
-    expect(store.getVaultVersion()).toBe(5);
+    expect(store.getVaultVersion()).toBe(VAULT_VERSION);
   });
 
   it('getVaultVersion() retorna 0 en una base de datos sin vault_version en vault_meta', () => {
