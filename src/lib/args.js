@@ -37,6 +37,8 @@ const { values: opts, positionals } = parseArgs({
     add:          { type: 'string'  },  // project profile <id> --add <p>
     remove:       { type: 'string'  },  // project profile <id> --remove <p>
     'dry-run':    { type: 'boolean' },  // materialize --dry-run
+    'max-chars':     { type: 'string'  },  // context --max-chars N
+    'with-snapshot': { type: 'boolean' },  // context --with-snapshot
   },
   allowPositionals: true,
   strict: false, // ignorar opciones no declaradas sin lanzar error

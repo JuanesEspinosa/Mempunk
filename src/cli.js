@@ -27,6 +27,7 @@ import { cmdRemove } from './commands/remove.js';
 import { cmdDoctor } from './commands/doctor.js';
 import { cmdOpenLog } from './commands/log.js';
 import { cmdRemoteSet, cmdRemoteShow, cmdRemoteUnset, cmdPush, cmdPull } from './commands/remote.js';
+import { cmdContext } from './commands/context.js';
 
 // ── Router principal ──────────────────────────────────────────────────────────
 
@@ -150,6 +151,10 @@ try {
         case 'backup':  cmdVaultBackup(); break;
         default: fail(t('cli.unknownSubcommand', { command: 'vault', sub: subcommand ?? '', valid: 'version | upgrade | backup' }));
       }
+      break;
+
+    case 'context':
+      cmdContext(subcommand);
       break;
 
     case 'export':

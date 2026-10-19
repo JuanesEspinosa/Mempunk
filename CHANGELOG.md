@@ -11,6 +11,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `mempunk context <project_id> [--json] [--max-chars N] [--with-snapshot]` — compiled context block: `wiki/state.md` (without the history section; an unfilled template counts as missing), last session, pending backlog (8), recent decisions (5) and, with `--with-snapshot`, files, commands and last messages of the last snapshot. Sections that do not fit are dropped from the end; the state is truncated rather than lost. Logic lives in `src/services/context.js`.
 - **Skills and agents by scope** — global (`global/`), profile (`profiles/<p>/`, shared by stack) and project (`projects/<id>/`), each with `skills/<name>/SKILL.md` and `agents/<name>.md`. Discovered from the filesystem only (no DB table), so they merge through git like any markdown. A project's assets resolve as profiles (in order) → project; the most specific wins.
   - `mempunk skill|agent add <name> --global|--profile <p>|--project <id> --description "..."` (description is required — it is what Claude uses to activate the asset), `list` (resolved for a project, ids `<scope>:<owner>:<name>`), `update <id> --file` (keeps the frontmatter when the new content has none).
   - `mempunk profile list`, `mempunk project profile <id> [--add <p>] [--remove <p>]` (stored in `projects/<id>/mempunk.json`).
@@ -25,6 +26,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- After a compaction, `on-start.js` now injects the `mempunk context` block (compiled state + session + backlog + decisions + snapshot) instead of six raw messages truncated to 200 characters, even when there is no snapshot. Falls back to the old snapshot-only format if the CLI fails. Context cap raised from 8,000 to 9,500 characters.
 - `vault-skills/` is now included in the npm package. Before, `mempunk setup` in Gemini/opencode mode (or manual mode) installed from npm silently skipped the protocols; it now fails with a clear error if the folder is missing.
 - `mempunk init` now writes a README into `projects/`, `areas/`, `resources/` and `daily/` (from `templates/vault/`), never overwriting an existing one. `mempunk sync` ignores those `README.md` files.
 - SessionEnd hook timeout lowered from 90 s to 60 s and the automatic push cap from 60 s to 50 s, so the hook (not Claude Code) cuts a hung remote and logs why. The push on session end is a safety net; push before closing. Run `mempunk hooks install` again to apply the new timeout.

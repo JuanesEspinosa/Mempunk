@@ -12,6 +12,7 @@ src/
 ├── commands/*.js       → un módulo por dominio (project, backlog, decision, session, hooks, setup, vault, remote, sync…)
 ├── lib/                → utilidades del CLI: args.js (flags), i18n.js (mensajes), git.js, vault.js (VAULT_PATH), assets.js, materialize.js…
 ├── store/VaultStore.js → acceso a SQLite (better-sqlite3), WAL, MIGRATIONS y VAULT_VERSION
+├── services/           → lógica de negocio pura (recibe el store, devuelve datos, no imprime); la usan el CLI y, desde la Fase 1, el MCP
 ├── hooks/*.js          → fuente de los hooks de Claude Code (on-start, on-stop, on-compact, on-prompt, on-end)
 ├── hooks-lib/common.js → código compartido por los hooks (VAULT_PATH, logger, HOOK_MESSAGES, llamada al CLI)
 ├── agents/*.md         → subagentes que instala `hooks install`

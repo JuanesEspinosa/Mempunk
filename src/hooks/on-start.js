@@ -5,7 +5,9 @@
 // - Si source !== "compact": auto-pull (si remote.json lo pide) y materialize de
 //   skills/agentes del vault a ~/.claude y a los repos de esta máquina.
 // - Si auto-start.flag existe y source !== "compact": inyecta instrucción @mempunk-loader.
-// - Si source === "compact": restaura contexto del último compact_snapshot e inyecta additionalContext.
+// - Si source === "compact": inyecta el bloque de `mempunk context <id> --with-snapshot`
+//   (estado compilado + sesión + backlog + decisiones + snapshot); si el CLI falla,
+//   cae al formato anterior basado solo en el último compact_snapshot.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,8 +35,14 @@ const MATERIALIZE_TIMEOUT_MS = 20_000;
 // Solo se registra este prefijo del stderr en hooks.log (nunca va al contexto de Claude)
 const MAX_LOGGED_STDERR = 500;
 
-// Límite de additionalContext que Claude Code acepta en SessionStart
-const MAX_CONTEXT_CHARS = 8000;
+// Margen bajo el límite de 10.000 caracteres de additionalContext en SessionStart
+const MAX_CONTEXT_CHARS = 9500;
+
+// Espacio para el título y la línea final que envuelven el bloque de contexto
+const CONTEXT_FRAME_CHARS = 300;
+
+// `mempunk context` solo lee SQLite y un markdown: un tope corto basta
+const CONTEXT_TIMEOUT_MS = 15_000;
 
 // Flag file que indica si auto-start está activo (vive dentro del vault para ser aislable en tests)
 const AUTO_START_FLAG = path.join(MEMPUNK_DIR, 'auto-start.flag');
@@ -59,7 +67,27 @@ function fetchLastCompactSnapshot(projectId) {
   }
 }
 
-/** Construye el string de additionalContext a partir del snapshot */
+/** Bloque compilado de `mempunk context`, o null si el CLI falla o no devuelve nada */
+function fetchContextBlock(projectId) {
+  const maxChars = String(MAX_CONTEXT_CHARS - CONTEXT_FRAME_CHARS);
+  const result   = runCli(['context', projectId, '--with-snapshot', '--max-chars', maxChars], {
+    timeout: hookTimeoutMs(CONTEXT_TIMEOUT_MS),
+  });
+  if (result.status !== 0) {
+    const err = (result.stderr?.trim() || result.error?.message || 'sin detalle').slice(0, MAX_LOGGED_STDERR);
+    log(`context falló (status=${result.status ?? 'null'}): ${err}`);
+    return null;
+  }
+  return result.stdout?.trim() || null;
+}
+
+/** Envuelve el bloque compilado con el aviso de restauración */
+function buildRestoredContext(block) {
+  const title = hookT('restore.title', { date: new Date().toISOString().slice(0, 16).replace('T', ' ') });
+  return [title, block, hookT('restore.continue')].join('\n\n').slice(0, MAX_CONTEXT_CHARS);
+}
+
+/** Formato anterior (solo snapshot): respaldo si `mempunk context` falla */
 function buildAdditionalContext(snapshot, projectId) {
   const lines = [];
 
@@ -222,13 +250,18 @@ try {
     process.exit(0);
   }
 
-  const snapshot = fetchLastCompactSnapshot(projectId);
-  if (!snapshot) {
-    log(`source=compact pero sin snapshot para ${projectId} — sin restauración`);
-    process.exit(0);
+  let additionalContext;
+  const block = fetchContextBlock(projectId);
+  if (block) {
+    additionalContext = buildRestoredContext(block);
+  } else {
+    const snapshot = fetchLastCompactSnapshot(projectId);
+    if (!snapshot) {
+      log(`source=compact pero sin contexto ni snapshot para ${projectId} — sin restauración`);
+      process.exit(0);
+    }
+    additionalContext = buildAdditionalContext(snapshot, projectId);
   }
-
-  const additionalContext = buildAdditionalContext(snapshot, projectId);
   log(`CompactRestore: inyectando ${additionalContext.length} chars de contexto para ${projectId}`);
 
   process.stdout.write(JSON.stringify({

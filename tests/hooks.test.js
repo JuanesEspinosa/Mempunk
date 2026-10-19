@@ -223,7 +223,64 @@ describe('on-start.js (CompactRestore)', () => {
     expect(out.hookSpecificOutput).toBeDefined();
     expect(out.hookSpecificOutput.hookEventName).toBe('SessionStart');
     expect(out.hookSpecificOutput.additionalContext).toContain('CONTEXTO RESTAURADO');
+    expect(out.hookSpecificOutput.additionalContext).toContain('MEMPUNK CONTEXT — testproj');
     expect(out.hookSpecificOutput.additionalContext).toContain('src/auth.ts');
+  });
+
+  it('inyecta state.md, backlog y archivos del snapshot sin pasar de 9500 caracteres', () => {
+    const stateFile = path.join(TEMP_VAULT, 'projects', 'testproj', 'wiki', 'state.md');
+    const original  = fs.readFileSync(stateFile, 'utf8');
+    fs.writeFileSync(stateFile, `# Estado\n\n## Estado actual\n\nRefactor de pagos en curso.\n${'x'.repeat(20_000)}\n`, 'utf8');
+    runCli('backlog add testproj Migrar-pagos');
+    try {
+      const r   = runHook('on-start.js', { session_id: 'sess-state', source: 'compact' });
+      const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+      expect(ctx).toContain('Refactor de pagos en curso');
+      expect(ctx.length).toBeLessThanOrEqual(9500);
+      // El estado se recorta a su tope y no desplaza al backlog ni al snapshot
+      expect(ctx).toContain('Migrar-pagos');
+      expect(ctx).toContain('src/auth.ts');
+    } finally {
+      fs.writeFileSync(stateFile, original, 'utf8');
+    }
+  });
+
+  it('con state.md normal incluye backlog y archivos del snapshot', () => {
+    const r   = runHook('on-start.js', { session_id: 'sess-state2', source: 'compact' });
+    const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain('Migrar-pagos');
+    expect(ctx).toContain('src/auth.ts');
+  });
+
+  it('si `mempunk context` falla cae al formato basado solo en el snapshot', () => {
+    // CLI falso: falla en `context` y delega el resto al CLI real
+    const fakeCli = path.join(TEMP_HOME, 'fake-cli-no-context.mjs');
+    fs.writeFileSync(fakeCli, [
+      "import { spawnSync } from 'node:child_process';",
+      "const args = process.argv.slice(2);",
+      "if (args[0] === 'context') { process.stderr.write('boom'); process.exit(1); }",
+      `const r = spawnSync(process.execPath, [${JSON.stringify(CLI_PATH)}, ...args], { stdio: 'inherit' });`,
+      'process.exit(r.status ?? 1);',
+    ].join('\n'));
+    const r   = runHook('on-start.js', { session_id: 'sess-fallback', source: 'compact' }, { MEMPUNK_CLI: `node ${fakeCli}` });
+    const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain('CONTEXTO RESTAURADO');
+    expect(ctx).not.toContain('MEMPUNK CONTEXT');
+    expect(ctx).toContain('src/auth.ts');
+  });
+
+  it('restaura contexto aunque el proyecto no tenga snapshot', () => {
+    const activeFile = path.join(MEMPUNK_DIR, 'active-project.json');
+    const original   = fs.readFileSync(activeFile, 'utf8');
+    runCli('project add nosnap NoSnap');
+    try {
+      const r   = runHook('on-start.js', { session_id: 'sess-nosnap', source: 'compact' }, { CLAUDE_PROJECT_ID: 'nosnap' });
+      const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+      expect(ctx).toContain('MEMPUNK CONTEXT — nosnap');
+    } finally {
+      // on-start persiste CLAUDE_PROJECT_ID como proyecto activo: no contaminar los demás tests
+      fs.writeFileSync(activeFile, original, 'utf8');
+    }
   });
 
   it('retorna {} cuando source=startup sin auto-start', () => {
