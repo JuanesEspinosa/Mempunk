@@ -41,7 +41,8 @@
     "src/",
     "dist/",
     "templates/",
-    "scripts/"
+    "scripts/",
+    "vault-skills/"
   ],
   "dependencies": {
     "better-sqlite3": "^12.10.0"

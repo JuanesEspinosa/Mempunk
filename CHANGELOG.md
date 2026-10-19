@@ -23,6 +23,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `skill add` creates `skills/<name>/SKILL.md` (native Claude Code skill) instead of a flat `.md`; flat skills are still listed as `scope: "legacy"`. `@mempunk-loader` no longer reads native skills (they load on demand) — only legacy ones.
 - `src/commands/skill.js` replaced by the generic `src/commands/asset.js`.
 
+### Fixed
+
+- `vault-skills/` is now included in the npm package. Before, `mempunk setup` in Gemini/opencode mode (or manual mode) installed from npm silently skipped the protocols; it now fails with a clear error if the folder is missing.
+
 ## [2.2.0] — 2026-09-09
 
 ### Added
