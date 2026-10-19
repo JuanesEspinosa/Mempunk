@@ -540,6 +540,30 @@ describe('mempunk vault', () => {
     fs.rmSync(isolated, { recursive: true, force: true });
   });
 
+  it.each(['--help', '-h'])('vault upgrade %s muestra la ayuda y no migra', (flag) => {
+    const isolated = createStaleVault(`-help${flag}`);
+    try {
+      const output = execSync(`node src/cli.js vault upgrade ${flag}`, {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: isolated },
+        encoding: 'utf8',
+      });
+      expect(output).toContain('mempunk <comando>');
+      const db = new Database(path.join(isolated, '.mempunk', 'mempunk.db'), { readonly: true });
+      const row = db.prepare("SELECT value FROM vault_meta WHERE key = 'vault_version'").get();
+      db.close();
+      expect(row.value).toBe('1');
+    } finally {
+      fs.rmSync(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it('--help en cualquier comando muestra la ayuda sin ejecutarlo', () => {
+    const output = run('project add help-probe "Help Probe" --help');
+    expect(output).toContain('mempunk <comando>');
+    expect(JSON.parse(run('project list --json')).map((p) => p.id)).not.toContain('help-probe');
+  });
+
   it('vault upgrade no hace nada si el vault ya está actualizado', () => {
     const output = run('vault upgrade');
     expect(output).toContain('ya está en la versión más reciente');

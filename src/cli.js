@@ -37,6 +37,13 @@ try {
     process.exit(0);
   }
 
+  // Antes del despacho: con parseArgs no estricto, un --help sin declarar se
+  // ignoraba y el comando se ejecutaba (vault upgrade migraba, push subía)
+  if (opts.help) {
+    console.log(t('cli.help'));
+    process.exit(0);
+  }
+
   switch (command) {
     case 'init':
       cmdInit();
