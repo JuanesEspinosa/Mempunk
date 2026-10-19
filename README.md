@@ -120,7 +120,7 @@ When hooks are installed (`mempunk hooks install`), Mempunk automatically respon
 | `on-stop.js` | After each response | **AutoCheckpoint** — saves an incremental checkpoint every 5 turns |
 | `on-compact.js` | Before context compaction | **CompactGuard** — captures a full snapshot before Claude compacts |
 | `on-start.js` | Session start | **CompactRestore** — restores context from the last snapshot after compaction; runs `mempunk pull` first (45 s timeout) if `remote set --auto` is on |
-| `on-end.js` | Session end | **AutoPush** — runs `mempunk push` (60 s timeout) if `remote set --auto` is on |
+| `on-end.js` | Session end | **AutoPush** — runs `mempunk push` (50 s timeout) if `remote set --auto` is on. It is a safety net: SessionEnd has a short time budget, so push before closing (`@mempunk-syncer` or `mempunk push`) |
 
 Both sync hooks are registered with `timeout: 90` in `settings.json`. If `pull`/`push` fails, only a fixed classified message (network / auth / timeout / conflict) reaches Claude's context; details go to `.mempunk/hooks.log`.
 

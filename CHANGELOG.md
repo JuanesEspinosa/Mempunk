@@ -27,6 +27,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 - `vault-skills/` is now included in the npm package. Before, `mempunk setup` in Gemini/opencode mode (or manual mode) installed from npm silently skipped the protocols; it now fails with a clear error if the folder is missing.
 - `mempunk init` now writes a README into `projects/`, `areas/`, `resources/` and `daily/` (from `templates/vault/`), never overwriting an existing one. `mempunk sync` ignores those `README.md` files.
+- SessionEnd hook timeout lowered from 90 s to 60 s and the automatic push cap from 60 s to 50 s, so the hook (not Claude Code) cuts a hung remote and logs why. The push on session end is a safety net; push before closing. Run `mempunk hooks install` again to apply the new timeout.
 
 ## [2.2.0] — 2026-09-09
 

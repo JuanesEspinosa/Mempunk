@@ -277,13 +277,13 @@ describe('hooks install incluye on-end.js y mempunk-syncer.md', () => {
     expect(cmds.some((c) => c.includes('on-end.js'))).toBe(true);
   });
 
-  it('registra SessionStart y SessionEnd con timeout: 90 y deja los demás hooks sin timeout', () => {
+  it('registra SessionStart y SessionEnd con timeout 90 (SessionStart) y 60 (SessionEnd) y deja los demás hooks sin timeout', () => {
     const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
     const hookFor = (event, file) => settings.hooks[event]
       .flatMap((g) => g.hooks)
       .find((h) => h.type === 'command' && h.command.includes(file));
     expect(hookFor('SessionStart', 'on-start.js').timeout).toBe(90);
-    expect(hookFor('SessionEnd', 'on-end.js').timeout).toBe(90);
+    expect(hookFor('SessionEnd', 'on-end.js').timeout).toBe(60);
     expect(hookFor('Stop', 'on-stop.js').timeout).toBeUndefined();
     expect(hookFor('PreCompact', 'on-compact.js').timeout).toBeUndefined();
     expect(hookFor('UserPromptSubmit', 'on-prompt.js').timeout).toBeUndefined();
