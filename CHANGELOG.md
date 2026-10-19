@@ -20,6 +20,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Deterministic auto-start**: with `auto-start.flag`, SessionStart now injects the `mempunk context` block of the project linked to the cwd (or `CLAUDE_PROJECT_ID`) instead of asking Claude to invoke `@mempunk-loader` — context from the first turn with no model cost. An unlinked directory gets a single line pointing to `/mempunk` (the global active project is deliberately not used, so a stale project is never loaded into an unrelated directory). If `mempunk context` fails, it falls back to the loader instruction.
 - **Vault schema v6 — paths relative to the vault**: `decisions/resources/daily_logs/project_skills.file_path` and `projects.path` are stored relative to the vault (with `/`) and returned absolute by the API. The migration converts paths from this machine by prefix and paths written on another machine by anchored suffix, so a DB that travels through git resolves on every machine. Run `mempunk vault upgrade` on each machine (update mempunk on both first).
 - `skill add` creates `skills/<name>/SKILL.md` (native Claude Code skill) instead of a flat `.md`; flat skills are still listed as `scope: "legacy"`. `@mempunk-loader` no longer reads native skills (they load on demand) — only legacy ones.
 - `src/commands/skill.js` replaced by the generic `src/commands/asset.js`.

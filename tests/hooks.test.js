@@ -289,6 +289,81 @@ describe('on-start.js (CompactRestore)', () => {
     expect(JSON.parse(r.stdout)).toEqual({});
   });
 
+  describe('auto-start determinista', () => {
+    const flag    = path.join(MEMPUNK_DIR, 'auto-start.flag');
+    const repoDir = path.join(os.tmpdir(), `mempunk-autostart-repo-${Date.now()}`);
+
+    beforeAll(() => {
+      fs.mkdirSync(repoDir, { recursive: true });
+      runCli('project add autoproj "Auto Project"');
+      const activeFile = path.join(MEMPUNK_DIR, 'active-project.json');
+      const original   = fs.readFileSync(activeFile, 'utf8');
+      spawnSync('node', [CLI_PATH, 'project', 'activate', 'autoproj', '--here'], {
+        cwd: repoDir,
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT },
+        encoding: 'utf8',
+      });
+      // activate cambia el activo global: no contaminar los demás tests
+      fs.writeFileSync(activeFile, original, 'utf8');
+      fs.writeFileSync(flag, '');
+    });
+
+    afterAll(() => {
+      fs.rmSync(flag, { force: true });
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    const contextOf = (r) => JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+
+    it('inyecta el contexto del proyecto mapeado al cwd, sin invocar al loader', () => {
+      const r   = runHook('on-start.js', { session_id: 'sess-auto', source: 'startup', cwd: repoDir });
+      const ctx = contextOf(r);
+      expect(r.status).toBe(0);
+      expect(ctx).toContain('MEMPUNK CONTEXT — autoproj');
+      expect(ctx).not.toContain('@mempunk-loader');
+      expect(ctx.length).toBeLessThanOrEqual(9500);
+    });
+
+    it('con el cwd sin mapear inyecta solo el aviso, aunque haya un proyecto activo global', () => {
+      const r   = runHook('on-start.js', {
+        session_id: 'sess-auto-unmapped', source: 'startup', cwd: path.join(os.tmpdir(), `sin-mapear-${Date.now()}`),
+      });
+      const ctx = contextOf(r);
+      expect(ctx).toContain('no está vinculado a un proyecto de Mempunk');
+      expect(ctx).toContain('/mempunk');
+      expect(ctx).not.toContain('MEMPUNK CONTEXT');
+      expect(ctx).not.toContain('@mempunk-loader');
+    });
+
+    it('vuelve a la instrucción del loader si mempunk context falla', () => {
+      const fakeCli = path.join(MEMPUNK_DIR, 'fake-cli-autostart.mjs');
+      fs.writeFileSync(fakeCli, [
+        "import { spawnSync } from 'node:child_process';",
+        'const args = process.argv.slice(2);',
+        "if (args[0] === 'context') { process.stderr.write('boom'); process.exit(1); }",
+        `const r = spawnSync(process.execPath, [${JSON.stringify(CLI_PATH)}, ...args], { stdio: 'inherit' });`,
+        'process.exit(r.status ?? 1);',
+      ].join('\n'));
+      const r = runHook('on-start.js', { session_id: 'sess-auto-fail', source: 'startup', cwd: repoDir },
+        { MEMPUNK_CLI: `node ${fakeCli}` });
+      const ctx = contextOf(r);
+      expect(ctx).toContain('@mempunk-loader');
+      expect(ctx).not.toContain('MEMPUNK CONTEXT');
+    });
+
+    it('CLAUDE_PROJECT_ID tiene prioridad sobre el cwd', () => {
+      const activeFile = path.join(MEMPUNK_DIR, 'active-project.json');
+      const original   = fs.readFileSync(activeFile, 'utf8');
+      try {
+        const r = runHook('on-start.js', { session_id: 'sess-auto-env', source: 'startup', cwd: repoDir },
+          { CLAUDE_PROJECT_ID: 'testproj' });
+        expect(contextOf(r)).toContain('MEMPUNK CONTEXT — testproj');
+      } finally {
+        fs.writeFileSync(activeFile, original, 'utf8');
+      }
+    });
+  });
+
   it('inicializa session-touched.json en ambos casos', () => {
     const touchedFile = path.join(MEMPUNK_DIR, 'session-touched.json');
     // startup

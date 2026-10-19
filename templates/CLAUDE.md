@@ -106,8 +106,10 @@ If the `@mempunk-loader` agent is available, **invoke it directly**.
 The agent handles project selection, activation, and full context loading.
 Do not follow the manual protocol — it would be redundant.
 
-If `auto-start` is configured, the agent has already been invoked automatically
-when this session opened. Just confirm the project and continue.
+If `auto-start` is configured and this directory is linked to a project
+(`mempunk project activate <id> --here`), the session already opened with a
+`MEMPUNK CONTEXT — <id>` block: do not invoke the loader, just continue. If the
+directory is not linked, the session opened with a one-line notice — use /mempunk.
 
 ### Path B — Without agents (manual mode, Gemini CLI, opencode)
 

@@ -121,25 +121,33 @@ export function normalizePathForMatch(p) {
   return normalized;
 }
 
+/** Proyecto declarado para esta sesión: env → mapa de rutas por cwd (prefijo más largo).
+ *  Sin el respaldo del activo global: el auto-start no debe cargar un proyecto
+ *  ajeno al directorio solo porque fue el último activado. */
+export function getMappedProjectId(cwd) {
+  if (process.env.CLAUDE_PROJECT_ID) return process.env.CLAUDE_PROJECT_ID;
+  if (!cwd) return null;
+  try {
+    const map = JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8'));
+    const target = normalizePathForMatch(cwd);
+    let best = null;
+    for (const [root, projectId] of Object.entries(map)) {
+      if (target === root || target.startsWith(root + '/')) {
+        if (!best || root.length > best.root.length) best = { root, projectId };
+      }
+    }
+    return best?.projectId ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
 /** Resuelve el proyecto: env → mapa de rutas por cwd (prefijo más largo) → activo global.
  *  El mapa por cwd evita que sesiones concurrentes en proyectos distintos
  *  crucen sus checkpoints/snapshots a través del único active-project.json global. */
 export function getProjectId(cwd) {
-  if (process.env.CLAUDE_PROJECT_ID) return process.env.CLAUDE_PROJECT_ID;
-
-  if (cwd) {
-    try {
-      const map = JSON.parse(fs.readFileSync(PATHS_FILE, 'utf8'));
-      const target = normalizePathForMatch(cwd);
-      let best = null;
-      for (const [root, projectId] of Object.entries(map)) {
-        if (target === root || target.startsWith(root + '/')) {
-          if (!best || root.length > best.root.length) best = { root, projectId };
-        }
-      }
-      if (best) return best.projectId;
-    } catch (_) {}
-  }
+  const mapped = getMappedProjectId(cwd);
+  if (mapped) return mapped;
 
   try {
     const data = JSON.parse(fs.readFileSync(ACTIVE_FILE, 'utf8'));
@@ -176,6 +184,7 @@ const HOOK_MESSAGES = {
       'Consider running /compact manually to control when it happens.',
     'autostart.context': 'mempunk-auto-start: The user has auto-start enabled. Invoke @mempunk-loader ' +
       'to load the vault context for the current project before responding.',
+    'autostart.unmapped': 'This directory is not linked to a Mempunk project; use /mempunk to choose or create one.',
     'restore.title': '⚠️ CONTEXT RESTORED AFTER COMPACTION ({date})',
     'restore.unknownDate': 'unknown date',
     'restore.files': 'Files you were editing:',
@@ -200,6 +209,7 @@ const HOOK_MESSAGES = {
       'Considera ejecutar /compact manualmente para controlar cuándo ocurre.',
     'autostart.context': 'mempunk-auto-start: El usuario tiene auto-start activado. Invoca @mempunk-loader ' +
       'para cargar el contexto del vault del proyecto actual antes de responder.',
+    'autostart.unmapped': 'Este directorio no está vinculado a un proyecto de Mempunk; usa /mempunk para elegir o crear uno.',
     'restore.title': '⚠️ CONTEXTO RESTAURADO TRAS COMPACTACION ({date})',
     'restore.unknownDate': 'fecha desconocida',
     'restore.files': 'Archivos que estabas editando:',

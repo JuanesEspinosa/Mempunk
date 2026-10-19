@@ -4,7 +4,9 @@
 // - Inicializa session-touched.json y persiste el proyecto activo (siempre).
 // - Si source !== "compact": auto-pull (si remote.json lo pide) y materialize de
 //   skills/agentes del vault a ~/.claude y a los repos de esta máquina.
-// - Si auto-start.flag existe y source !== "compact": inyecta instrucción @mempunk-loader.
+// - Si auto-start.flag existe y source !== "compact": inyecta `mempunk context <id>` del
+//   proyecto vinculado al cwd (o CLAUDE_PROJECT_ID); sin vínculo, un aviso de una línea;
+//   si el CLI falla, la instrucción anterior de invocar @mempunk-loader.
 // - Si source === "compact": inyecta el bloque de `mempunk context <id> --with-snapshot`
 //   (estado compilado + sesión + backlog + decisiones + snapshot); si el CLI falla,
 //   cae al formato anterior basado solo en el último compact_snapshot.
@@ -21,6 +23,7 @@ import {
   readRemoteConfig,
   hookTimeoutMs,
   classifyCliFailure,
+  getMappedProjectId,
   hookT,
 } from '../hooks-lib/common.js';
 
@@ -68,9 +71,10 @@ function fetchLastCompactSnapshot(projectId) {
 }
 
 /** Bloque compilado de `mempunk context`, o null si el CLI falla o no devuelve nada */
-function fetchContextBlock(projectId) {
+function fetchContextBlock(projectId, { withSnapshot }) {
   const maxChars = String(MAX_CONTEXT_CHARS - CONTEXT_FRAME_CHARS);
-  const result   = runCli(['context', projectId, '--with-snapshot', '--max-chars', maxChars], {
+  const args     = ['context', projectId, ...(withSnapshot ? ['--with-snapshot'] : []), '--max-chars', maxChars];
+  const result   = runCli(args, {
     timeout: hookTimeoutMs(CONTEXT_TIMEOUT_MS),
   });
   if (result.status !== 0) {
@@ -130,6 +134,23 @@ function buildAdditionalContext(snapshot, projectId) {
   return full.length > MAX_CONTEXT_CHARS
     ? full.slice(0, MAX_CONTEXT_CHARS) + '\n' + hookT('restore.truncated')
     : full;
+}
+
+/** Contexto de auto-start: el bloque del proyecto vinculado, sin preguntar nada.
+ *  El snapshot se omite: es de una compactación de otra sesión. */
+function buildAutoStartContext(cwd) {
+  const projectId = getMappedProjectId(cwd);
+  if (!projectId) {
+    log('auto-start: cwd sin proyecto vinculado — aviso de /mempunk');
+    return hookT('autostart.unmapped');
+  }
+  const block = fetchContextBlock(projectId, { withSnapshot: false });
+  if (!block) {
+    log(`auto-start: context falló para ${projectId} — se delega en @mempunk-loader`);
+    return hookT('autostart.context');
+  }
+  log(`auto-start: inyectando ${block.length} chars de contexto para ${projectId}`);
+  return block;
 }
 
 /** Pull automático del vault si remote.json lo pide. Nunca aborta la sesión.
@@ -222,7 +243,7 @@ try {
     log(`Proyecto activo registrado: ${process.env.CLAUDE_PROJECT_ID}`);
   }
 
-  // ── Auto-start: inyectar instrucción @mempunk-loader en sesiones normales ────
+  // ── Auto-start: inyectar el contexto del proyecto en sesiones normales ──────
 
   if (source !== 'compact') {
     // Pull del vault antes de cargar contexto (solo si remote.json lo pide)
@@ -233,8 +254,8 @@ try {
 
     let autoStartContext = null;
     if (fs.existsSync(AUTO_START_FLAG)) {
-      log(`SessionStart source=${source ?? 'startup'} — auto-start activo, inyectando @mempunk-loader`);
-      autoStartContext = hookT('autostart.context');
+      log(`SessionStart source=${source ?? 'startup'} — auto-start activo`);
+      autoStartContext = buildAutoStartContext(cwd);
     } else {
       log(`SessionStart source=${source ?? 'startup'} — sin restauración ni auto-start`);
     }
@@ -251,7 +272,7 @@ try {
   }
 
   let additionalContext;
-  const block = fetchContextBlock(projectId);
+  const block = fetchContextBlock(projectId, { withSnapshot: true });
   if (block) {
     additionalContext = buildRestoredContext(block);
   } else {
