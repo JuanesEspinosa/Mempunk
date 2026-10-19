@@ -42,6 +42,16 @@ describe('paquete npm', () => {
   });
 });
 
+// ── Raíz del repo ─────────────────────────────────────────────────────────────
+
+describe('raíz del repo', () => {
+  // Las carpetas de vault viven en templates/vault/; en la raíz mezclarían
+  // producto y datos personales del desarrollador
+  it.each(['areas', 'daily', 'projects', 'resources'])('no contiene la carpeta de vault %s/', (dir) => {
+    expect(fs.existsSync(path.join(PROJECT_ROOT, dir))).toBe(false);
+  });
+});
+
 // ── installVaultSkills ────────────────────────────────────────────────────────
 
 describe('installVaultSkills', () => {

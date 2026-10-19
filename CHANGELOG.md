@@ -26,6 +26,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - `vault-skills/` is now included in the npm package. Before, `mempunk setup` in Gemini/opencode mode (or manual mode) installed from npm silently skipped the protocols; it now fails with a clear error if the folder is missing.
+- `mempunk init` now writes a README into `projects/`, `areas/`, `resources/` and `daily/` (from `templates/vault/`), never overwriting an existing one. `mempunk sync` ignores those `README.md` files.
 
 ## [2.2.0] — 2026-09-09
 

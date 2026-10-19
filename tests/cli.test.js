@@ -53,6 +53,28 @@ describe('mempunk init', () => {
     expect(fs.existsSync(path.join(TEMP_VAULT, 'daily'))).toBe(true);
     expect(fs.existsSync(path.join(TEMP_VAULT, '.mempunk', 'mempunk.db'))).toBe(true);
   });
+
+  it.each(['projects', 'areas', 'resources', 'daily'])('copia el README de templates/vault a %s/', (dir) => {
+    const template = fs.readFileSync(path.join(PROJECT_ROOT, 'templates', 'vault', dir, 'README.md'), 'utf8');
+    expect(fs.readFileSync(path.join(TEMP_VAULT, dir, 'README.md'), 'utf8')).toBe(template);
+  });
+
+  it('no pisa un README que el usuario ya tenga', () => {
+    const vault = path.join(os.tmpdir(), `mempunk-init-readme-${Date.now()}`);
+    const own   = path.join(vault, 'daily', 'README.md');
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, '# Mi README', 'utf8');
+    try {
+      execSync('node src/cli.js init', {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: vault, ...ISOLATED_ENV },
+        encoding: 'utf8',
+      });
+      expect(fs.readFileSync(own, 'utf8')).toBe('# Mi README');
+    } finally {
+      fs.rmSync(vault, { recursive: true, force: true });
+    }
+  });
 });
 
 // ── Project ───────────────────────────────────────────────────────────────────

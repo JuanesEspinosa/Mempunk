@@ -17,7 +17,7 @@ src/
 ├── agents/*.md         → subagentes que instala `hooks install`
 └── statusline.js       → statusline (medidor de contexto)
 scripts/build-hooks.mjs → bundlea src/hooks/ a dist/hooks/ con esbuild
-templates/              → plantillas que copia el CLI (CLAUDE.md del vault, project/…)
+templates/              → plantillas que copia el CLI (CLAUDE.md del vault, project/, vault/ con los README de cada carpeta)
 vault-skills/           → protocolos para Gemini CLI y opencode (los copia `setup`)
 tests/                  → Jest (ESM con --experimental-vm-modules)
 docs/plan-v3.md         → plan de trabajo vigente
