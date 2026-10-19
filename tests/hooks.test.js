@@ -78,85 +78,25 @@ afterAll(() => {
 
 // ── on-prompt.js ──────────────────────────────────────────────────────────────
 
-describe('on-prompt.js (ContextWarning)', () => {
-  it('retorna {} cuando el porcentaje es menor al 70%', () => {
-    // 60,000 / 200,000 = 30%
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 60_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-low', transcript_path: transcriptPath });
+describe('on-prompt.js', () => {
+  // Plan v3, 0.2: el % de contexto vive solo en la statusline; el hook ya no
+  // lee el transcript ni avisa por umbral
+  it('no lee el transcript ni avisa aunque el contexto esté casi lleno', () => {
+    const warnFile = path.join(MEMPUNK_DIR, 'context-warn-state.json');
+    fs.rmSync(warnFile, { force: true });
+    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 190_000 }));
+    const r = runHook('on-prompt.js', { session_id: 'sess-full', transcript_path: transcriptPath });
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout)).toEqual({});
+    expect(fs.existsSync(warnFile)).toBe(false);
   });
 
-  it('retorna systemMessage amarillo cuando pct >= 70%', () => {
-    // 140,000 / 200,000 = 70%
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-warn', transcript_path: transcriptPath });
-    expect(r.status).toBe(0);
-    const out = JSON.parse(r.stdout);
-    expect(out.systemMessage).toMatch(/70%|71%|72%|73%|74%|75%|76%|77%|78%|79%/);
-    expect(out.systemMessage).toContain('⚠️');
-  });
-
-  it('retorna systemMessage rojo cuando pct >= 80%', () => {
-    // 162,000 / 200,000 = 81%
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 162_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-alert', transcript_path: transcriptPath });
-    expect(r.status).toBe(0);
-    const out = JSON.parse(r.stdout);
-    expect(out.systemMessage).toMatch(/🚨/);
-  });
-
-  it('no avisa dos veces el mismo umbral en la misma sesión', () => {
-    const warnFile = path.join(MEMPUNK_DIR, 'context-warn-state.json');
-    // Resetear estado para sesión nueva
-    fs.writeFileSync(warnFile, JSON.stringify({ session_id: 'sess-dedup', last_warned_pct: 0 }));
-
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000 }));
-    const input = JSON.stringify({ session_id: 'sess-dedup', transcript_path: transcriptPath });
-
-    // Primera llamada: debe avisar
-    const r1 = runHook('on-prompt.js', input);
-    expect(JSON.parse(r1.stdout).systemMessage).toBeDefined();
-
-    // Segunda llamada con mismo porcentaje: no debe avisar
-    const r2 = runHook('on-prompt.js', input);
-    expect(JSON.parse(r2.stdout)).toEqual({});
-  });
-
-  it('usa ventana de 1M cuando el modelo tiene sufijo [1m]', () => {
-    // 140,000 / 1,000,000 = 14% → sin aviso (con 200k habría dado 70%)
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000, model: 'claude-fable-5[1m]' }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-1m', transcript_path: transcriptPath });
-    expect(r.status).toBe(0);
-    expect(JSON.parse(r.stdout)).toEqual({});
-  });
-
-  it('ignora mensajes de subagentes (isSidechain) al calcular el porcentaje', () => {
-    // Conversación principal al 81%; el último usage del JSONL es de un
-    // subagente con contexto pequeño — debe avisar rojo igualmente
-    let t = makeTranscript(1, { input_tokens: 162_000 });
-    t += JSON.stringify({
-      isSidechain: true,
-      message: { role: 'assistant', content: [{ type: 'text', text: 'sub' }], usage: { input_tokens: 5_000 } },
-    }) + '\n';
-    fs.writeFileSync(transcriptPath, t);
-    const r = runHook('on-prompt.js', { session_id: 'sess-side', transcript_path: transcriptPath });
-    expect(JSON.parse(r.stdout).systemMessage).toMatch(/🚨/);
-  });
-
-  it('re-arma los avisos cuando el contexto baja (post-compactación)', () => {
-    const warnFile = path.join(MEMPUNK_DIR, 'context-warn-state.json');
-    fs.writeFileSync(warnFile, JSON.stringify({ session_id: 'sess-rearm', last_warned_pct: 85 }));
-
-    // Contexto bajo (30%) → sin aviso, pero el estado debe resetearse
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 60_000 }));
-    runHook('on-prompt.js', { session_id: 'sess-rearm', transcript_path: transcriptPath });
-    expect(JSON.parse(fs.readFileSync(warnFile, 'utf8')).last_warned_pct).toBe(0);
-
-    // El contexto vuelve a subir en la misma sesión → avisa de nuevo
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-rearm', transcript_path: transcriptPath });
-    expect(JSON.parse(r.stdout).systemMessage).toContain('⚠️');
+  it('responde {} con stdin vacío o inválido', () => {
+    for (const input of ['', 'no-json']) {
+      const r = runHook('on-prompt.js', input);
+      expect(r.status).toBe(0);
+      expect(JSON.parse(r.stdout)).toEqual({});
+    }
   });
 });
 

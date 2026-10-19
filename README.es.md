@@ -116,7 +116,7 @@ Cuando los hooks estan instalados (`mempunk hooks install`), Mempunk responde au
 
 | Hook | Evento | Comportamiento |
 |------|--------|---------------|
-| `on-prompt.js` | Antes de cada turno | **ContextWarning** — alerta al 70%, 80% y 84% de uso de contexto |
+| `on-prompt.js` | Antes de cada turno | Sin acción por ahora — el uso de contexto se muestra solo en la statusline (la Fase 3 lo usará para contar turnos) |
 | `on-stop.js` | Despues de cada respuesta | **AutoCheckpoint** — guarda un checkpoint incremental cada 5 turnos |
 | `on-compact.js` | Antes de compactacion de contexto | **CompactGuard** — captura un snapshot completo antes de que Claude compacte |
 | `on-start.js` | Inicio de sesion | **CompactRestore** — restaura el contexto desde el ultimo snapshot tras una compactacion |

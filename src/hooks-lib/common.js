@@ -177,11 +177,6 @@ export function isRealUserTurn(entry) {
 
 const HOOK_MESSAGES = {
   en: {
-    'context.alert': '🚨 Context at {pct}% — compaction imminent (auto-compact triggers at ~83.5%). ' +
-      'Mempunk will save a snapshot automatically when it happens. ' +
-      'You can run /compact now to stay in control.',
-    'context.warn': '⚠️  Context at {pct}% — automatic compaction triggers at ~83.5%. ' +
-      'Consider running /compact manually to control when it happens.',
     'autostart.context': 'mempunk-auto-start: The user has auto-start enabled. Invoke @mempunk-loader ' +
       'to load the vault context for the current project before responding.',
     'autostart.unmapped': 'This directory is not linked to a Mempunk project; use /mempunk to choose or create one.',
@@ -202,11 +197,6 @@ const HOOK_MESSAGES = {
     'materialize.conflicts': 'Mempunk: {count} skill/agent file(s) were not updated because they were edited outside the vault — run `mempunk materialize --dry-run` to see which.',
   },
   es: {
-    'context.alert': '🚨 Contexto al {pct}% — compactación inminente (auto-compact ocurre al ~83.5%). ' +
-      'Mempunk guardará un snapshot automáticamente cuando ocurra. ' +
-      'Puedes ejecutar /compact ahora para controlarlo.',
-    'context.warn': '⚠️  Contexto al {pct}% — la compactación automática ocurre al ~83.5%. ' +
-      'Considera ejecutar /compact manualmente para controlar cuándo ocurre.',
     'autostart.context': 'mempunk-auto-start: El usuario tiene auto-start activado. Invoca @mempunk-loader ' +
       'para cargar el contexto del vault del proyecto actual antes de responder.',
     'autostart.unmapped': 'Este directorio no está vinculado a un proyecto de Mempunk; usa /mempunk para elegir o crear uno.',
