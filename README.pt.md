@@ -73,7 +73,7 @@ mempunk setup
 
 ### Inicio de sessao
 
-**Com agentes (Claude Code, modo automatico):** invoque `@mempunk-loader`. Lista seus projetos, pergunta com qual trabalhar, ativa e retorna um resumo compacto de contexto. Se voce ativou `auto-start`, executa automaticamente ao abrir o Claude Code.
+**Com agentes (Claude Code, modo automatico):** invoque `@mempunk-loader`. Lista seus projetos, pergunta com qual trabalhar, ativa e retorna um resumo compacto de contexto. Se voce ativou `auto-start` e o diretorio esta vinculado a um projeto (`project activate <id> --here`), a sessao abre com o bloco `mempunk context` desse projeto ja carregado, sem agente nem perguntas.
 
 **Sem agentes (modo manual / Gemini CLI / opencode):** siga `vault-skills/session-start.md`. O assistente:
 
@@ -148,7 +148,7 @@ Tres sub-agentes sao instalados junto com os hooks:
 | `@mempunk-saver` | Haiku (background) | Salva decisoes, session logs e atualizacoes de backlog durante a sessao sem interromper o fluxo |
 | `@mempunk-recover` | Sonnet | Recupera o contexto de uma sessao fechada ou interrompida manualmente |
 
-`@mempunk-loader` substitui o protocolo manual de inicio de sessao. Se `auto-start` estiver ativado (`mempunk auto-start on`), executa automaticamente toda vez que o Claude Code abre.
+`@mempunk-loader` substitui o protocolo manual de inicio de sessao. Com `auto-start` ativado (`mempunk auto-start on`), o SessionStart injeta `mempunk context` do projeto vinculado ao diretorio atual; um diretorio nao vinculado recebe um aviso de uma linha para usar `/mempunk`, e o loader so e invocado como reserva se o CLI falhar.
 
 `@mempunk-saver` e ativado quando voce escreve comandos de salvamento estruturados:
 
@@ -169,7 +169,7 @@ SAVE session: project=<id> summary="Implementei endpoint de login"
 | `mempunk unlink [--cli <name>]` | Desvincular de um CLI | `mempunk unlink` |
 | `mempunk status` | Dashboard: vault, projetos, backlogs, ultima sessao | `mempunk status` |
 | `mempunk cli list` | Listar CLIs compativeis e seu status de vinculacao | `mempunk cli list` |
-| `mempunk auto-start on\|off` | Ativar/desativar `@mempunk-loader` automatico no inicio | `mempunk auto-start on` |
+| `mempunk auto-start on\|off` | Ativar/desativar o carregamento do contexto do projeto vinculado no inicio | `mempunk auto-start on` |
 
 ### Projetos
 
