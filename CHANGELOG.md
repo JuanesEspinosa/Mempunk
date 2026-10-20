@@ -27,6 +27,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `mempunk init` now writes a README into `projects/`, `areas/`, `resources/` and `daily/` (from `templates/vault/`), never overwriting an existing one. `mempunk sync` ignores those `README.md` files.
 - SessionEnd hook timeout lowered from 90 s to 60 s and the automatic push cap from 60 s to 50 s, so the hook (not Claude Code) cuts a hung remote and logs why. The push on session end is a safety net; push before closing. Run `mempunk hooks install` again to apply the new timeout.
 - `--help` / `-h` on any command now prints the help and exits without running it. Before, the flag was ignored: `vault upgrade --help` migrated the vault and `push --help` pushed.
+- Two DB backups within the same second (e.g. `push` right after `pull`) collided and failed with `output file already exists` (SQLite `VACUUM INTO` refuses an existing target). Backup names now carry milliseconds plus a `_n` suffix when taken.
 
 ## [2.2.0] — 2026-09-09
 

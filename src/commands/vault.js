@@ -5,6 +5,7 @@ import { VAULT_VERSION } from '../store/VaultStore.js';
 import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail } from '../lib/output.js';
+import { uniqueBackupPath } from '../lib/backup-path.js';
 import { VAULT_PATH, CLI_VERSION, requireVault, openStore } from '../lib/vault.js';
 import { _writeProjectPathsFile } from './project.js';
 
@@ -72,8 +73,7 @@ export function createVerifiedBackup(store) {
   const backupsDir = path.join(VAULT_PATH, '.mempunk', 'backups');
   fs.mkdirSync(backupsDir, { recursive: true });
 
-  const stamp      = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const backupPath = path.join(backupsDir, `mempunk-${stamp}.db`);
+  const backupPath = uniqueBackupPath(backupsDir, 'mempunk');
 
   // VACUUM INTO produce una copia consistente y compacta incluso con WAL activo
   store.db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
