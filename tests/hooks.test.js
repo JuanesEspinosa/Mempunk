@@ -78,85 +78,25 @@ afterAll(() => {
 
 // ── on-prompt.js ──────────────────────────────────────────────────────────────
 
-describe('on-prompt.js (ContextWarning)', () => {
-  it('retorna {} cuando el porcentaje es menor al 70%', () => {
-    // 60,000 / 200,000 = 30%
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 60_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-low', transcript_path: transcriptPath });
+describe('on-prompt.js', () => {
+  // Plan v3, 0.2: el % de contexto vive solo en la statusline; el hook ya no
+  // lee el transcript ni avisa por umbral
+  it('no lee el transcript ni avisa aunque el contexto esté casi lleno', () => {
+    const warnFile = path.join(MEMPUNK_DIR, 'context-warn-state.json');
+    fs.rmSync(warnFile, { force: true });
+    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 190_000 }));
+    const r = runHook('on-prompt.js', { session_id: 'sess-full', transcript_path: transcriptPath });
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout)).toEqual({});
+    expect(fs.existsSync(warnFile)).toBe(false);
   });
 
-  it('retorna systemMessage amarillo cuando pct >= 70%', () => {
-    // 140,000 / 200,000 = 70%
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-warn', transcript_path: transcriptPath });
-    expect(r.status).toBe(0);
-    const out = JSON.parse(r.stdout);
-    expect(out.systemMessage).toMatch(/70%|71%|72%|73%|74%|75%|76%|77%|78%|79%/);
-    expect(out.systemMessage).toContain('⚠️');
-  });
-
-  it('retorna systemMessage rojo cuando pct >= 80%', () => {
-    // 162,000 / 200,000 = 81%
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 162_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-alert', transcript_path: transcriptPath });
-    expect(r.status).toBe(0);
-    const out = JSON.parse(r.stdout);
-    expect(out.systemMessage).toMatch(/🚨/);
-  });
-
-  it('no avisa dos veces el mismo umbral en la misma sesión', () => {
-    const warnFile = path.join(MEMPUNK_DIR, 'context-warn-state.json');
-    // Resetear estado para sesión nueva
-    fs.writeFileSync(warnFile, JSON.stringify({ session_id: 'sess-dedup', last_warned_pct: 0 }));
-
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000 }));
-    const input = JSON.stringify({ session_id: 'sess-dedup', transcript_path: transcriptPath });
-
-    // Primera llamada: debe avisar
-    const r1 = runHook('on-prompt.js', input);
-    expect(JSON.parse(r1.stdout).systemMessage).toBeDefined();
-
-    // Segunda llamada con mismo porcentaje: no debe avisar
-    const r2 = runHook('on-prompt.js', input);
-    expect(JSON.parse(r2.stdout)).toEqual({});
-  });
-
-  it('usa ventana de 1M cuando el modelo tiene sufijo [1m]', () => {
-    // 140,000 / 1,000,000 = 14% → sin aviso (con 200k habría dado 70%)
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000, model: 'claude-fable-5[1m]' }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-1m', transcript_path: transcriptPath });
-    expect(r.status).toBe(0);
-    expect(JSON.parse(r.stdout)).toEqual({});
-  });
-
-  it('ignora mensajes de subagentes (isSidechain) al calcular el porcentaje', () => {
-    // Conversación principal al 81%; el último usage del JSONL es de un
-    // subagente con contexto pequeño — debe avisar rojo igualmente
-    let t = makeTranscript(1, { input_tokens: 162_000 });
-    t += JSON.stringify({
-      isSidechain: true,
-      message: { role: 'assistant', content: [{ type: 'text', text: 'sub' }], usage: { input_tokens: 5_000 } },
-    }) + '\n';
-    fs.writeFileSync(transcriptPath, t);
-    const r = runHook('on-prompt.js', { session_id: 'sess-side', transcript_path: transcriptPath });
-    expect(JSON.parse(r.stdout).systemMessage).toMatch(/🚨/);
-  });
-
-  it('re-arma los avisos cuando el contexto baja (post-compactación)', () => {
-    const warnFile = path.join(MEMPUNK_DIR, 'context-warn-state.json');
-    fs.writeFileSync(warnFile, JSON.stringify({ session_id: 'sess-rearm', last_warned_pct: 85 }));
-
-    // Contexto bajo (30%) → sin aviso, pero el estado debe resetearse
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 60_000 }));
-    runHook('on-prompt.js', { session_id: 'sess-rearm', transcript_path: transcriptPath });
-    expect(JSON.parse(fs.readFileSync(warnFile, 'utf8')).last_warned_pct).toBe(0);
-
-    // El contexto vuelve a subir en la misma sesión → avisa de nuevo
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 140_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-rearm', transcript_path: transcriptPath });
-    expect(JSON.parse(r.stdout).systemMessage).toContain('⚠️');
+  it('responde {} con stdin vacío o inválido', () => {
+    for (const input of ['', 'no-json']) {
+      const r = runHook('on-prompt.js', input);
+      expect(r.status).toBe(0);
+      expect(JSON.parse(r.stdout)).toEqual({});
+    }
   });
 });
 
@@ -223,13 +163,145 @@ describe('on-start.js (CompactRestore)', () => {
     expect(out.hookSpecificOutput).toBeDefined();
     expect(out.hookSpecificOutput.hookEventName).toBe('SessionStart');
     expect(out.hookSpecificOutput.additionalContext).toContain('CONTEXTO RESTAURADO');
+    expect(out.hookSpecificOutput.additionalContext).toContain('MEMPUNK CONTEXT — testproj');
     expect(out.hookSpecificOutput.additionalContext).toContain('src/auth.ts');
+  });
+
+  it('inyecta state.md, backlog y archivos del snapshot sin pasar de 9500 caracteres', () => {
+    const stateFile = path.join(TEMP_VAULT, 'projects', 'testproj', 'wiki', 'state.md');
+    const original  = fs.readFileSync(stateFile, 'utf8');
+    fs.writeFileSync(stateFile, `# Estado\n\n## Estado actual\n\nRefactor de pagos en curso.\n${'x'.repeat(20_000)}\n`, 'utf8');
+    runCli('backlog add testproj Migrar-pagos');
+    try {
+      const r   = runHook('on-start.js', { session_id: 'sess-state', source: 'compact' });
+      const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+      expect(ctx).toContain('Refactor de pagos en curso');
+      expect(ctx.length).toBeLessThanOrEqual(9500);
+      // El estado se recorta a su tope y no desplaza al backlog ni al snapshot
+      expect(ctx).toContain('Migrar-pagos');
+      expect(ctx).toContain('src/auth.ts');
+    } finally {
+      fs.writeFileSync(stateFile, original, 'utf8');
+    }
+  });
+
+  it('con state.md normal incluye backlog y archivos del snapshot', () => {
+    const r   = runHook('on-start.js', { session_id: 'sess-state2', source: 'compact' });
+    const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain('Migrar-pagos');
+    expect(ctx).toContain('src/auth.ts');
+  });
+
+  it('si `mempunk context` falla cae al formato basado solo en el snapshot', () => {
+    // CLI falso: falla en `context` y delega el resto al CLI real
+    const fakeCli = path.join(TEMP_HOME, 'fake-cli-no-context.mjs');
+    fs.writeFileSync(fakeCli, [
+      "import { spawnSync } from 'node:child_process';",
+      "const args = process.argv.slice(2);",
+      "if (args[0] === 'context') { process.stderr.write('boom'); process.exit(1); }",
+      `const r = spawnSync(process.execPath, [${JSON.stringify(CLI_PATH)}, ...args], { stdio: 'inherit' });`,
+      'process.exit(r.status ?? 1);',
+    ].join('\n'));
+    const r   = runHook('on-start.js', { session_id: 'sess-fallback', source: 'compact' }, { MEMPUNK_CLI: `node ${fakeCli}` });
+    const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain('CONTEXTO RESTAURADO');
+    expect(ctx).not.toContain('MEMPUNK CONTEXT');
+    expect(ctx).toContain('src/auth.ts');
+  });
+
+  it('restaura contexto aunque el proyecto no tenga snapshot', () => {
+    const activeFile = path.join(MEMPUNK_DIR, 'active-project.json');
+    const original   = fs.readFileSync(activeFile, 'utf8');
+    runCli('project add nosnap NoSnap');
+    try {
+      const r   = runHook('on-start.js', { session_id: 'sess-nosnap', source: 'compact' }, { CLAUDE_PROJECT_ID: 'nosnap' });
+      const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+      expect(ctx).toContain('MEMPUNK CONTEXT — nosnap');
+    } finally {
+      // on-start persiste CLAUDE_PROJECT_ID como proyecto activo: no contaminar los demás tests
+      fs.writeFileSync(activeFile, original, 'utf8');
+    }
   });
 
   it('retorna {} cuando source=startup sin auto-start', () => {
     const r = runHook('on-start.js', { session_id: 'sess-startup', source: 'startup' });
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout)).toEqual({});
+  });
+
+  describe('auto-start determinista', () => {
+    const flag    = path.join(MEMPUNK_DIR, 'auto-start.flag');
+    const repoDir = path.join(os.tmpdir(), `mempunk-autostart-repo-${Date.now()}`);
+
+    beforeAll(() => {
+      fs.mkdirSync(repoDir, { recursive: true });
+      runCli('project add autoproj "Auto Project"');
+      const activeFile = path.join(MEMPUNK_DIR, 'active-project.json');
+      const original   = fs.readFileSync(activeFile, 'utf8');
+      spawnSync('node', [CLI_PATH, 'project', 'activate', 'autoproj', '--here'], {
+        cwd: repoDir,
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT },
+        encoding: 'utf8',
+      });
+      // activate cambia el activo global: no contaminar los demás tests
+      fs.writeFileSync(activeFile, original, 'utf8');
+      fs.writeFileSync(flag, '');
+    });
+
+    afterAll(() => {
+      fs.rmSync(flag, { force: true });
+      fs.rmSync(repoDir, { recursive: true, force: true });
+    });
+
+    const contextOf = (r) => JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+
+    it('inyecta el contexto del proyecto mapeado al cwd, sin invocar al loader', () => {
+      const r   = runHook('on-start.js', { session_id: 'sess-auto', source: 'startup', cwd: repoDir });
+      const ctx = contextOf(r);
+      expect(r.status).toBe(0);
+      expect(ctx).toContain('MEMPUNK CONTEXT — autoproj');
+      expect(ctx).not.toContain('@mempunk-loader');
+      expect(ctx.length).toBeLessThanOrEqual(9500);
+    });
+
+    it('con el cwd sin mapear inyecta solo el aviso, aunque haya un proyecto activo global', () => {
+      const r   = runHook('on-start.js', {
+        session_id: 'sess-auto-unmapped', source: 'startup', cwd: path.join(os.tmpdir(), `sin-mapear-${Date.now()}`),
+      });
+      const ctx = contextOf(r);
+      expect(ctx).toContain('no está vinculado a un proyecto de Mempunk');
+      expect(ctx).toContain('/mempunk');
+      expect(ctx).not.toContain('MEMPUNK CONTEXT');
+      expect(ctx).not.toContain('@mempunk-loader');
+    });
+
+    it('vuelve a la instrucción del loader si mempunk context falla', () => {
+      const fakeCli = path.join(MEMPUNK_DIR, 'fake-cli-autostart.mjs');
+      fs.writeFileSync(fakeCli, [
+        "import { spawnSync } from 'node:child_process';",
+        'const args = process.argv.slice(2);',
+        "if (args[0] === 'context') { process.stderr.write('boom'); process.exit(1); }",
+        `const r = spawnSync(process.execPath, [${JSON.stringify(CLI_PATH)}, ...args], { stdio: 'inherit' });`,
+        'process.exit(r.status ?? 1);',
+      ].join('\n'));
+      const r = runHook('on-start.js', { session_id: 'sess-auto-fail', source: 'startup', cwd: repoDir },
+        { MEMPUNK_CLI: `node ${fakeCli}` });
+      const ctx = contextOf(r);
+      expect(ctx).toContain('@mempunk-loader');
+      expect(ctx).not.toContain('MEMPUNK CONTEXT');
+    });
+
+    it('CLAUDE_PROJECT_ID tiene prioridad sobre el cwd', () => {
+      const activeFile = path.join(MEMPUNK_DIR, 'active-project.json');
+      const original   = fs.readFileSync(activeFile, 'utf8');
+      try {
+        const r = runHook('on-start.js', { session_id: 'sess-auto-env', source: 'startup', cwd: repoDir },
+          { CLAUDE_PROJECT_ID: 'testproj' });
+        expect(contextOf(r)).toContain('MEMPUNK CONTEXT — testproj');
+      } finally {
+        fs.writeFileSync(activeFile, original, 'utf8');
+      }
+    });
   });
 
   it('inicializa session-touched.json en ambos casos', () => {

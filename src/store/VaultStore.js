@@ -241,6 +241,9 @@ export function relativizeLegacyPath(p, vaultPath, suffixRe) {
 // Versión más alta que este código conoce — se actualiza al agregar migraciones
 export const VAULT_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;
 
+// README que `init` copia en cada carpeta del vault: no es contenido indexable
+const VAULT_README = 'README.md';
+
 /**
  * Normaliza un hostname: minúsculas y sin sufijo `.local`/`.lan`. macOS alterna
  * `Name.local`/`Name-2.local` y Windows cambia mayúsculas — sin esto la misma
@@ -1389,7 +1392,7 @@ class VaultStore {
     const resourcesRoot = path.join(this.vaultPath, 'resources');
 
     if (fs.existsSync(resourcesRoot)) {
-      for (const f of fs.readdirSync(resourcesRoot).filter((f) => f.endsWith('.md'))) {
+      for (const f of fs.readdirSync(resourcesRoot).filter((f) => f.endsWith('.md') && f !== VAULT_README)) {
         const filePath = path.join(resourcesRoot, f);
         if (!registeredResources.has(filePath)) {
           unregistered_files.push({ file_path: filePath, type: 'resource' });
@@ -1413,7 +1416,7 @@ class VaultStore {
     const dailyRoot = path.join(this.vaultPath, 'daily');
 
     if (fs.existsSync(dailyRoot)) {
-      for (const f of fs.readdirSync(dailyRoot).filter((f) => f.endsWith('.md'))) {
+      for (const f of fs.readdirSync(dailyRoot).filter((f) => f.endsWith('.md') && f !== VAULT_README)) {
         const filePath = path.join(dailyRoot, f);
         if (!registeredDailyLogs.has(filePath)) {
           unregistered_files.push({ file_path: filePath, type: 'daily' });

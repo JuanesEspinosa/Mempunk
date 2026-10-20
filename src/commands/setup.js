@@ -11,11 +11,17 @@ import { cmdHooksInstall, cmdAutoStart } from './hooks.js';
 
 // ── Handlers — Setup ──────────────────────────────────────────────────────────
 
-/** Copia vault-skills al directorio del vault */
-function _installVaultSkills() {
-  const srcDir  = path.join(__cliDir, '..', 'vault-skills');
-  const destDir = path.join(VAULT_PATH, 'vault-skills');
-  if (!fs.existsSync(srcDir)) return;
+/**
+ * Copia vault-skills al directorio del vault.
+ * Lanza si falta el origen: sin él, el modo Gemini/opencode queda sin protocolos.
+ */
+export function installVaultSkills(
+  srcDir  = path.join(__cliDir, '..', 'vault-skills'),
+  destDir = path.join(VAULT_PATH, 'vault-skills'),
+) {
+  if (!fs.existsSync(srcDir)) {
+    throw new Error(t('setup.vaultSkillsMissing', { path: srcDir }));
+  }
   fs.mkdirSync(destDir, { recursive: true });
   for (const file of fs.readdirSync(srcDir)) {
     if (file.endsWith('.md')) {
@@ -102,7 +108,11 @@ export async function cmdSetup() {
     cmdHooksInstall();
     cmdAutoStart('on');
   } else {
-    _installVaultSkills();
+    try {
+      installVaultSkills();
+    } catch (err) {
+      fail(err.message);
+    }
     console.log(t('setup.vaultSkills', { path: path.join(VAULT_PATH, 'vault-skills') }));
   }
 

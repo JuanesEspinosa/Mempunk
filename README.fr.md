@@ -73,7 +73,7 @@ mempunk setup
 
 ### Debut de session
 
-**Avec agents (Claude Code, mode automatique):** invoquez `@mempunk-loader`. Il liste vos projets, demande lequel utiliser, l'active et retourne un resume compact du contexte. Si vous avez active `auto-start`, il s'execute automatiquement a l'ouverture de Claude Code.
+**Avec agents (Claude Code, mode automatique):** invoquez `@mempunk-loader`. Il liste vos projets, demande lequel utiliser, l'active et retourne un resume compact du contexte. Si vous avez active `auto-start` et que le repertoire est lie a un projet (`project activate <id> --here`), la session s'ouvre avec le bloc `mempunk context` de ce projet deja charge, sans agent ni questions.
 
 **Sans agents (mode manuel / Gemini CLI / opencode):** suivez `vault-skills/session-start.md`. L'assistant:
 
@@ -116,7 +116,7 @@ Quand les hooks sont installes (`mempunk hooks install`), Mempunk repond automat
 
 | Hook | Evenement | Comportement |
 |------|-----------|-------------|
-| `on-prompt.js` | Avant chaque tour | **ContextWarning** — alerte a 70%, 80% et 84% d'utilisation du contexte |
+| `on-prompt.js` | Avant chaque tour | Aucune action pour l'instant — l'utilisation du contexte n'est affichée que dans la status line (la Phase 3 l'utilisera pour compter les tours) |
 | `on-stop.js` | Apres chaque reponse | **AutoCheckpoint** — sauvegarde un checkpoint incremental tous les 5 tours |
 | `on-compact.js` | Avant compaction du contexte | **CompactGuard** — capture un snapshot complet avant que Claude compacte |
 | `on-start.js` | Debut de session | **CompactRestore** — restaure le contexte depuis le dernier snapshot apres une compaction |
@@ -148,7 +148,7 @@ Trois sous-agents sont installes avec les hooks:
 | `@mempunk-saver` | Haiku (background) | Sauvegarde decisions, session logs et mises a jour du backlog en cours de session sans interrompre le flux |
 | `@mempunk-recover` | Sonnet | Recupere le contexte d'une session fermee ou interrompue manuellement |
 
-`@mempunk-loader` remplace le protocole manuel de debut de session. Si `auto-start` est active (`mempunk auto-start on`), il s'execute automatiquement a chaque ouverture de Claude Code.
+`@mempunk-loader` remplace le protocole manuel de debut de session. Avec `auto-start` active (`mempunk auto-start on`), SessionStart injecte `mempunk context` du projet lie au repertoire courant ; un repertoire non lie recoit un avis d'une ligne pour utiliser `/mempunk`, et le loader n'est invoque qu'en secours si le CLI echoue.
 
 `@mempunk-saver` est declenche quand vous ecrivez des commandes de sauvegarde structurees:
 
@@ -169,7 +169,7 @@ SAVE session: project=<id> summary="Implemente endpoint de login"
 | `mempunk unlink [--cli <name>]` | Delier d'un CLI | `mempunk unlink` |
 | `mempunk status` | Dashboard: vault, projets, backlogs, derniere session | `mempunk status` |
 | `mempunk cli list` | Lister les CLI compatibles et leur statut de liaison | `mempunk cli list` |
-| `mempunk auto-start on\|off` | Activer/desactiver `@mempunk-loader` automatique au demarrage | `mempunk auto-start on` |
+| `mempunk auto-start on\|off` | Activer/desactiver le chargement du contexte du projet lie au demarrage | `mempunk auto-start on` |
 
 ### Projets
 

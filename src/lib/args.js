@@ -23,6 +23,7 @@ const { values: opts, positionals } = parseArgs({
     out:          { type: 'string'  },  // export --out <file>
     v:            { type: 'boolean' },  // -v
     version:      { type: 'boolean' },  // --version
+    help:         { type: 'boolean', short: 'h' },  // --help / -h en cualquier comando → ayuda, nunca ejecutarlo
     cli:          { type: 'string'  },  // link/unlink --cli <name>
     'setup-mode': { type: 'string'  },  // setup --setup-mode auto|manual|vault-skills
     message:      { type: 'string', short: 'm' },  // push -m "<msg>" / --message
@@ -36,6 +37,8 @@ const { values: opts, positionals } = parseArgs({
     add:          { type: 'string'  },  // project profile <id> --add <p>
     remove:       { type: 'string'  },  // project profile <id> --remove <p>
     'dry-run':    { type: 'boolean' },  // materialize --dry-run
+    'max-chars':     { type: 'string'  },  // context --max-chars N
+    'with-snapshot': { type: 'boolean' },  // context --with-snapshot
   },
   allowPositionals: true,
   strict: false, // ignorar opciones no declaradas sin lanzar error

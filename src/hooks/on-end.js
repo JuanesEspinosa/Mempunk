@@ -19,8 +19,9 @@ import {
 
 const AUTO_PUSH_MESSAGE = 'auto-push on session end';
 
-// Tope del push automático: SessionEnd no debe quedarse colgado por un remote caído
-const PUSH_TIMEOUT_MS = 60_000;
+// Tope del push automático: por debajo de los 60 s de SessionEnd para que sea
+// el hook (y no Claude Code) quien corte un remote caído y registre el motivo
+const PUSH_TIMEOUT_MS = 50_000;
 
 // Mismo contrato que `mempunk push --project`: solo identificadores simples
 const PROJECT_ID_RE = /^[\w.-]+$/;

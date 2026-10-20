@@ -27,6 +27,7 @@ import { cmdRemove } from './commands/remove.js';
 import { cmdDoctor } from './commands/doctor.js';
 import { cmdOpenLog } from './commands/log.js';
 import { cmdRemoteSet, cmdRemoteShow, cmdRemoteUnset, cmdPush, cmdPull } from './commands/remote.js';
+import { cmdContext } from './commands/context.js';
 
 // ── Router principal ──────────────────────────────────────────────────────────
 
@@ -34,6 +35,13 @@ import { cmdRemoteSet, cmdRemoteShow, cmdRemoteUnset, cmdPush, cmdPull } from '.
 try {
   if (opts.v || opts.version) {
     console.log(`mempunk v${CLI_VERSION}`);
+    process.exit(0);
+  }
+
+  // Antes del despacho: con parseArgs no estricto, un --help sin declarar se
+  // ignoraba y el comando se ejecutaba (vault upgrade migraba, push subía)
+  if (opts.help) {
+    console.log(t('cli.help'));
     process.exit(0);
   }
 
@@ -143,6 +151,10 @@ try {
         case 'backup':  cmdVaultBackup(); break;
         default: fail(t('cli.unknownSubcommand', { command: 'vault', sub: subcommand ?? '', valid: 'version | upgrade | backup' }));
       }
+      break;
+
+    case 'context':
+      cmdContext(subcommand);
       break;
 
     case 'export':

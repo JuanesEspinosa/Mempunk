@@ -57,6 +57,7 @@ Knowledge:
 Sessions and logs:
   session  log <proj> "<summary>"   Log a work session
   session  last <proj>              Show the last session
+  context  <proj> [--json] [--max-chars N] [--with-snapshot]  Compiled context block (state, session, backlog, decisions)
   daily    log <proj> "<content>"   Add an entry to the daily log
   daily    list <proj>              List the project's daily logs
   search   "<query>"                Full-text search across the vault
@@ -320,6 +321,21 @@ Maintenance:
     'setup.noCliDetected': '! Neither Gemini CLI nor opencode was detected. Link manually with:',
     'setup.noCliDetectedHint': '    mempunk link --cli gemini   (or opencode)',
     'setup.vaultSkills': '✓ vault-skills installed in {path}',
+    'setup.vaultSkillsMissing': 'vault-skills not found in {path} — the package is incomplete; reinstall mempunk (npm install -g mempunk)',
+
+    // context.js
+    'context.usage': 'mempunk context <project_id> [--json] [--max-chars N] [--with-snapshot]',
+    'context.unknownProject': 'Project "{id}" does not exist. Run "mempunk project list" to see the projects.',
+    'context.invalidMaxChars': '--max-chars must be an integer >= {min}',
+    'context.state': 'Project state (wiki/state.md)',
+    'context.lastSession': 'Last session ({date})',
+    'context.backlog': 'Pending backlog',
+    'context.decisions': 'Recent decisions',
+    'context.snapshot': 'Last snapshot ({date})',
+    'context.files': 'Files: {files}',
+    'context.commands': 'Commands:',
+    'context.messages': 'Last messages:',
+    'context.empty': 'No state, sessions, backlog or decisions recorded yet.',
     'setup.nextStep': 'Next step:',
     'setup.nextStepCmd': '  mempunk project add <id> "<project name>"',
     'setup.autoHint': '\nWhen Claude Code starts: @mempunk-loader runs automatically.',
@@ -378,6 +394,7 @@ Conocimiento:
 Sesiones y logs:
   session  log <proj> "<summary>"   Registra sesión de trabajo
   session  last <proj>              Muestra la última sesión
+  context  <proj> [--json] [--max-chars N] [--with-snapshot]  Bloque de contexto compilado (estado, sesión, backlog, decisiones)
   daily    log <proj> "<content>"   Agrega una entrada al log diario
   daily    list <proj>              Lista los logs diarios del proyecto
   search   "<query>"                Búsqueda full-text en el vault
@@ -641,6 +658,21 @@ Mantenimiento:
     'setup.noCliDetected': '! No se detectó Gemini CLI ni opencode instalados. Vincula manualmente con:',
     'setup.noCliDetectedHint': '    mempunk link --cli gemini   (o opencode)',
     'setup.vaultSkills': '✓ vault-skills instalados en {path}',
+    'setup.vaultSkillsMissing': 'no se encontró vault-skills en {path} — el paquete está incompleto; reinstala mempunk (npm install -g mempunk)',
+
+    // context.js
+    'context.usage': 'mempunk context <project_id> [--json] [--max-chars N] [--with-snapshot]',
+    'context.unknownProject': 'El proyecto "{id}" no existe. Ejecuta "mempunk project list" para ver los proyectos.',
+    'context.invalidMaxChars': '--max-chars debe ser un entero >= {min}',
+    'context.state': 'Estado del proyecto (wiki/state.md)',
+    'context.lastSession': 'Última sesión ({date})',
+    'context.backlog': 'Backlog pendiente',
+    'context.decisions': 'Decisiones recientes',
+    'context.snapshot': 'Último snapshot ({date})',
+    'context.files': 'Archivos: {files}',
+    'context.commands': 'Comandos:',
+    'context.messages': 'Últimos mensajes:',
+    'context.empty': 'Todavía no hay estado, sesiones, backlog ni decisiones registrados.',
     'setup.nextStep': 'Próximo paso:',
     'setup.nextStepCmd': '  mempunk project add <id> "<nombre del proyecto>"',
     'setup.autoHint': '\nAl iniciar Claude Code: @mempunk-loader se ejecuta automáticamente.',

@@ -9,6 +9,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-10-20
+
+### Added
+
+- `mempunk context <project_id> [--json] [--max-chars N] [--with-snapshot]` — compiled context block: `wiki/state.md` (without the history section; an unfilled template counts as missing), last session, pending backlog (8), recent decisions (5) and, with `--with-snapshot`, files, commands and last messages of the last snapshot. Sections that do not fit are dropped from the end; the state is truncated rather than lost. Logic lives in `src/services/context.js`.
+
+### Changed
+
+- `on-prompt.js` no longer computes the context percentage from the transcript (fixed 200k/1M windows and a hard-coded 83.5% threshold disagreed with the status line). The percentage is now shown only by the status line, which uses Claude Code's own `context_window.used_percentage`; the 70%/80% warnings are gone. The hook stays registered as a no-op.
+- **Deterministic auto-start**: with `auto-start.flag`, SessionStart now injects the `mempunk context` block of the project linked to the cwd (or `CLAUDE_PROJECT_ID`) instead of asking Claude to invoke `@mempunk-loader` — context from the first turn with no model cost. An unlinked directory gets a single line pointing to `/mempunk` (the global active project is deliberately not used, so a stale project is never loaded into an unrelated directory). If `mempunk context` fails, it falls back to the loader instruction.
+
+### Fixed
+
+- After a compaction, `on-start.js` now injects the `mempunk context` block (compiled state + session + backlog + decisions + snapshot) instead of six raw messages truncated to 200 characters, even when there is no snapshot. Falls back to the old snapshot-only format if the CLI fails. Context cap raised from 8,000 to 9,500 characters.
+- `vault-skills/` is now included in the npm package. Before, `mempunk setup` in Gemini/opencode mode (or manual mode) installed from npm silently skipped the protocols; it now fails with a clear error if the folder is missing.
+- `mempunk init` now writes a README into `projects/`, `areas/`, `resources/` and `daily/` (from `templates/vault/`), never overwriting an existing one. `mempunk sync` ignores those `README.md` files.
+- SessionEnd hook timeout lowered from 90 s to 60 s and the automatic push cap from 60 s to 50 s, so the hook (not Claude Code) cuts a hung remote and logs why. The push on session end is a safety net; push before closing. Run `mempunk hooks install` again to apply the new timeout.
+- `--help` / `-h` on any command now prints the help and exits without running it. Before, the flag was ignored: `vault upgrade --help` migrated the vault and `push --help` pushed.
+
+## [2.2.0] — 2026-09-09
+
 ### Added
 
 - **Skills and agents by scope** — global (`global/`), profile (`profiles/<p>/`, shared by stack) and project (`projects/<id>/`), each with `skills/<name>/SKILL.md` and `agents/<name>.md`. Discovered from the filesystem only (no DB table), so they merge through git like any markdown. A project's assets resolve as profiles (in order) → project; the most specific wins.
@@ -16,17 +37,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   - `mempunk profile list`, `mempunk project profile <id> [--add <p>] [--remove <p>]` (stored in `projects/<id>/mempunk.json`).
   - `mempunk materialize [--global|--project <id>] [--dry-run] [--json]`: copies global assets to `~/.claude/` and profile+project assets to `<repo on this machine>/.claude/`, listed in `.git/info/exclude` so they are never committed. A per-target manifest (`.claude/.mempunk-managed.json`, sha256 per file) means copies edited by hand or files not created by Mempunk are never overwritten or deleted (reported as conflicts; the whole asset is skipped). Runs from `on-start.js` after the auto-pull; only a fixed one-line notice reaches Claude when there are conflicts.
 - Guard: commands abort when the vault DB is **newer** than the installed CLI (e.g. upgraded on the other machine) instead of writing to it.
-
-### Changed
-
-- **Vault schema v6 — paths relative to the vault**: `decisions/resources/daily_logs/project_skills.file_path` and `projects.path` are stored relative to the vault (with `/`) and returned absolute by the API. The migration converts paths from this machine by prefix and paths written on another machine by anchored suffix, so a DB that travels through git resolves on every machine. Run `mempunk vault upgrade` on each machine (update mempunk on both first).
-- `skill add` creates `skills/<name>/SKILL.md` (native Claude Code skill) instead of a flat `.md`; flat skills are still listed as `scope: "legacy"`. `@mempunk-loader` no longer reads native skills (they load on demand) — only legacy ones.
-- `src/commands/skill.js` replaced by the generic `src/commands/asset.js`.
-
-## [2.2.0] — 2026-09-09
-
-### Added
-
 - **Vault sync over git** — three top-level commands so an AI CLI can ship the vault between machines without knowing git (`mempunk sync` keeps its meaning: vault ↔ DB consistency check):
   - `mempunk remote set <url> [--branch <branch>] [--auto]` — registers the vault's git remote (`git init` + `origin` if needed) in `.mempunk/remote.json` (`{ url, branch, auto: { pull_on_start, push_on_end }, created_at }`, versioned, travels with the vault). Without `--branch` it uses the branch currently checked out in `~/Dev-Brain` if it is already a git repo, else `main`. `--auto` enables pull on session start and push on session end. Per-machine timestamps live in `.mempunk/remote-state.json` (gitignored). Credentials are never stored — git's credential helper or SSH keys handle auth.
   - `mempunk remote show [--json]` — url (masked), branch, automation flags, last push/pull. `mempunk remote unset` — removes `remote.json` without touching `.git`.
@@ -41,8 +51,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Vault schema v6 — paths relative to the vault**: `decisions/resources/daily_logs/project_skills.file_path` and `projects.path` are stored relative to the vault (with `/`) and returned absolute by the API. The migration converts paths from this machine by prefix and paths written on another machine by anchored suffix, so a DB that travels through git resolves on every machine. Run `mempunk vault upgrade` on each machine (update mempunk on both first).
+- `skill add` creates `skills/<name>/SKILL.md` (native Claude Code skill) instead of a flat `.md`; flat skills are still listed as `scope: "legacy"`. `@mempunk-loader` no longer reads native skills (they load on demand) — only legacy ones.
+- `src/commands/skill.js` replaced by the generic `src/commands/asset.js`.
 - `mempunk sync` is unchanged in behavior but is now documented explicitly as the disk ↔ DB consistency check, distinct from `push`/`pull`.
-- Vault version is now 5; the vault template's close protocol ends with `SYNC push` when a remote is configured.
+- Vault version is now 6 (v5: per-machine project paths; v6: paths relative to the vault); the vault template's close protocol ends with `SYNC push` when a remote is configured.
 
 ### Security
 

@@ -27,9 +27,10 @@ const HOOK_EVENT_MAP = {
 };
 
 // Timeout (segundos, campo `timeout` de Claude Code) para los hooks que hacen
-// push/pull del vault: por encima del tope interno del hook (45 s / 60 s) para
+// push/pull del vault: por encima del tope interno del hook (45 s / 50 s) para
 // que sea el hook quien corte el git colgado y registre el motivo, no Claude Code.
-const HOOK_TIMEOUT_SECONDS = { 'on-start.js': 90, 'on-end.js': 90 };
+// SessionEnd: tope de 60 s, el presupuesto ampliado de ese evento (docs/plan-v3.md, 0.4).
+const HOOK_TIMEOUT_SECONDS = { 'on-start.js': 90, 'on-end.js': 60 };
 
 // Flag file para auto-start — vive dentro del vault para ser aislable en tests
 const AUTO_START_FLAG = path.join(VAULT_PATH, '.mempunk', 'auto-start.flag');

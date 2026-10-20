@@ -53,6 +53,28 @@ describe('mempunk init', () => {
     expect(fs.existsSync(path.join(TEMP_VAULT, 'daily'))).toBe(true);
     expect(fs.existsSync(path.join(TEMP_VAULT, '.mempunk', 'mempunk.db'))).toBe(true);
   });
+
+  it.each(['projects', 'areas', 'resources', 'daily'])('copia el README de templates/vault a %s/', (dir) => {
+    const template = fs.readFileSync(path.join(PROJECT_ROOT, 'templates', 'vault', dir, 'README.md'), 'utf8');
+    expect(fs.readFileSync(path.join(TEMP_VAULT, dir, 'README.md'), 'utf8')).toBe(template);
+  });
+
+  it('no pisa un README que el usuario ya tenga', () => {
+    const vault = path.join(os.tmpdir(), `mempunk-init-readme-${Date.now()}`);
+    const own   = path.join(vault, 'daily', 'README.md');
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, '# Mi README', 'utf8');
+    try {
+      execSync('node src/cli.js init', {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: vault, ...ISOLATED_ENV },
+        encoding: 'utf8',
+      });
+      expect(fs.readFileSync(own, 'utf8')).toBe('# Mi README');
+    } finally {
+      fs.rmSync(vault, { recursive: true, force: true });
+    }
+  });
 });
 
 // ── Project ───────────────────────────────────────────────────────────────────
@@ -516,6 +538,30 @@ describe('mempunk vault', () => {
     expect(versionOutput).toContain('OK');
 
     fs.rmSync(isolated, { recursive: true, force: true });
+  });
+
+  it.each(['--help', '-h'])('vault upgrade %s muestra la ayuda y no migra', (flag) => {
+    const isolated = createStaleVault(`-help${flag}`);
+    try {
+      const output = execSync(`node src/cli.js vault upgrade ${flag}`, {
+        cwd: PROJECT_ROOT,
+        env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: isolated },
+        encoding: 'utf8',
+      });
+      expect(output).toContain('mempunk <comando>');
+      const db = new Database(path.join(isolated, '.mempunk', 'mempunk.db'), { readonly: true });
+      const row = db.prepare("SELECT value FROM vault_meta WHERE key = 'vault_version'").get();
+      db.close();
+      expect(row.value).toBe('1');
+    } finally {
+      fs.rmSync(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it('--help en cualquier comando muestra la ayuda sin ejecutarlo', () => {
+    const output = run('project add help-probe "Help Probe" --help');
+    expect(output).toContain('mempunk <comando>');
+    expect(JSON.parse(run('project list --json')).map((p) => p.id)).not.toContain('help-probe');
   });
 
   it('vault upgrade no hace nada si el vault ya está actualizado', () => {

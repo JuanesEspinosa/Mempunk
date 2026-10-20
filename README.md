@@ -73,7 +73,7 @@ mempunk setup
 
 ### Session start
 
-**With agents (Claude Code, auto mode):** invoke `@mempunk-loader`. It lists your projects, asks which one to work on, activates it, and returns a compact context summary. If you enabled `auto-start`, it runs automatically when you open Claude Code.
+**With agents (Claude Code, auto mode):** invoke `@mempunk-loader`. It lists your projects, asks which one to work on, activates it, and returns a compact context summary. If you enabled `auto-start` and the directory is linked to a project (`project activate <id> --here`), the session opens with that project's `mempunk context` block already loaded — no agent, no questions.
 
 **Without agents (manual mode / Gemini CLI / opencode):** follow `vault-skills/session-start.md`. The assistant:
 
@@ -116,11 +116,11 @@ When hooks are installed (`mempunk hooks install`), Mempunk automatically respon
 
 | Hook | Event | Behavior |
 |------|-------|----------|
-| `on-prompt.js` | Before each turn | **ContextWarning** — alerts at 70%, 80%, and 84% context usage |
+| `on-prompt.js` | Before each turn | No-op for now — context usage is shown only in the status line (Phase 3 will use it to count turns) |
 | `on-stop.js` | After each response | **AutoCheckpoint** — saves an incremental checkpoint every 5 turns |
 | `on-compact.js` | Before context compaction | **CompactGuard** — captures a full snapshot before Claude compacts |
 | `on-start.js` | Session start | **CompactRestore** — restores context from the last snapshot after compaction; runs `mempunk pull` first (45 s timeout) if `remote set --auto` is on |
-| `on-end.js` | Session end | **AutoPush** — runs `mempunk push` (60 s timeout) if `remote set --auto` is on |
+| `on-end.js` | Session end | **AutoPush** — runs `mempunk push` (50 s timeout) if `remote set --auto` is on. It is a safety net: SessionEnd has a short time budget, so push before closing (`@mempunk-syncer` or `mempunk push`) |
 
 Both sync hooks are registered with `timeout: 90` in `settings.json`. If `pull`/`push` fails, only a fixed classified message (network / auth / timeout / conflict) reaches Claude's context; details go to `.mempunk/hooks.log`.
 
@@ -152,7 +152,7 @@ Four sub-agents are installed alongside hooks:
 | `@mempunk-recover` | Sonnet | Recovers context from a closed or interrupted session manually |
 | `@mempunk-syncer` | Haiku (background) | Pushes/pulls the vault to its git remote via `mempunk push` / `mempunk pull`; the summary goes through stdin, never on the command line (see [Sync between machines](#sync-between-machines)) |
 
-`@mempunk-loader` replaces the manual session-start protocol. If `auto-start` is enabled (`mempunk auto-start on`), it runs automatically each time Claude Code opens.
+`@mempunk-loader` replaces the manual session-start protocol. With `auto-start` enabled (`mempunk auto-start on`), SessionStart injects `mempunk context` for the project linked to the current directory; an unlinked directory gets a one-line notice to use `/mempunk`, and the loader is only invoked as a fallback if the CLI fails.
 
 `@mempunk-saver` is triggered when you write structured save commands:
 
@@ -173,7 +173,7 @@ SAVE session: project=<id> summary="Implemented login endpoint"
 | `mempunk unlink [--cli <name>]` | Unlink from a CLI | `mempunk unlink` |
 | `mempunk status` | Dashboard: vault info, projects, backlog counts, last session | `mempunk status` |
 | `mempunk cli list` | List compatible CLIs and their link status | `mempunk cli list` |
-| `mempunk auto-start on\|off` | Toggle automatic `@mempunk-loader` on session start | `mempunk auto-start on` |
+| `mempunk auto-start on\|off` | Toggle loading the linked project's context on session start | `mempunk auto-start on` |
 
 ### Projects
 
