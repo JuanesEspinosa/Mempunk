@@ -3,6 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+// Espera máxima por el lock de escritura de SQLite antes de lanzar SQLITE_BUSY
+const BUSY_TIMEOUT_MS = 5000;
+// Tokens de contexto alrededor del término en el fragmento de search()
+const SNIPPET_TOKENS = 12;
+
 // Migraciones versionadas — cada entrada tiene un número de versión y su función de upgrade
 const MIGRATIONS = [
   {
@@ -315,6 +320,10 @@ class VaultStore {
     // Mejor rendimiento en escrituras concurrentes y consistencia referencial
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
+    // Varias sesiones (cada una con su `mempunk mcp`) y los hooks escriben a la
+    // vez: esperar el lock en vez de fallar con SQLITE_BUSY. better-sqlite3 ya
+    // usa 5000 por defecto; se fija explícito para no depender de ello.
+    this.db.pragma(`busy_timeout = ${BUSY_TIMEOUT_MS}`);
 
     this._bootstrapMetaTables();
     this._migrationsRan = 0;
@@ -791,6 +800,21 @@ class VaultStore {
   }
 
   /**
+   * Devuelve un ítem del backlog por id.
+   * @param {string} id
+   * @returns {object|undefined}
+   */
+  getBacklogItem(id) {
+    return this.db
+      .prepare(
+        `SELECT id, project_id, title, status, priority, created_at, updated_at
+         FROM backlog
+         WHERE id = ?`
+      )
+      .get(id);
+  }
+
+  /**
    * Actualiza campos de un ítem del backlog.
    * @param {string} id     - ID del ítem a actualizar
    * @param {object} fields - Objeto con los campos a modificar (title, status, priority)
@@ -1252,7 +1276,8 @@ class VaultStore {
    * Busca en el índice FTS5. Opcionalmente filtra por proyecto.
    * @param {string}      query     - Término de búsqueda (sintaxis FTS5)
    * @param {string|null} projectId - Filtrar por proyecto (opcional)
-   * @returns {{ item_id: string, project_id: string, type: string, file_path: string|null }[]}
+   * @returns {{ item_id: string, project_id: string, type: string, file_path: string|null, snippet: string }[]}
+   *   snippet: extracto del contenido con los términos entre corchetes
    */
   search(query, projectId = null) {
     // FTS5 interpreta -, :, ?, +, etc. como sintaxis de query: "better-sqlite3"
@@ -1271,7 +1296,8 @@ class VaultStore {
         search_index.item_id,
         search_index.project_id,
         search_index.type,
-        COALESCE(decisions.file_path, resources.file_path, daily_logs.file_path) AS file_path
+        COALESCE(decisions.file_path, resources.file_path, daily_logs.file_path) AS file_path,
+        snippet(search_index, 3, '[', ']', '…', ${SNIPPET_TOKENS}) AS snippet
       FROM search_index
       LEFT JOIN decisions
         ON search_index.item_id = decisions.id

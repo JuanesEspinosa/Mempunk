@@ -160,6 +160,15 @@ describe('Backlog', () => {
     expect(after.status).toBe('in_progress');
     expect(after.updated_at).not.toBe(before.updated_at);
   });
+
+  it('getBacklogItem() devuelve la tarea con su project_id', () => {
+    const item = store.getBacklogItem(itemId);
+    expect(item).toMatchObject({ id: itemId, project_id: PROJ, title: 'Implementar login', status: 'in_progress' });
+  });
+
+  it('getBacklogItem() devuelve undefined para un id inexistente', () => {
+    expect(store.getBacklogItem('bl_no_existe')).toBeUndefined();
+  });
 });
 
 // ── Decisions ─────────────────────────────────────────────────────────────────
@@ -298,6 +307,19 @@ describe('Búsqueda', () => {
     // Con filtro de proj1: no debe aparecer (la decisión es de proj2)
     const filtered = store.search('xylophone', PROJ);
     expect(filtered.length).toBe(0);
+  });
+
+  it('search() devuelve un fragmento con el término resaltado', () => {
+    const [hit] = store.search('xylophone');
+    expect(hit.snippet).toContain('[xylophone]');
+  });
+});
+
+// ── Concurrencia ──────────────────────────────────────────────────────────────
+
+describe('Concurrencia', () => {
+  it('abre la BD con busy_timeout de 5000 ms', () => {
+    expect(store.db.pragma('busy_timeout', { simple: true })).toBe(5000);
   });
 });
 
