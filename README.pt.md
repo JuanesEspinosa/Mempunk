@@ -157,6 +157,36 @@ SAVE decision: project=<id> title="Usar JWT para auth"
 SAVE session: project=<id> summary="Implementei endpoint de login"
 ```
 
+## Servidor MCP
+
+`mempunk mcp` e um servidor MCP local via stdio: cada CLI de IA o inicia como subprocesso ao abrir a sessao. Sem rede nem hospedagem. Ele expoe o vault como ferramentas tipadas, sobre o mesmo codigo do CLI:
+
+| Ferramenta | Para |
+|------------|------|
+| `get_context` | Carregar o contexto compilado do projeto (estado, ultima sessao, backlog pendente, decisoes) |
+| `save_decision` | Salvar um ADR assim que uma decisao tecnica e acordada |
+| `log_session` | Registrar o resumo da sessao com os arquivos tocados |
+| `backlog_list` / `backlog_add` / `backlog_update` | Ler e alterar tarefas do backlog |
+| `search` | Busca full-text em decisoes, resources e logs diarios |
+| `update_state` | Reescrever `wiki/state.md` (o estado anterior vai para o historico) |
+
+`project_id` e opcional: por padrao o servidor usa o projeto vinculado ao diretorio da sessao (`mempunk project activate <id> --here`) ou `CLAUDE_PROJECT_ID`. Nunca recorre ao projeto ativo global; sem vinculo, a ferramenta retorna um erro pedindo `project_id`. Push e pull nao sao expostos.
+
+Registre uma vez por CLI:
+
+- **Claude Code:** `claude mcp add --scope user mempunk -- mempunk mcp` (Windows nativo: `claude mcp add --scope user mempunk -- cmd /c mempunk mcp`). A partir da v2.5, o plugin o declara.
+- **Gemini CLI** (`~/.gemini/settings.json`):
+  ```json
+  { "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }
+  ```
+  O Gemini descarta variaveis de ambiente nao declaradas: com um vault proprio, adicione `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
+- **opencode** (`opencode.json`):
+  ```json
+  { "mcp": { "mempunk": { "type": "local", "command": ["mempunk", "mcp"], "enabled": true } } }
+  ```
+
+Se o vault precisar de `mempunk vault upgrade`, as ferramentas retornam esse erro em vez de migrar.
+
 ## Comandos
 
 ### Configuracao

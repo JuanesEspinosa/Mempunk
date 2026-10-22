@@ -157,6 +157,36 @@ SAVE decision: project=<id> title="Utiliser JWT pour l'auth"
 SAVE session: project=<id> summary="Implemente endpoint de login"
 ```
 
+## Serveur MCP
+
+`mempunk mcp` est un serveur MCP local en stdio : chaque CLI d'IA le lance comme sous-processus a l'ouverture de la session. Pas de reseau ni d'hebergement. Il expose le vault en outils types, sur le meme code que le CLI :
+
+| Outil | Pour |
+|-------|------|
+| `get_context` | Charger le contexte compile du projet (etat, derniere session, backlog en attente, decisions) |
+| `save_decision` | Enregistrer un ADR des qu'une decision technique est prise |
+| `log_session` | Enregistrer le resume de la session avec les fichiers touches |
+| `backlog_list` / `backlog_add` / `backlog_update` | Lire et modifier les taches du backlog |
+| `search` | Recherche full-text dans les decisions, resources et logs quotidiens |
+| `update_state` | Reecrire `wiki/state.md` (l'etat precedent passe dans son historique) |
+
+`project_id` est optionnel : par defaut le serveur utilise le projet lie au repertoire de la session (`mempunk project activate <id> --here`) ou `CLAUDE_PROJECT_ID`. Il ne se rabat jamais sur le projet actif global ; sans lien, l'outil renvoie une erreur qui demande `project_id`. Push et pull ne sont pas exposes.
+
+A enregistrer une fois par CLI :
+
+- **Claude Code :** `claude mcp add --scope user mempunk -- mempunk mcp` (Windows natif : `claude mcp add --scope user mempunk -- cmd /c mempunk mcp`). A partir de v2.5, le plugin le declare.
+- **Gemini CLI** (`~/.gemini/settings.json`) :
+  ```json
+  { "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }
+  ```
+  Gemini supprime les variables d'environnement non declarees : avec un vault personnalise, ajoutez `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
+- **opencode** (`opencode.json`) :
+  ```json
+  { "mcp": { "mempunk": { "type": "local", "command": ["mempunk", "mcp"], "enabled": true } } }
+  ```
+
+Si le vault a besoin de `mempunk vault upgrade`, les outils renvoient cette erreur au lieu de migrer.
+
 ## Commandes
 
 ### Configuration

@@ -9,6 +9,24 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-10-22
+
+### Added
+
+- **`mempunk mcp`** — local MCP server over stdio (no network) that each AI CLI launches per session. Tools: `get_context`, `save_decision`, `log_session`, `backlog_list`, `backlog_add`, `backlog_update`, `search` and `update_state`. `project_id` is optional and resolves to the project linked to the session's directory (or `CLAUDE_PROJECT_ID`) — never to the global active project, so writes cannot land in the wrong project. stdout carries only JSON-RPC; an outdated vault returns a tool error instead of migrating. Registration for Claude Code, Gemini CLI and opencode is documented in the README.
+- `update_state` rewrites `wiki/state.md` (max 4,000 characters) while keeping its "Historial de estados anteriores" section, and appends a dated line with the state it replaces.
+- `mempunk search` results (and `--json`) include a `snippet` with the matched terms in brackets.
+
+### Changed
+
+- Business logic moved to `src/services/` (decisions, sessions, backlog, search, state); the CLI commands are thin wrappers shared with the MCP server.
+- `backlog add/list/update` now validate input: status must be `pending | in_progress | done | blocked | cancelled`, priority an integer from 1 to 5, and the task/project must exist (previously an unknown id was silently ignored). `decision add` and `session log` reject unknown projects with a clear message.
+- SQLite `busy_timeout` is set explicitly to 5,000 ms (it relied on the better-sqlite3 default), so concurrent sessions wait for the write lock instead of failing with `SQLITE_BUSY`.
+
+### Dependencies
+
+- Added `@modelcontextprotocol/sdk` and `zod`.
+
 ## [2.3.0] — 2026-10-20
 
 ### Added

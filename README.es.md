@@ -157,6 +157,36 @@ SAVE decision: project=<id> title="Usar JWT para auth"
 SAVE session: project=<id> summary="Implemente endpoint de login"
 ```
 
+## Servidor MCP
+
+`mempunk mcp` es un servidor MCP local por stdio: cada CLI de IA lo lanza como subproceso al abrir la sesión. Sin red ni hosting. Expone el vault como herramientas tipadas sobre el mismo código que usa el CLI:
+
+| Herramienta | Para qué |
+|-------------|----------|
+| `get_context` | Cargar el contexto compilado del proyecto (estado, última sesión, backlog pendiente, decisiones) |
+| `save_decision` | Guardar un ADR en cuanto se acuerda una decisión técnica |
+| `log_session` | Registrar el resumen de la sesión con los archivos tocados |
+| `backlog_list` / `backlog_add` / `backlog_update` | Leer y cambiar tareas del backlog |
+| `search` | Búsqueda full-text en decisiones, resources y logs diarios |
+| `update_state` | Reescribir `wiki/state.md` (el estado anterior pasa a su historial) |
+
+`project_id` es opcional: por defecto el servidor usa el proyecto vinculado al directorio de la sesión (`mempunk project activate <id> --here`) o `CLAUDE_PROJECT_ID`. Nunca cae al proyecto activo global, para no guardar una decisión en el proyecto equivocado; sin vínculo, la herramienta devuelve un error que pide el `project_id`. Push y pull no se exponen: siguen siendo comandos de terminal.
+
+Regístralo una vez por CLI:
+
+- **Claude Code:** `claude mcp add --scope user mempunk -- mempunk mcp` (en Windows nativo: `claude mcp add --scope user mempunk -- cmd /c mempunk mcp`). Desde v2.5 lo declara el plugin.
+- **Gemini CLI** (`~/.gemini/settings.json`):
+  ```json
+  { "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }
+  ```
+  Gemini descarta las variables de entorno que no declares: con un vault propio añade `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
+- **opencode** (`opencode.json`):
+  ```json
+  { "mcp": { "mempunk": { "type": "local", "command": ["mempunk", "mcp"], "enabled": true } } }
+  ```
+
+Si el vault necesita `mempunk vault upgrade`, las herramientas devuelven ese error en vez de migrar.
+
 ## Comandos
 
 ### Configuracion

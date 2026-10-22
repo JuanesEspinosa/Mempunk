@@ -161,6 +161,36 @@ SAVE decision: project=<id> title="Use JWT for auth"
 SAVE session: project=<id> summary="Implemented login endpoint"
 ```
 
+## MCP server
+
+`mempunk mcp` is a local MCP server over stdio: each AI CLI launches it as a subprocess when a session opens. No network, no hosting. It exposes the vault as typed tools on the same code the CLI uses:
+
+| Tool | Use it to |
+|------|-----------|
+| `get_context` | Load the compiled project context (state, last session, pending backlog, decisions) |
+| `save_decision` | Save an ADR as soon as a technical decision is agreed |
+| `log_session` | Log a session summary with the files touched |
+| `backlog_list` / `backlog_add` / `backlog_update` | Read and change backlog tasks |
+| `search` | Full-text search over decisions, resources and daily logs |
+| `update_state` | Rewrite `wiki/state.md` (the previous state goes to its history) |
+
+`project_id` is optional: by default the server uses the project linked to the session's directory (`mempunk project activate <id> --here`) or `CLAUDE_PROJECT_ID`. It never falls back to the global active project, so a decision is never saved to the wrong project; without a link the tool returns an error asking for `project_id`. Push and pull are not exposed: they stay terminal commands.
+
+Register it once per CLI:
+
+- **Claude Code:** `claude mcp add --scope user mempunk -- mempunk mcp` (on native Windows: `claude mcp add --scope user mempunk -- cmd /c mempunk mcp`). From v2.5 the plugin declares it for you.
+- **Gemini CLI** (`~/.gemini/settings.json`):
+  ```json
+  { "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }
+  ```
+  Gemini drops environment variables you do not list: with a custom vault add `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
+- **opencode** (`opencode.json`):
+  ```json
+  { "mcp": { "mempunk": { "type": "local", "command": ["mempunk", "mcp"], "enabled": true } } }
+  ```
+
+If the vault needs `mempunk vault upgrade`, the tools return that error instead of migrating.
+
 ## Commands
 
 ### Setup & Configuration
