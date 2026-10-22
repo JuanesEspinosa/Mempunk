@@ -344,6 +344,16 @@ Maintenance:
     'service.invalidPriority': 'Invalid priority "{priority}". Use an integer from {min} to {max}',
     'service.unknownBacklogItem': 'Backlog task "{id}" does not exist',
     'service.stateTooLong': 'The state has {length} characters; the limit is {max}. Summarize it.',
+
+    // Servidor MCP — descripciones de herramientas (dicen CUÁNDO usarlas, < 300 caracteres)
+    'mcp.getContext': 'Load the compiled Mempunk context of a project: state, last session, pending backlog and recent decisions. Use it when starting work on a project or switching projects, before planning. Not needed if the context block is already in the conversation.',
+    'mcp.saveDecision': 'Save an architecture decision record (ADR). Use it as soon as a technical or architecture decision is agreed (library chosen, pattern, accepted trade-off). Do not use it for tasks or progress notes.',
+    'mcp.logSession': 'Log a work session summary with the files touched. Use it when closing a work block or session, or before the user leaves. One concise summary of what was done and what is next.',
+    'mcp.backlogList': 'List the backlog tasks of a project, optionally by status. Use it to see what is pending before choosing the next task, or to find a task id to update.',
+    'mcp.backlogAdd': 'Add a pending task to the backlog. Use it when new work is identified that will not be done right now (follow-ups, bugs found, TODOs). Priority 1 is highest, 2 is the default.',
+    'mcp.backlogUpdate': 'Change the status or priority of a backlog task. Use it when a task starts (in_progress), finishes (done), gets blocked or is dropped (cancelled).',
+    'mcp.search': 'Full-text search over decisions, resources and daily logs of the vault. Use it before deciding something that may already have been decided, or to recover past context.',
+    'mcp.updateState': 'Rewrite the project state (wiki/state.md, max 4000 chars): where the project is, what is in progress, key decisions, risks and next steps. Use it when closing a session. The previous state is kept in the history.',
     'setup.nextStep': 'Next step:',
     'setup.nextStepCmd': '  mempunk project add <id> "<project name>"',
     'setup.autoHint': '\nWhen Claude Code starts: @mempunk-loader runs automatically.',
@@ -689,6 +699,16 @@ Mantenimiento:
     'service.invalidPriority': 'Prioridad inválida "{priority}". Usa un entero de {min} a {max}',
     'service.unknownBacklogItem': 'La tarea "{id}" no existe en el backlog',
     'service.stateTooLong': 'El estado tiene {length} caracteres; el límite es {max}. Resúmelo.',
+
+    // Servidor MCP — descripciones de herramientas (dicen CUÁNDO usarlas, < 300 caracteres)
+    'mcp.getContext': 'Carga el contexto compilado de un proyecto de Mempunk: estado, última sesión, backlog pendiente y decisiones recientes. Úsala al empezar a trabajar en un proyecto o al cambiar de proyecto, antes de planificar. No hace falta si el bloque ya está en la conversación.',
+    'mcp.saveDecision': 'Guarda una decisión de arquitectura (ADR). Úsala en cuanto se acuerde una decisión técnica o de arquitectura (librería elegida, patrón, trade-off aceptado). No la uses para tareas ni para notas de progreso.',
+    'mcp.logSession': 'Registra el resumen de una sesión de trabajo con los archivos tocados. Úsala al cerrar un bloque de trabajo o la sesión, o antes de que el usuario se vaya. Un resumen conciso de lo hecho y lo siguiente.',
+    'mcp.backlogList': 'Lista las tareas del backlog de un proyecto, opcionalmente por estado. Úsala para ver lo pendiente antes de elegir la siguiente tarea o para encontrar el id de una tarea.',
+    'mcp.backlogAdd': 'Añade una tarea pendiente al backlog. Úsala cuando aparezca trabajo que no se hará ahora (seguimientos, bugs encontrados, TODOs). Prioridad 1 es la más alta; 2 es la de por defecto.',
+    'mcp.backlogUpdate': 'Cambia el estado o la prioridad de una tarea del backlog. Úsala cuando una tarea empieza (in_progress), termina (done), se bloquea (blocked) o se descarta (cancelled).',
+    'mcp.search': 'Búsqueda full-text en decisiones, resources y logs diarios del vault. Úsala antes de decidir algo que quizá ya se decidió, o para recuperar contexto pasado.',
+    'mcp.updateState': 'Reescribe el estado del proyecto (wiki/state.md, máx. 4000 caracteres): dónde está, qué está en curso, decisiones clave, riesgos y próximos pasos. Úsala al cerrar la sesión. El estado anterior queda en el historial.',
     'setup.nextStep': 'Próximo paso:',
     'setup.nextStepCmd': '  mempunk project add <id> "<nombre del proyecto>"',
     'setup.autoHint': '\nAl iniciar Claude Code: @mempunk-loader se ejecuta automáticamente.',

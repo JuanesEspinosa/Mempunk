@@ -28,6 +28,7 @@ import { cmdDoctor } from './commands/doctor.js';
 import { cmdOpenLog } from './commands/log.js';
 import { cmdRemoteSet, cmdRemoteShow, cmdRemoteUnset, cmdPush, cmdPull } from './commands/remote.js';
 import { cmdContext } from './commands/context.js';
+import { cmdMcp } from './commands/mcp.js';
 
 // ── Router principal ──────────────────────────────────────────────────────────
 
@@ -223,6 +224,11 @@ try {
         case 'list': cmdCliList(); break;
         default: fail(t('cli.unknownSubcommand', { command: 'cli', sub: subcommand ?? '', valid: 'list' }));
       }
+      break;
+
+    // Oculto en la ayuda: lo lanza cada CLI de IA como servidor MCP, no el usuario
+    case 'mcp':
+      await cmdMcp();
       break;
 
     case undefined:
