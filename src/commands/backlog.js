@@ -2,25 +2,23 @@ import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail, printTable, printJson } from '../lib/output.js';
 import { requireVault, openStore } from '../lib/vault.js';
+import { addItem, listItems, updateItem } from '../services/backlog.js';
 
 // ── Handlers — Backlog ────────────────────────────────────────────────────────
 
 export function cmdBacklogAdd(projectId, title) {
-  if (!projectId || !title) fail(t('usage', { syntax: 'mempunk backlog add <project_id> "<title>" [--priority 1|2|3]' }));
+  if (!projectId || !title) fail(t('usage', { syntax: 'mempunk backlog add <project_id> "<title>" [--priority 1-5]' }));
   requireVault();
 
-  const priority = opts.priority !== undefined ? parseInt(opts.priority, 10) : 2;
-  const store = openStore();
-  const id = store.addBacklogItem(projectId, title, priority);
+  const { id } = addItem(openStore(), { projectId, title, priority: opts.priority });
   console.log(t('backlog.added', { id }));
 }
 
 export function cmdBacklogList(projectId) {
-  if (!projectId) fail(t('usage', { syntax: 'mempunk backlog list <project_id> [--status pending|in_progress|done]' }));
+  if (!projectId) fail(t('usage', { syntax: 'mempunk backlog list <project_id> [--status pending|in_progress|done|blocked|cancelled]' }));
   requireVault();
 
-  const store = openStore();
-  const rows = store.listBacklog(projectId, opts.status ?? null);
+  const rows = listItems(openStore(), { projectId, status: opts.status });
   if (opts.json) return printJson(rows);
   printTable(
     ['id', 'title', 'status', 'priority', 'updated_at'],
@@ -32,15 +30,6 @@ export function cmdBacklogUpdate(id) {
   if (!id) fail(t('usage', { syntax: 'mempunk backlog update <id> --status <value> | --priority <value>' }));
   requireVault();
 
-  const fields = {};
-  if (opts.status   !== undefined) fields.status   = opts.status;
-  if (opts.priority !== undefined) fields.priority = parseInt(opts.priority, 10);
-
-  if (Object.keys(fields).length === 0) {
-    fail(t('backlog.updateNoFields'));
-  }
-
-  const store = openStore();
-  store.updateBacklogItem(id, fields);
+  updateItem(openStore(), { id, status: opts.status, priority: opts.priority });
   console.log(t('backlog.updated', { id }));
 }

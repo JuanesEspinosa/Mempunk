@@ -2,6 +2,7 @@ import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail, printTable, printJson } from '../lib/output.js';
 import { requireVault, openStore } from '../lib/vault.js';
+import { query as searchQuery } from '../services/search.js';
 
 // ── Handlers — Búsqueda ───────────────────────────────────────────────────────
 
@@ -9,8 +10,8 @@ export function cmdSearch(query) {
   if (!query) fail(t('usage', { syntax: 'mempunk search "<query>" [--project <project_id>]' }));
   requireVault();
 
-  const store   = openStore();
-  const results = store.search(query, opts.project ?? null);
+  // Sin límite en terminal: el CLI siempre mostró todas las coincidencias
+  const results = searchQuery(openStore(), { query, projectId: opts.project ?? null, limit: Infinity });
   if (opts.json) return printJson(results);
 
   if (results.length === 0) {

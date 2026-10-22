@@ -336,6 +336,14 @@ Maintenance:
     'context.commands': 'Commands:',
     'context.messages': 'Last messages:',
     'context.empty': 'No state, sessions, backlog or decisions recorded yet.',
+
+    // Servicios (compartidos por CLI y MCP)
+    'service.noProject': 'No project_id given and the directory {cwd} is not linked to a Mempunk project. Pass project_id or run "mempunk project activate <id> --here" in the repo.',
+    'service.emptyField': '"{field}" cannot be empty',
+    'service.invalidStatus': 'Invalid status "{status}". Use: {valid}',
+    'service.invalidPriority': 'Invalid priority "{priority}". Use an integer from {min} to {max}',
+    'service.unknownBacklogItem': 'Backlog task "{id}" does not exist',
+    'service.stateTooLong': 'The state has {length} characters; the limit is {max}. Summarize it.',
     'setup.nextStep': 'Next step:',
     'setup.nextStepCmd': '  mempunk project add <id> "<project name>"',
     'setup.autoHint': '\nWhen Claude Code starts: @mempunk-loader runs automatically.',
@@ -673,6 +681,14 @@ Mantenimiento:
     'context.commands': 'Comandos:',
     'context.messages': 'Últimos mensajes:',
     'context.empty': 'Todavía no hay estado, sesiones, backlog ni decisiones registrados.',
+
+    // Servicios (compartidos por CLI y MCP)
+    'service.noProject': 'No se indicó project_id y el directorio {cwd} no está vinculado a un proyecto de Mempunk. Pasa project_id o ejecuta "mempunk project activate <id> --here" en el repo.',
+    'service.emptyField': '"{field}" no puede estar vacío',
+    'service.invalidStatus': 'Estado inválido "{status}". Usa: {valid}',
+    'service.invalidPriority': 'Prioridad inválida "{priority}". Usa un entero de {min} a {max}',
+    'service.unknownBacklogItem': 'La tarea "{id}" no existe en el backlog',
+    'service.stateTooLong': 'El estado tiene {length} caracteres; el límite es {max}. Resúmelo.',
     'setup.nextStep': 'Próximo paso:',
     'setup.nextStepCmd': '  mempunk project add <id> "<nombre del proyecto>"',
     'setup.autoHint': '\nAl iniciar Claude Code: @mempunk-loader se ejecuta automáticamente.',
