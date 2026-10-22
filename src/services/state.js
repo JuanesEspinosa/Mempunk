@@ -56,10 +56,33 @@ function summaryLine(state) {
   return line ? line.replace(/\s+/g, ' ').slice(0, MAX_HISTORY_LINE_CHARS) : null;
 }
 
-/** Archivo temporal + rename: un lector concurrente nunca ve un state.md a medias */
+/** Archivo temporal + rename: un lector concurrente nunca ve un state.md a medias.
+ *  En Windows el rename falla con EPERM/EBUSY mientras otro proceso (Obsidian,
+ *  antivirus, indexador) tiene state.md abierto: se reintenta, y si no se logra
+ *  se borra el temporal para que no acabe subido al remote con el push. */
 function writeAtomic(file, content) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, content, 'utf8');
-  fs.renameSync(tmp, file);
+  try {
+    renameWithRetry(tmp, file);
+  } catch (err) {
+    try { fs.unlinkSync(tmp); } catch (_) { /* ya no existe */ }
+    throw err;
+  }
+}
+
+const RENAME_ATTEMPTS = 5;
+const RENAME_DELAY_MS = 50;
+const RETRYABLE_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+function renameWithRetry(from, to) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return fs.renameSync(from, to);
+    } catch (err) {
+      if (attempt >= RENAME_ATTEMPTS || !RETRYABLE_CODES.has(err.code)) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RENAME_DELAY_MS);
+    }
+  }
 }

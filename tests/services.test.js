@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -76,6 +76,19 @@ describe('services/decisions', () => {
   it('addDecision() sin contexto ni decisión deja las secciones vacías (como el CLI)', () => {
     const { file_path } = addDecision(store, { projectId: PROJ, title: 'Plantilla' });
     expect(fs.readFileSync(file_path, 'utf8')).toMatch(/## Contexto\n\n## Decisión\n\n## Consecuencias\n/);
+  });
+
+  it('addDecision() no reutiliza el archivo de otra decisión creada en el mismo milisegundo', () => {
+    const realNow = Date.now;
+    Date.now = () => 1700000000000;
+    try {
+      const a = addDecision(store, { projectId: PROJ, title: 'Misma marca A' });
+      const b = addDecision(store, { projectId: PROJ, title: 'Misma marca B' });
+      expect(a.file_path).not.toBe(b.file_path);
+      expect(fs.readFileSync(a.file_path, 'utf8')).toContain('Misma marca A');
+    } finally {
+      Date.now = realNow;
+    }
   });
 
   it('addDecision() rechaza título vacío y proyecto inexistente', () => {
@@ -191,6 +204,36 @@ describe('services/state', () => {
     const md = fs.readFileSync(path.join(tplPath, 'wiki', 'state.md'), 'utf8');
     expect(md).toContain('<!-- comentario -->');
     expect(md).not.toMatch(/^- \d{4}-/m);
+  });
+
+  it('updateState() reintenta un rename bloqueado (Windows: EPERM/EBUSY)', () => {
+    const realRename = fs.renameSync;
+    let calls = 0;
+    const spy = jest.spyOn(fs, 'renameSync').mockImplementation((...a) => {
+      calls += 1;
+      if (calls === 1) throw Object.assign(new Error('bloqueado'), { code: 'EPERM' });
+      return realRename(...a);
+    });
+    try {
+      updateState(store, { projectId: PROJ, markdown: 'Tras reintento.' });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(calls).toBe(2);
+    expect(readState(stateFile)).toBe('Tras reintento.');
+  });
+
+  it('updateState() no deja el temporal en wiki/ si el rename falla siempre', () => {
+    const spy = jest.spyOn(fs, 'renameSync').mockImplementation(() => {
+      throw Object.assign(new Error('bloqueado'), { code: 'EBUSY' });
+    });
+    try {
+      expect(() => updateState(store, { projectId: PROJ, markdown: 'Nunca.' })).toThrow(/bloqueado/);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(fs.readdirSync(path.dirname(stateFile)).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+    expect(readState(stateFile)).toBe('Tras reintento.');
   });
 
   it('updateState() rechaza markdown vacío o de más de 4.000 caracteres', () => {

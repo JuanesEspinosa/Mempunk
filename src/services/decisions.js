@@ -1,5 +1,6 @@
 // ── Servicio de decisiones (ADR) ──────────────────────────────────────────────
 
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { requireProject, requireText } from './project.js';
 
@@ -17,7 +18,10 @@ export function addDecision(store, { projectId, title, context = '', decision = 
   const cleanTitle = requireText(title, 'title');
   const cleanTags  = tags.map((tag) => tag.trim()).filter(Boolean);
   const now        = new Date().toISOString();
-  const filePath   = path.join(project.path, 'decisions', `${projectId}-decision-${Date.now()}.md`);
+  // Sufijo aleatorio: dos sesiones MCP pueden guardar en el mismo milisegundo
+  // y el segundo archivo pisaría al primero
+  const suffix     = randomBytes(3).toString('hex');
+  const filePath   = path.join(project.path, 'decisions', `${projectId}-decision-${Date.now()}-${suffix}.md`);
 
   const content = [
     '---',

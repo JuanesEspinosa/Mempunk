@@ -20,7 +20,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Business logic moved to `src/services/` (decisions, sessions, backlog, search, state); the CLI commands are thin wrappers shared with the MCP server.
-- `backlog add/list/update` now validate input: status must be `pending | in_progress | done | blocked | cancelled`, priority an integer from 1 to 5, and the task/project must exist (previously an unknown id was silently ignored). `decision add` and `session log` reject unknown projects with a clear message.
+- `backlog add/list/update` now validate input: status must be `pending | in_progress | done | blocked | cancelled`, priority an integer from 1 to 5, and the task/project must exist (previously an unknown id was silently ignored). `decision add`, `session log` and `search --project` reject unknown projects with a clear message (`search` used to return an empty list).
+- New decision files are named `<project>-decision-<timestamp>-<random>.md`, so two sessions saving in the same millisecond no longer overwrite each other's file. Existing files are untouched.
+- `update_state` retries the final rename when Windows reports the file as locked (Obsidian, antivirus) and never leaves its temporary file in `wiki/`.
 - SQLite `busy_timeout` is set explicitly to 5,000 ms (it relied on the better-sqlite3 default), so concurrent sessions wait for the write lock instead of failing with `SQLITE_BUSY`.
 
 ### Dependencies
