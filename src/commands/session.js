@@ -3,6 +3,7 @@ import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail, printJson } from '../lib/output.js';
 import { requireVault, openStore } from '../lib/vault.js';
+import { logSession } from '../services/sessions.js';
 
 // ── Handlers — Sesiones ───────────────────────────────────────────────────────
 
@@ -12,13 +13,9 @@ export function cmdSessionLog(projectId, summary) {
   }
   requireVault();
 
-  // Parsear lista de archivos separados por coma
-  const filesTouched = opts.files
-    ? opts.files.split(',').map((f) => f.trim()).filter(Boolean)
-    : [];
-
-  const store = openStore();
-  store.logSession(projectId, summary, filesTouched);
+  // Lista de archivos separados por coma; el servicio limpia vacíos
+  const files = opts.files ? opts.files.split(',') : [];
+  logSession(openStore(), { projectId, summary, files });
   console.log(t('session.logged', { id: projectId }));
 }
 

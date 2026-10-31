@@ -1,6 +1,6 @@
 {
   "name": "mempunk",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Persistent dev brain for AI coding CLIs (Claude Code, opencode, gemini-cli) — memory vault across sessions",
   "type": "module",
   "bin": {
@@ -45,7 +45,9 @@
     "vault-skills/"
   ],
   "dependencies": {
-    "better-sqlite3": "^12.10.0"
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "better-sqlite3": "^12.10.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

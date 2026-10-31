@@ -36,6 +36,20 @@ export function requireVault() {
  * @param {boolean} skipVersionCheck - true en vault version/upgrade, que gestionan la versión ellos mismos
  */
 export function openStore(skipVersionCheck = false) {
+  try {
+    return openStoreOrThrow(skipVersionCheck);
+  } catch (err) {
+    return fail(err.message);
+  }
+}
+
+/**
+ * Igual que openStore() pero lanza en vez de terminar el proceso: para
+ * procesos de larga vida (`mempunk mcp`), donde un vault desactualizado debe
+ * ser un error de la llamada y no la muerte del servidor.
+ * @param {boolean} skipVersionCheck
+ */
+export function openStoreOrThrow(skipVersionCheck = false) {
   const store = new VaultStore(VAULT_PATH, { autoMigrate: false });
   const vaultVersion = store.getVaultVersion();
 
@@ -45,14 +59,24 @@ export function openStore(skipVersionCheck = false) {
     return store;
   }
 
-  // BD migrada por un mempunk más nuevo (p. ej. en la otra máquina): este CLI
-  // no entiende su schema/rutas — escribir en ella podría corromperla
-  if (!skipVersionCheck && vaultVersion > VAULT_VERSION) {
-    fail(t('vault.newer', { current: vaultVersion, supported: VAULT_VERSION }));
-  }
-
-  if (!skipVersionCheck && vaultVersion < VAULT_VERSION) {
-    fail(t('vault.outdated', { current: vaultVersion, required: VAULT_VERSION }));
+  if (!skipVersionCheck) {
+    const problem = versionProblem(vaultVersion);
+    if (problem) {
+      store.db.close();
+      throw new Error(problem);
+    }
   }
   return store;
+}
+
+/**
+ * Mensaje de error si el vault no está en la versión que entiende este CLI, o null.
+ * - Más nuevo (migrado en otra máquina): escribir podría corromperlo.
+ * - Más viejo: hace falta `mempunk vault upgrade`; nunca se migra en silencio.
+ * @param {number} vaultVersion
+ */
+export function versionProblem(vaultVersion) {
+  if (vaultVersion > VAULT_VERSION) return t('vault.newer', { current: vaultVersion, supported: VAULT_VERSION });
+  if (vaultVersion < VAULT_VERSION) return t('vault.outdated', { current: vaultVersion, required: VAULT_VERSION });
+  return null;
 }

@@ -11,7 +11,7 @@ import { t } from '../lib/i18n.js';
 // Por debajo del límite de additionalContext de SessionStart (10.000)
 export const DEFAULT_MAX_CHARS = 9000;
 
-const MAX_STATE_CHARS       = 4000;  // mismo tope que validará update_state (plan v3, 4.4)
+export const MAX_STATE_CHARS = 4000;  // mismo tope que valida update_state (services/state.js)
 const MAX_BACKLOG           = 8;
 const MAX_DECISIONS         = 5;
 const MAX_SESSION_FILES     = 20;
@@ -20,7 +20,7 @@ const MAX_SNAPSHOT_COMMANDS = 10;
 const MAX_SNAPSHOT_MESSAGES = 6;
 const MAX_MESSAGE_CHARS     = 200;
 
-const HISTORY_HEADING_RE = /^##\s+Historial de estados anteriores\s*$/m;
+export const HISTORY_HEADING_RE =/^##\s+Historial de estados anteriores\s*$/m;
 
 // Línea de relleno de templates/project/wiki/state.md: si sigue ahí, nadie
 // escribió el estado todavía
@@ -37,9 +37,13 @@ export function readState(file) {
   if (!fs.existsSync(file)) return null;
   const raw = fs.readFileSync(file, 'utf8');
   if (raw.includes(TEMPLATE_PLACEHOLDER)) return null;
+  return stripStateHistory(raw) || null;
+}
+
+/** Parte de state.md anterior a la sección de historial, sin el separador `---` final */
+export function stripStateHistory(raw) {
   const match = HISTORY_HEADING_RE.exec(raw);
-  const body  = (match ? raw.slice(0, match.index) : raw).replace(/\n-{3,}\s*$/, '').trim();
-  return body || null;
+  return (match ? raw.slice(0, match.index) : raw).replace(/\n-{3,}\s*$/, '').trim();
 }
 
 /**

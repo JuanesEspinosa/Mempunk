@@ -1,8 +1,8 @@
-import path from 'node:path';
 import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail, printTable, printJson } from '../lib/output.js';
-import { VAULT_PATH, requireVault, openStore } from '../lib/vault.js';
+import { requireVault, openStore } from '../lib/vault.js';
+import { addDecision } from '../services/decisions.js';
 
 // ── Handlers — Decisions ──────────────────────────────────────────────────────
 
@@ -10,32 +10,9 @@ export function cmdDecisionAdd(projectId, title) {
   if (!projectId || !title) fail(t('usage', { syntax: 'mempunk decision add <project_id> "<title>" [--tags "tag1,tag2"]' }));
   requireVault();
 
-  const tags = opts.tags ? opts.tags.split(',').map((t) => t.trim()) : [];
-  const id   = `${projectId}-decision-${Date.now()}`;
-  const now  = new Date().toISOString();
-  const filePath = path.join(VAULT_PATH, 'projects', projectId, 'decisions', `${id}.md`);
-
-  // Plantilla markdown del ADR con frontmatter y secciones estándar
-  const content = [
-    '---',
-    `title: ${title}`,
-    `tags: [${tags.join(', ')}]`,
-    `created_at: ${now}`,
-    '---',
-    '',
-    `# ${title}`,
-    '',
-    '## Contexto',
-    '',
-    '## Decisión',
-    '',
-    '## Consecuencias',
-    '',
-  ].join('\n');
-
-  const store = openStore();
-  store.addDecision(projectId, title, filePath, tags, content);
-  console.log(t('decision.saved', { path: filePath }));
+  const tags = opts.tags ? opts.tags.split(',') : [];
+  const { file_path } = addDecision(openStore(), { projectId, title, tags });
+  console.log(t('decision.saved', { path: file_path }));
 }
 
 export function cmdDecisionList(projectId) {
