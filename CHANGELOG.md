@@ -13,7 +13,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- **`mempunk mcp`** — local MCP server over stdio (no network) that each AI CLI launches per session. Tools: `get_context`, `save_decision`, `log_session`, `backlog_list`, `backlog_add`, `backlog_update`, `search` and `update_state`. `project_id` is optional and resolves to the project linked to the session's directory (or `CLAUDE_PROJECT_ID`) — never to the global active project, so writes cannot land in the wrong project. stdout carries only JSON-RPC; an outdated vault returns a tool error instead of migrating. Registration for Claude Code, Gemini CLI and opencode is documented in the README.
+- **`mempunk mcp`** — local MCP server over stdio (no network) that each AI CLI launches per session. Tools: `get_context`, `save_decision`, `log_session`, `backlog_list`, `backlog_add`, `backlog_update`, `search` and `update_state`. `project_id` is optional and resolves to the project linked to the session's directory (or `CLAUDE_PROJECT_ID`) — never to the global active project, so writes cannot land in the wrong project. stdout carries only JSON-RPC; an outdated vault returns a tool error instead of migrating. Registration for Claude Code, opencode, Antigravity CLI and Gemini CLI is documented in the README.
 - `update_state` rewrites `wiki/state.md` (max 4,000 characters) while keeping its "Historial de estados anteriores" section, and appends a dated line with the state it replaces.
 - `mempunk search` results (and `--json`) include a `snippet` with the matched terms in brackets.
 
@@ -24,6 +24,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - New decision files are named `<project>-decision-<timestamp>-<random>.md`, so two sessions saving in the same millisecond no longer overwrite each other's file. Existing files are untouched.
 - `update_state` retries the final rename when Windows reports the file as locked (Obsidian, antivirus) and never leaves its temporary file in `wiki/`.
 - SQLite `busy_timeout` is set explicitly to 5,000 ms (it relied on the better-sqlite3 default), so concurrent sessions wait for the write lock instead of failing with `SQLITE_BUSY`.
+
+### Documentation
+
+- README: step-by-step *Installation* and a *Usage* walkthrough replace the old Quick Start.
+- README: MCP registration rewritten after manual testing. On Windows the server is launched with `node <npm root -g>/mempunk/src/cli.js mcp` (the `mempunk` shim and `cmd /c mempunk mcp` fail when a CLI spawns it without a shell); the opencode example uses the v2 schema (`mcp.servers`); Antigravity CLI (`agy mcp add`) is documented, and Gemini CLI is marked as no longer maintained upstream.
 
 ### Dependencies
 

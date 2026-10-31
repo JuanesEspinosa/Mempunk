@@ -34,16 +34,72 @@ Mempunk da ao seu IA um vault estruturado respaldado por SQLite e arquivos markd
 
 O vault sao arquivos markdown organizados por projeto, com SQLite como backend estruturado. Voce gerencia com um CLI. Seu assistente de IA navega com os protocolos definidos em `vault-skills/`. Tambem funciona como vault do Obsidian, entao voce pode navegar e buscar tudo visualmente.
 
-Como o vault e agnostico ao CLI, voce pode usar o mesmo vault com Claude Code, opencode e gemini-cli simultaneamente. Alterne entre CLIs sem perder contexto.
+Como o vault é agnóstico ao CLI, você pode usar o mesmo vault com Claude Code, opencode e Antigravity CLI (pelo servidor MCP) simultaneamente. Alterne entre CLIs sem perder contexto.
 
-## Inicio Rapido
+## Instalação
+
+**Requisitos:** Node.js 22 ou superior e pelo menos um CLI de IA para programação (Claude Code, opencode ou Antigravity CLI). O Git só é necessário para [sincronizar o vault entre máquinas](README.md#sync-between-machines).
+
+### 1. Instale o CLI
 
 ```bash
 npm install -g mempunk
+mempunk -v
+```
+
+### 2. Crie o vault e vincule seu CLI
+
+```bash
 mempunk setup
 ```
 
-`setup` pergunta qual CLI de IA voce usa e configura tudo: cria `~/Dev-Brain/`, vincula ao seu CLI, e instala hooks + agentes (Claude Code) ou os protocolos vault-skills (Gemini CLI / opencode).
+`setup` faz duas perguntas:
+
+1. **Qual CLI de IA você usa principalmente?** `1` para Claude Code, `2` para opencode ou outro CLI.
+2. **(Só Claude Code) Como o Mempunk deve funcionar?** `1` *Automático* (recomendado) instala hooks, agentes e a status line, e ativa o `auto-start`. `2` *Manual* instala apenas os protocolos vault-skills, que você mesmo segue.
+
+Ele cria `~/Dev-Brain/`, adiciona-o aos diretórios do seu CLI e instala hooks + agentes (Claude Code, automático) ou os protocolos `vault-skills/` (manual, opencode). Executá-lo de novo é seguro: o vault existente é mantido. Defina `MEMPUNK_VAULT` antes de executá-lo para usar outro local.
+
+### 3. Registre seu primeiro projeto
+
+Na raiz do seu repositório:
+
+```bash
+cd ~/code/my-api
+mempunk project add api "Backend API"
+```
+
+O id (`api`) é o que você usa em todos os outros comandos. `project add` mapeia o diretório atual para o projeto, então as sessões abertas ali o resolvem automaticamente. Para um projeto que já existe (outra pasta, outra máquina), vincule a pasta com `mempunk project activate api --here`.
+
+### 4. Conecte o servidor MCP (recomendado)
+
+O servidor MCP dá ao assistente ferramentas tipadas (`get_context`, `save_decision`, `search`…) em vez de comandos de shell. Registre-o uma vez por CLI, como mostrado em [Servidor MCP](#servidor-mcp).
+
+### 5. Verifique a instalação
+
+```bash
+mempunk status                # vault, projects, last session
+mempunk hooks install --check # Claude Code: hooks, agents and status line
+mempunk doctor                # vault integrity
+```
+
+Abra uma sessão do seu CLI na pasta do projeto. Com o Claude Code em modo automático, o bloco de contexto já está lá quando a sessão começa.
+
+## Uso
+
+Um dia típico com um projeto:
+
+1. **Abra seu CLI no repositório.** Com `auto-start` ativado, o Claude Code começa com o contexto compilado do projeto (estado, última sessão, backlog pendente, decisões recentes). Caso contrário, digite `/mempunk` ou peça ao assistente para carregar o contexto do Mempunk: ele lista seus projetos e pergunta em qual trabalhar.
+2. **Trabalhe normalmente.** O assistente salva conforme as coisas acontecem: uma decisão quando é acordada, uma atualização do backlog quando uma tarefa começa ou termina, um recurso quando você compartilha um link. Você também pode pedir diretamente ("salve isso como decisão", "adicione ao backlog") ou executar os comandos você mesmo:
+   ```bash
+   mempunk decision add api "Use JWT for auth" --tags "auth"
+   mempunk backlog add api "Add refresh tokens" --priority 1
+   mempunk search "refresh token" --project api
+   ```
+3. **Encerre a sessão.** Digite `/session-end` ou diga ao assistente que terminou. Ele registra a sessão, atualiza o backlog e reescreve `wiki/state.md`, para que a próxima sessão comece de um snapshot compilado em vez de histórico bruto.
+4. **Vai trocar de máquina?** `mempunk push` antes de sair e `mempunk pull` na outra máquina (ou `mempunk remote set <url> --auto` para que os hooks façam as duas coisas).
+
+Se uma sessão fechar inesperadamente, `mempunk session recover api` mostra o último snapshot automático.
 
 ## Estrutura do Vault
 
@@ -172,18 +228,33 @@ SAVE session: project=<id> summary="Implementei endpoint de login"
 
 `project_id` e opcional: por padrao o servidor usa o projeto vinculado ao diretorio da sessao (`mempunk project activate <id> --here`) ou `CLAUDE_PROJECT_ID`. Nunca recorre ao projeto ativo global; sem vinculo, a ferramenta retorna um erro pedindo `project_id`. Push e pull nao sao expostos.
 
-Registre uma vez por CLI:
+Registre-o uma vez por CLI. No macOS e no Linux o comando é `mempunk mcp`. **No Windows**, inicie o script com `node`: os CLIs iniciam o servidor sem shell, e o shim `mempunk` (ou `cmd /c mempunk mcp`) falha ou excede o tempo limite. Encontre o caminho do script com `npm root -g`; ele é `<npm root -g>/mempunk/src/cli.js` (por exemplo `C:/Users/<you>/AppData/Roaming/npm/node_modules/mempunk/src/cli.js`). Abaixo, `<cli.js>` representa esse caminho.
 
-- **Claude Code:** `claude mcp add --scope user mempunk -- mempunk mcp` (Windows nativo: `claude mcp add --scope user mempunk -- cmd /c mempunk mcp`). A partir da v2.5, o plugin o declara.
-- **Gemini CLI** (`~/.gemini/settings.json`):
-  ```json
-  { "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }
+- **Claude Code:**
+  ```bash
+  claude mcp add --scope user mempunk -- mempunk mcp            # macOS / Linux
+  claude mcp add --scope user mempunk -- node <cli.js> mcp      # Windows
   ```
-  O Gemini descarta variaveis de ambiente nao declaradas: com um vault proprio, adicione `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
-- **opencode** (`opencode.json`):
-  ```json
-  { "mcp": { "mempunk": { "type": "local", "command": ["mempunk", "mcp"], "enabled": true } } }
+  Verifique com `claude mcp list` (`mempunk: … ✔ Connected`) ou `/mcp` dentro de uma sessão. A partir da v2.5, o plugin o declara por você.
+- **opencode** (esquema de configuração v2, servidores em `mcp.servers`):
+  ```bash
+  opencode mcp add --global mempunk -- mempunk mcp              # macOS / Linux
+  opencode mcp add --global mempunk -- node <cli.js> mcp        # Windows
   ```
+  Isso grava `~/.config/opencode/opencode.jsonc`:
+  ```jsonc
+  { "mcp": { "servers": { "mempunk": { "type": "local", "command": ["node", "<cli.js>", "mcp"] } } } }
+  ```
+  Verifique a partir de uma pasta de projeto com `opencode mcp list` (`✓ mempunk connected`), ou `/mcps` dentro de uma sessão. O opencode 1.x usava `"mcp": { "mempunk": { …, "enabled": true } }`.
+- **Antigravity CLI (`agy`):**
+  ```bash
+  agy mcp add mempunk mempunk mcp                               # macOS / Linux
+  agy mcp add mempunk node <cli.js> mcp                         # Windows
+  ```
+  Isso grava `~/.gemini/config/mcp_config.json` (`mcpServers.mempunk`). Reinicie o `agy` e abra `/mcp`. No modo print (`agy -p`), as chamadas MCP precisam de uma regra de permissão como `mcp(*)` em `permissions.allow`. Por enquanto o Antigravity só recebe o servidor MCP: `setup` e `link` ainda não o configuram.
+- **Gemini CLI** (sem manutenção upstream; prefira o Antigravity CLI): adicione `{ "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }` a `~/.gemini/settings.json`. O Gemini descarta as variáveis de ambiente que você não lista: com um vault próprio, adicione `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
+
+O servidor resolve o projeto a partir do diretório em que o CLI foi aberto, então abra a sessão dentro de um repositório vinculado ou passe `project_id`. O [MCP Inspector](https://github.com/modelcontextprotocol/inspector) é útil para testar as ferramentas sem um CLI: `npx @modelcontextprotocol/inspector node <cli.js> mcp`, depois *Tools → List Tools*.
 
 Se o vault precisar de `mempunk vault upgrade`, as ferramentas retornam esse erro em vez de migrar.
 
@@ -303,8 +374,11 @@ mempunk vault upgrade
 | Statusline (barra de uso de contexto) | ✔ | ✘ | ✘ |
 | Agentes (`@mempunk-loader`, `@mempunk-saver`) | ✔ | ✘ | ✘ |
 | Multi-CLI simultaneo | ✔ | ✔ | ✔ |
+| Servidor MCP (`mempunk mcp`) | ✔ | ✔ | ✔ |
 
 > Protocolos de sessao, ADRs, atualizacoes de backlog e logs diarios sao features a nivel de vault — funcionam em qualquer CLI que leia o `CLAUDE.md` do vault. Lifecycle hooks e agentes requerem a infraestrutura de sub-agentes e hooks do Claude Code.
+>
+> O Gemini CLI não recebe mais atualizações upstream; seu sucessor, o Antigravity CLI, já funciona hoje pelo [servidor MCP](#servidor-mcp). A vinculação com `setup`/`link` está planejada.
 
 ## Como se Compara
 

@@ -34,16 +34,72 @@ Mempunk gives your AI a structured vault backed by SQLite and markdown files —
 
 The vault is markdown files organized by project, with SQLite as the structured backend. You manage it with a CLI. Your AI navigates it with the protocols defined in `vault-skills/`. It also works as an Obsidian vault, so you can browse and search everything visually.
 
-Because the vault is CLI-agnostic, you can use the same vault with Claude Code, opencode, and gemini-cli simultaneously. Switch between CLIs without losing context.
+Because the vault is CLI-agnostic, you can use the same vault with Claude Code, opencode, and Antigravity CLI (through the MCP server) simultaneously. Switch between CLIs without losing context.
 
-## Quick Start
+## Installation
+
+**Requirements:** Node.js 22 or later, and at least one AI coding CLI (Claude Code, opencode or Antigravity CLI). Git is only needed to [sync the vault between machines](#sync-between-machines).
+
+### 1. Install the CLI
 
 ```bash
 npm install -g mempunk
+mempunk -v
+```
+
+### 2. Create the vault and link your CLI
+
+```bash
 mempunk setup
 ```
 
-`setup` asks which AI CLI you use and configures everything: creates `~/Dev-Brain/`, links it to your CLI, and installs hooks + agents (Claude Code) or vault-skills protocols (Gemini CLI / opencode).
+`setup` asks two questions:
+
+1. **Which AI CLI do you mainly use?** `1` for Claude Code, `2` for opencode or another CLI.
+2. **(Claude Code only) How should Mempunk work?** `1` *Automatic* (recommended) installs hooks, agents and the status line, and turns on `auto-start`. `2` *Manual* installs only the vault-skills protocols, which you follow yourself.
+
+It creates `~/Dev-Brain/`, adds it to your CLI's directories, and installs hooks + agents (Claude Code, automatic) or the `vault-skills/` protocols (manual, opencode). Running it again is safe: it keeps the existing vault. Set `MEMPUNK_VAULT` before running it to use a different location.
+
+### 3. Register your first project
+
+From the root of your repository:
+
+```bash
+cd ~/code/my-api
+mempunk project add api "Backend API"
+```
+
+The id (`api`) is what you use in every other command. `project add` maps the current directory to the project, so sessions opened there resolve it automatically. For a project that already exists (another folder, another machine), link the folder with `mempunk project activate api --here`.
+
+### 4. Connect the MCP server (recommended)
+
+The MCP server gives the assistant typed tools (`get_context`, `save_decision`, `search`…) instead of shell commands. Register it once per CLI as shown in [MCP server](#mcp-server).
+
+### 5. Check the installation
+
+```bash
+mempunk status                # vault, projects, last session
+mempunk hooks install --check # Claude Code: hooks, agents and status line
+mempunk doctor                # vault integrity
+```
+
+Open a session of your CLI in the project folder. With Claude Code in automatic mode, the context block is already there when the session starts.
+
+## Usage
+
+A typical day with a project:
+
+1. **Open your CLI in the repository.** With `auto-start` on, Claude Code starts with the project's compiled context (state, last session, pending backlog, recent decisions). Otherwise type `/mempunk`, or ask the assistant to load the Mempunk context: it lists your projects and asks which one to work on.
+2. **Work as usual.** The assistant saves as things happen: a decision when one is agreed, a backlog update when a task starts or ends, a resource when you share a link. You can also ask it directly ("save this as a decision", "add it to the backlog"), or run the commands yourself:
+   ```bash
+   mempunk decision add api "Use JWT for auth" --tags "auth"
+   mempunk backlog add api "Add refresh tokens" --priority 1
+   mempunk search "refresh token" --project api
+   ```
+3. **Close the session.** Type `/session-end` or tell the assistant you are done. It logs the session, updates the backlog, and rewrites `wiki/state.md`, so the next session starts from a compiled snapshot instead of raw history.
+4. **Switching machines?** `mempunk push` before you leave and `mempunk pull` on the other machine (or `mempunk remote set <url> --auto` to do both from the hooks).
+
+If a session closes unexpectedly, `mempunk session recover api` shows the last automatic snapshot.
 
 ## Vault Structure
 
@@ -176,18 +232,33 @@ SAVE session: project=<id> summary="Implemented login endpoint"
 
 `project_id` is optional: by default the server uses the project linked to the session's directory (`mempunk project activate <id> --here`) or `CLAUDE_PROJECT_ID`. It never falls back to the global active project, so a decision is never saved to the wrong project; without a link the tool returns an error asking for `project_id`. Push and pull are not exposed: they stay terminal commands.
 
-Register it once per CLI:
+Register it once per CLI. On macOS and Linux the command is `mempunk mcp`. **On Windows**, launch the script with `node`: the CLIs start the server without a shell, and the `mempunk` shim (or `cmd /c mempunk mcp`) fails or times out. Find the script path with `npm root -g`; it is `<npm root -g>/mempunk/src/cli.js` (for example `C:/Users/<you>/AppData/Roaming/npm/node_modules/mempunk/src/cli.js`). Below, `<cli.js>` stands for that path.
 
-- **Claude Code:** `claude mcp add --scope user mempunk -- mempunk mcp` (on native Windows: `claude mcp add --scope user mempunk -- cmd /c mempunk mcp`). From v2.5 the plugin declares it for you.
-- **Gemini CLI** (`~/.gemini/settings.json`):
-  ```json
-  { "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }
+- **Claude Code:**
+  ```bash
+  claude mcp add --scope user mempunk -- mempunk mcp            # macOS / Linux
+  claude mcp add --scope user mempunk -- node <cli.js> mcp      # Windows
   ```
-  Gemini drops environment variables you do not list: with a custom vault add `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
-- **opencode** (`opencode.json`):
-  ```json
-  { "mcp": { "mempunk": { "type": "local", "command": ["mempunk", "mcp"], "enabled": true } } }
+  Check it with `claude mcp list` (`mempunk: … ✔ Connected`) or `/mcp` inside a session. From v2.5 the plugin declares it for you.
+- **opencode** (v2 config schema, servers under `mcp.servers`):
+  ```bash
+  opencode mcp add --global mempunk -- mempunk mcp              # macOS / Linux
+  opencode mcp add --global mempunk -- node <cli.js> mcp        # Windows
   ```
+  This writes `~/.config/opencode/opencode.jsonc`:
+  ```jsonc
+  { "mcp": { "servers": { "mempunk": { "type": "local", "command": ["node", "<cli.js>", "mcp"] } } } }
+  ```
+  Check it from a project folder with `opencode mcp list` (`✓ mempunk connected`), or `/mcps` inside a session. opencode 1.x used `"mcp": { "mempunk": { …, "enabled": true } }` instead.
+- **Antigravity CLI (`agy`):**
+  ```bash
+  agy mcp add mempunk mempunk mcp                               # macOS / Linux
+  agy mcp add mempunk node <cli.js> mcp                         # Windows
+  ```
+  This writes `~/.gemini/config/mcp_config.json` (`mcpServers.mempunk`). Restart `agy` and open `/mcp`. In print mode (`agy -p`) MCP calls need an allow rule such as `mcp(*)` under `permissions.allow`. Antigravity only gets the MCP server for now: `setup` and `link` do not configure it yet.
+- **Gemini CLI** (no longer maintained upstream; prefer Antigravity CLI): add `{ "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }` to `~/.gemini/settings.json`. Gemini drops environment variables you do not list: with a custom vault add `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
+
+The server resolves the project from the directory the CLI was opened in, so open the session inside a linked repository or pass `project_id`. The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is handy to try the tools without a CLI: `npx @modelcontextprotocol/inspector node <cli.js> mcp`, then *Tools → List Tools*.
 
 If the vault needs `mempunk vault upgrade`, the tools return that error instead of migrating.
 
@@ -343,8 +414,11 @@ mempunk vault upgrade
 | Statusline (context usage bar) | ✔ | ✘ | ✘ |
 | Agents (`@mempunk-loader`, `@mempunk-saver`) | ✔ | ✘ | ✘ |
 | Multi-CLI simultaneous | ✔ | ✔ | ✔ |
+| MCP server (`mempunk mcp`) | ✔ | ✔ | ✔ |
 
 > Session protocols, ADRs, backlog updates, and daily logs are vault-level features — they work in any CLI that reads the vault's `CLAUDE.md`. Lifecycle hooks and agents require Claude Code's sub-agent and hook infrastructure.
+>
+> Gemini CLI no longer receives updates upstream; its successor, Antigravity CLI, works today through the [MCP server](#mcp-server). Linking it with `setup`/`link` is planned.
 
 ## How it Compares
 
