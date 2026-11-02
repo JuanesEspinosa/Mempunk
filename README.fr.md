@@ -131,7 +131,7 @@ Si une session se ferme de manière inattendue, `mempunk session recover api` af
 
 **Avec agents (Claude Code, mode automatique):** invoquez `@mempunk-loader`. Il liste vos projets, demande lequel utiliser, l'active et retourne un resume compact du contexte. Si vous avez active `auto-start` et que le repertoire est lie a un projet (`project activate <id> --here`), la session s'ouvre avec le bloc `mempunk context` de ce projet deja charge, sans agent ni questions.
 
-**Sans agents (mode manuel / Gemini CLI / opencode):** suivez `vault-skills/session-start.md`. L'assistant:
+**Sans agents (mode manuel / Antigravity CLI / opencode):** suivez `vault-skills/session-start.md`. L'assistant:
 
 1. Execute `mempunk project activate <id>` pour definir le projet actif
 2. Execute `mempunk session last <project_id>` pour savoir ce que la session precedente a fait
@@ -251,7 +251,7 @@ SAVE session: project=<id> summary="Implemente endpoint de login"
   agy mcp add mempunk mempunk mcp                               # macOS / Linux
   agy mcp add mempunk node <cli.js> mcp                         # Windows
   ```
-  Cela écrit `~/.gemini/config/mcp_config.json` (`mcpServers.mempunk`). Redémarrez `agy` et ouvrez `/mcp`. En mode print (`agy -p`), les appels MCP nécessitent une règle d'autorisation comme `mcp(*)` sous `permissions.allow`. Pour l'instant, Antigravity ne bénéficie que du serveur MCP : `setup` et `link` ne le configurent pas encore.
+  Cela écrit `~/.gemini/config/mcp_config.json` (`mcpServers.mempunk`). Redémarrez `agy` et ouvrez `/mcp`. En mode print (`agy -p`), les appels MCP nécessitent une règle d'autorisation comme `mcp(*)` sous `permissions.allow`. `mempunk link --cli agy` (et `setup` avec l'option 2) le fait pour vous, et ajoute aussi le vault et les protocoles de session à `~/.gemini/config/AGENTS.md`.
 - **Gemini CLI** (plus maintenu en amont ; préférez Antigravity CLI) : ajoutez `{ "mcpServers": { "mempunk": { "command": "mempunk", "args": ["mcp"] } } }` à `~/.gemini/settings.json`. Gemini supprime les variables d'environnement non déclarées : avec un vault personnalisé, ajoutez `"env": { "MEMPUNK_VAULT": "$MEMPUNK_VAULT" }`.
 
 Le serveur résout le projet à partir du répertoire dans lequel le CLI a été ouvert : ouvrez donc la session dans un dépôt lié ou passez `project_id`. Le [MCP Inspector](https://github.com/modelcontextprotocol/inspector) est pratique pour essayer les outils sans CLI : `npx @modelcontextprotocol/inspector node <cli.js> mcp`, puis *Tools → List Tools*.
@@ -266,7 +266,7 @@ Si le vault a besoin de `mempunk vault upgrade`, les outils renvoient cette erre
 |----------|-------------|---------|
 | `mempunk setup` | Setup interactif: init + link + hooks install | `mempunk setup` |
 | `mempunk init` | Creer la structure du vault et initialiser la BD | `mempunk init` |
-| `mempunk link [--cli <name>]` | Lier le vault a Claude Code, opencode ou gemini-cli | `mempunk link --cli opencode` |
+| `mempunk link [--cli <name>]` | Lier le vault a Claude Code, opencode ou Antigravity CLI (`agy`) | `mempunk link --cli agy` |
 | `mempunk unlink [--cli <name>]` | Delier d'un CLI | `mempunk unlink` |
 | `mempunk status` | Dashboard: vault, projets, backlogs, derniere session | `mempunk status` |
 | `mempunk cli list` | Lister les CLI compatibles et leur statut de liaison | `mempunk cli list` |
@@ -357,7 +357,7 @@ mempunk vault upgrade
 
 ## Compatibilite
 
-| Feature | Claude Code | opencode | gemini-cli |
+| Feature | Claude Code | opencode | Antigravity CLI |
 |---|:---:|:---:|:---:|
 | Lier/delier un vault | ✔ | ✔ | ✔ |
 | Multi-vault | ✔ | ✔ | ✔ |
@@ -378,7 +378,7 @@ mempunk vault upgrade
 
 > Les protocoles de session, ADRs, mises a jour du backlog et logs journaliers sont des features au niveau du vault — ils fonctionnent avec n'importe quel CLI qui lit le `CLAUDE.md` du vault. Les lifecycle hooks et agents necessitent l'infrastructure de sous-agents et de hooks de Claude Code.
 >
-> Gemini CLI ne reçoit plus de mises à jour en amont ; son successeur, Antigravity CLI, fonctionne dès aujourd'hui via le [serveur MCP](#serveur-mcp). Sa liaison avec `setup`/`link` est prévue.
+> Gemini CLI ne reçoit plus de mises à jour en amont et est déprécié dans Mempunk : `link` et `setup` l'ignorent, et `--cli gemini` ne sert plus qu'à délier une installation existante. Utilisez Antigravity CLI (`--cli agy`).
 
 ## Comparaison
 

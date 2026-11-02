@@ -1,7 +1,7 @@
 {
   "name": "mempunk",
   "version": "2.4.0",
-  "description": "Persistent dev brain for AI coding CLIs (Claude Code, opencode, gemini-cli) — memory vault across sessions",
+  "description": "Persistent dev brain for AI coding CLIs (Claude Code, opencode, Antigravity CLI) — memory vault across sessions",
   "type": "module",
   "bin": {
     "mempunk": "src/cli.js"
@@ -23,7 +23,8 @@
   "keywords": [
     "claude-code",
     "opencode",
-    "gemini-cli",
+    "antigravity",
+    "mcp",
     "memory",
     "dev-brain",
     "obsidian",

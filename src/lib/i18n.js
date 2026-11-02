@@ -21,8 +21,8 @@ const MESSAGES = {
 Setup:
   setup                             Initialize, link and configure hooks (all in one)
   init                              Initialize the vault at ~/Dev-Brain
-  link       [--cli claude|gemini|opencode]  Link the vault (default: all installed)
-  unlink     [--cli claude|gemini|opencode]  Unlink the vault
+  link       [--cli claude|agy|opencode]  Link the vault (default: all installed)
+  unlink     [--cli claude|agy|opencode]  Unlink the vault
   status                            Dashboard: vault, projects and sessions
   doctor                            Check vault integrity
   auto-start on|off                 Enable/disable auto-start on session start
@@ -90,7 +90,7 @@ Maintenance:
     'config.parseError': 'Could not parse {path}: {message}\nFix the JSON manually and try again.',
 
     // lib/cli-defs.js
-    'cli.unknownCli': 'Unknown CLI: "{flag}". Options: claude, gemini, opencode',
+    'cli.unknownCli': 'Unknown CLI: "{flag}". Options: claude, agy, opencode (gemini: deprecated)',
 
     // init
     'init.done': 'Vault initialized at {path}',
@@ -307,7 +307,7 @@ Maintenance:
     'setup.vaultExists': '✓ Existing vault at {path}',
     'setup.askCli': '\nWhich AI CLI do you mainly use?',
     'setup.cliOption1': '  1. Claude Code',
-    'setup.cliOption2': '  2. Gemini CLI / opencode / other\n',
+    'setup.cliOption2': '  2. Antigravity CLI / opencode / other\n',
     'setup.choose': 'Choose (1 or 2): ',
     'setup.askMode': '\nHow do you want Mempunk to work?',
     'setup.modeOption1': '  1. Automatic — hooks + agents  (recommended)',
@@ -318,8 +318,8 @@ Maintenance:
     'setup.invalidMode': 'Invalid --setup-mode: "{mode}". Use: auto | manual | vault-skills',
     'setup.linked': '✓ Vault linked to {name}',
     'setup.alreadyLinked': '✓ Vault already linked to {name}',
-    'setup.noCliDetected': '! Neither Gemini CLI nor opencode was detected. Link manually with:',
-    'setup.noCliDetectedHint': '    mempunk link --cli gemini   (or opencode)',
+    'setup.noCliDetected': '! Neither Antigravity CLI nor opencode was detected. Link manually with:',
+    'setup.noCliDetectedHint': '    mempunk link --cli agy   (or opencode)',
     'setup.vaultSkills': '✓ vault-skills installed in {path}',
     'setup.vaultSkillsMissing': 'vault-skills not found in {path} — the package is incomplete; reinstall mempunk (npm install -g mempunk)',
 
@@ -376,8 +376,8 @@ Maintenance:
 Setup:
   setup                             Inicializa, vincula y configura hooks (todo en uno)
   init                              Inicializa el vault en ~/Dev-Brain
-  link       [--cli claude|gemini|opencode]  Vincula el vault (default: todos los instalados)
-  unlink     [--cli claude|gemini|opencode]  Desvincula el vault
+  link       [--cli claude|agy|opencode]  Vincula el vault (default: todos los instalados)
+  unlink     [--cli claude|agy|opencode]  Desvincula el vault
   status                            Dashboard: vault, proyectos y sesiones
   doctor                            Verifica integridad del vault
   auto-start on|off                 Activa/desactiva auto-start al iniciar sesión
@@ -445,7 +445,7 @@ Mantenimiento:
     'config.parseError': 'No se pudo parsear {path}: {message}\nCorrige el JSON manualmente y vuelve a intentar.',
 
     // lib/cli-defs.js
-    'cli.unknownCli': 'CLI desconocido: "{flag}". Opciones: claude, gemini, opencode',
+    'cli.unknownCli': 'CLI desconocido: "{flag}". Opciones: claude, agy, opencode (gemini: deprecado)',
 
     // init
     'init.done': 'Vault inicializado en {path}',
@@ -662,7 +662,7 @@ Mantenimiento:
     'setup.vaultExists': '✓ Vault existente en {path}',
     'setup.askCli': '\n¿Qué AI CLI usas principalmente?',
     'setup.cliOption1': '  1. Claude Code',
-    'setup.cliOption2': '  2. Gemini CLI / opencode / otra\n',
+    'setup.cliOption2': '  2. Antigravity CLI / opencode / otra\n',
     'setup.choose': 'Elige (1 o 2): ',
     'setup.askMode': '\n¿Cómo quieres que funcione Mempunk?',
     'setup.modeOption1': '  1. Automático — hooks + agentes  (recomendado)',
@@ -673,8 +673,8 @@ Mantenimiento:
     'setup.invalidMode': '--setup-mode inválido: "{mode}". Usa: auto | manual | vault-skills',
     'setup.linked': '✓ Vault vinculado a {name}',
     'setup.alreadyLinked': '✓ Vault ya vinculado a {name}',
-    'setup.noCliDetected': '! No se detectó Gemini CLI ni opencode instalados. Vincula manualmente con:',
-    'setup.noCliDetectedHint': '    mempunk link --cli gemini   (o opencode)',
+    'setup.noCliDetected': '! No se detectó Antigravity CLI ni opencode instalados. Vincula manualmente con:',
+    'setup.noCliDetectedHint': '    mempunk link --cli agy   (o opencode)',
     'setup.vaultSkills': '✓ vault-skills instalados en {path}',
     'setup.vaultSkillsMissing': 'no se encontró vault-skills en {path} — el paquete está incompleto; reinstala mempunk (npm install -g mempunk)',
 

@@ -13,7 +13,7 @@ import { cmdHooksInstall, cmdAutoStart } from './hooks.js';
 
 /**
  * Copia vault-skills al directorio del vault.
- * Lanza si falta el origen: sin él, el modo Gemini/opencode queda sin protocolos.
+ * Lanza si falta el origen: sin él, el modo Antigravity/opencode queda sin protocolos.
  */
 export function installVaultSkills(
   srcDir  = path.join(__cliDir, '..', 'vault-skills'),
@@ -35,7 +35,7 @@ export function installVaultSkills(
  * Modos válidos: 'auto' | 'manual' | 'vault-skills'
  *   auto         → Claude Code + hooks + agentes
  *   manual       → Claude Code + vault-skills (sin hooks)
- *   vault-skills → Gemini / opencode + vault-skills (sin hooks)
+ *   vault-skills → Antigravity / opencode + vault-skills (sin hooks)
  *
  * Pasa --setup-mode <modo> para saltear las preguntas (CI / tests).
  */
@@ -89,7 +89,7 @@ export async function cmdSetup() {
     console.log(added ? t('setup.linked', { name: 'Claude Code' }) : t('setup.alreadyLinked', { name: 'Claude Code' }));
   } else {
     let anyLinked = false;
-    for (const key of ['gemini-cli', 'opencode']) {
+    for (const key of ['antigravity', 'opencode']) {
       const def = CLI_DEFS[key];
       if (def.isInstalled()) {
         const added = def.addDir(normalized);
