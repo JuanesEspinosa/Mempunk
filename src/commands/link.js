@@ -46,6 +46,8 @@ export function cmdCliList() {
   for (const [key, def] of Object.entries(CLI_DEFS)) {
     const installed = def.isInstalled();
     const linked    = installed && def.getRegisteredDirs().includes(normalized);
+    // Los CLIs deprecados solo aparecen si siguen vinculados (para poder desvincularlos)
+    if (def.deprecated && !linked) continue;
     const bullet    = !installed ? '○' : linked ? '●' : '◐';
     const status    = !installed
       ? t('cliList.notInstalled')

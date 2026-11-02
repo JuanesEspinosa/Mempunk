@@ -1,6 +1,6 @@
 // ── mempunk mcp — servidor MCP local por stdio ────────────────────────────────
 //
-// Cada CLI de IA (Claude Code, Gemini, opencode) lo lanza como subproceso al
+// Cada CLI de IA (Claude Code, Antigravity, opencode) lo lanza como subproceso al
 // abrir la sesión. Expone los servicios de src/services/ como herramientas
 // tipadas: una sola implementación, dos interfaces (CLI y MCP).
 //
