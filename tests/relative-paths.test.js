@@ -94,7 +94,7 @@ describe('Migración v6', () => {
     store.db.prepare('UPDATE projects SET path = ? WHERE id = ?').run(PROJ_PATH, PROJ);
 
     // Simular un vault v5
-    store.db.prepare('DELETE FROM _migrations WHERE version = 6').run();
+    store.db.prepare('DELETE FROM _migrations WHERE version >= 6').run();
     store.db.prepare('UPDATE vault_meta SET value = ? WHERE key = ?').run('5', 'vault_version');
     store.migrate();
 
@@ -102,6 +102,27 @@ describe('Migración v6', () => {
     expect(store.db.prepare('SELECT file_path FROM decisions WHERE id = ?').get(id).file_path)
       .toBe(`projects/${PROJ}/decisions/legacy.md`);
     expect(store.db.prepare('SELECT path FROM projects WHERE id = ?').get(PROJ).path).toBe(`projects/${PROJ}`);
+  });
+});
+
+describe('Migración v7', () => {
+  it('indexa en la búsqueda las sesiones ya registradas, sin duplicar', () => {
+    // Sesión de un vault v6: está en session_log pero no en search_index
+    store.db.prepare(
+      `INSERT INTO session_log (id, project_id, started_at, ended_at, summary, files_touched)
+       VALUES ('sess_legacy', ?, 'x', 'x', 'Sesión antigua del ornitorrinco', '[]')`
+    ).run(PROJ);
+    const indexed = store.logSession(PROJ, 'Sesión nueva del ornitorrinco');
+    expect(store.search('ornitorrinco', PROJ).map((r) => r.item_id)).toEqual([indexed]);
+
+    store.db.prepare('DELETE FROM _migrations WHERE version >= 7').run();
+    store.db.prepare('UPDATE vault_meta SET value = ? WHERE key = ?').run('6', 'vault_version');
+    store.migrate();
+
+    expect(store.getVaultVersion()).toBe(VAULT_VERSION);
+    const hits = store.search('ornitorrinco', PROJ);
+    expect(hits.map((r) => r.item_id).sort()).toEqual(['sess_legacy', indexed].sort());
+    expect(hits.every((r) => r.type === 'session' && r.file_path === null)).toBe(true);
   });
 });
 

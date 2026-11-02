@@ -179,6 +179,15 @@ describe('services/search', () => {
     expect(hits[0].snippet).toContain('[zanahoria]');
   });
 
+  it('query() encuentra logs de sesión (sin archivo asociado)', () => {
+    const { id } = logSession(store, { projectId: PROJ, summary: 'Migramos el pepinillo a FTS5' });
+    const hits = query(store, { query: 'pepinillo', projectId: PROJ });
+    expect(hits).toEqual([
+      expect.objectContaining({ item_id: id, project_id: PROJ, type: 'session', file_path: null }),
+    ]);
+    expect(hits[0].snippet).toContain('[pepinillo]');
+  });
+
   it('query() rechaza una consulta vacía', () => {
     expect(() => query(store, { query: ' ' })).toThrow(/query/);
   });
