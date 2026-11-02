@@ -111,7 +111,7 @@ If `auto-start` is configured and this directory is linked to a project
 `MEMPUNK CONTEXT — <id>` block: do not invoke the loader, just continue. If the
 directory is not linked, the session opened with a one-line notice — use /mempunk.
 
-### Path B — Without agents (manual mode, Gemini CLI, opencode)
+### Path B — Without agents (manual mode, Antigravity CLI, opencode)
 
 **At the start of any session, Claude MUST:**
 
