@@ -244,6 +244,30 @@ describe('mempunk decision add', () => {
   });
 });
 
+describe('mempunk decision remove', () => {
+  const findDecision = (title) =>
+    JSON.parse(run('decision list myproj --json')).find((d) => d.title === title);
+
+  it('sin --yes no borra nada y muestra qué borraría', () => {
+    run('decision add myproj "Decisión a borrar"');
+    const dec = findDecision('Decisión a borrar');
+    expect(() => run(`decision remove ${dec.id}`)).toThrow(/--yes/);
+    expect(findDecision('Decisión a borrar')).toBeDefined();
+    expect(fs.existsSync(dec.file_path)).toBe(true);
+  });
+
+  it('con --yes borra la decisión y su archivo', () => {
+    const dec = findDecision('Decisión a borrar');
+    expect(run(`decision remove ${dec.id} --yes`)).toContain('eliminada');
+    expect(findDecision('Decisión a borrar')).toBeUndefined();
+    expect(fs.existsSync(dec.file_path)).toBe(false);
+  });
+
+  it('id inexistente falla con mensaje claro', () => {
+    expect(() => run('decision remove dec_inexistente --yes')).toThrow(/no encontrada/);
+  });
+});
+
 // ── Skill ─────────────────────────────────────────────────────────────────────
 
 describe('mempunk skill add', () => {
