@@ -1050,6 +1050,85 @@ describe('mempunk auto-start — advertencia sin agentes', () => {
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
+describe('mempunk link / unlink — Antigravity y Gemini deprecado', () => {
+  const vaultPath     = TEMP_VAULT.replace(/\\/g, '/');
+  const agyDir        = path.join(TEMP_HOME, '.gemini', 'config');
+  const agyAgentsPath = path.join(agyDir, 'AGENTS.md');
+  const agyMcpPath    = path.join(agyDir, 'mcp_config.json');
+  const geminiPath    = path.join(TEMP_HOME, '.gemini', 'settings.json');
+  const readMcp       = () => JSON.parse(fs.readFileSync(agyMcpPath, 'utf8'));
+  const otherServer   = { command: 'uvx', args: ['otro-mcp'] };
+
+  beforeAll(() => {
+    fs.mkdirSync(agyDir, { recursive: true });
+    fs.writeFileSync(agyAgentsPath, '# Reglas propias\n');
+    fs.writeFileSync(agyMcpPath, JSON.stringify({ mcpServers: { otro: otherServer } }));
+  });
+
+  afterAll(() => {
+    fs.rmSync(path.join(TEMP_HOME, '.gemini'), { recursive: true, force: true });
+  });
+
+  it('link --cli agy escribe el bloque en AGENTS.md y registra el servidor MCP', () => {
+    const out = run('link --cli agy');
+    expect(out).toContain('Antigravity CLI');
+
+    const agents = fs.readFileSync(agyAgentsPath, 'utf8');
+    expect(agents.startsWith('# Reglas propias\n')).toBe(true);
+    expect(agents).toContain(`- ${vaultPath}`);
+    expect(agents).toContain('get_context');
+
+    const { mcpServers } = readMcp();
+    expect(mcpServers.otro).toEqual(otherServer);
+    expect(mcpServers.mempunk.args.at(-1)).toBe('mcp');
+    expect(mcpServers.mempunk.args[0]).toMatch(/src\/cli\.js$/);
+    // Vault distinto del de por defecto: se pasa explícito al servidor
+    expect(mcpServers.mempunk.env).toEqual({ MEMPUNK_VAULT: vaultPath });
+  });
+
+  it('link --cli agy repetido no duplica el vault', () => {
+    expect(run('link --cli agy')).toContain('ya vinculado');
+    const agents = fs.readFileSync(agyAgentsPath, 'utf8');
+    expect(agents.split(`- ${vaultPath}`).length - 1).toBe(1);
+  });
+
+  it('unlink --cli agy quita el bloque y el servidor MCP, sin tocar lo ajeno', () => {
+    expect(run('unlink --cli agy')).toContain('desvinculado');
+    expect(fs.readFileSync(agyAgentsPath, 'utf8')).toBe('# Reglas propias\n');
+    expect(readMcp().mcpServers).toEqual({ otro: otherServer });
+  });
+
+  it('link --cli agy no pisa una entrada mempunk que el usuario ya tenía', () => {
+    const custom = { command: 'mempunk', args: ['mcp'] };
+    fs.writeFileSync(agyMcpPath, JSON.stringify({ mcpServers: { mempunk: custom } }));
+    run('link --cli agy');
+    expect(readMcp().mcpServers.mempunk).toEqual(custom);
+    run('unlink --cli agy');
+  });
+
+  it('link sin --cli no toca Gemini CLI; --cli gemini explícito sigue funcionando', () => {
+    run('link');
+    expect(fs.existsSync(geminiPath)).toBe(false);
+    run('unlink');
+
+    run('link --cli gemini');
+    const cfg = JSON.parse(fs.readFileSync(geminiPath, 'utf8'));
+    expect(cfg.context.includeDirectories).toEqual([vaultPath]);
+    run('unlink --cli gemini');
+    expect(JSON.parse(fs.readFileSync(geminiPath, 'utf8'))).toEqual({});
+  });
+
+  it('cli list muestra Antigravity y oculta Gemini si no está vinculado', () => {
+    const out = run('cli list');
+    expect(out).toContain('Antigravity CLI');
+    expect(out).not.toContain('Gemini CLI');
+  });
+
+  it('--cli desconocido falla mencionando agy', () => {
+    expect(() => run('link --cli banana')).toThrow(/agy/);
+  });
+});
+
 describe('mempunk setup', () => {
   // Vault temporal exclusivo para los tests de setup (no reutilizar el global)
   const SETUP_VAULT = path.join(os.tmpdir(), `mempunk-setup-test-${Date.now()}`);

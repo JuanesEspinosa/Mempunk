@@ -1,6 +1,6 @@
 # Mempunk — guía de desarrollo
 
-Este repo es el **código de Mempunk** (paquete npm `mempunk`): un CLI que da memoria persistente entre sesiones a Claude Code, Gemini CLI y opencode, sobre un vault de markdown + SQLite (`~/Dev-Brain`).
+Este repo es el **código de Mempunk** (paquete npm `mempunk`): un CLI que da memoria persistente entre sesiones a Claude Code, Antigravity CLI (`agy`) y opencode, sobre un vault de markdown + SQLite (`~/Dev-Brain`).
 
 Este archivo explica cómo desarrollar Mempunk, no cómo usarlo. Las instrucciones de uso del vault están en `templates/CLAUDE.md` (plantilla del CLAUDE.md del vault) y en `README.md`. Mientras trabajas en este repo, **no guardes nada en el vault real** y no sigas protocolos de "guardar en el vault" pensados para el usuario final.
 
@@ -19,7 +19,7 @@ src/
 └── statusline.js       → statusline (medidor de contexto)
 scripts/build-hooks.mjs → bundlea src/hooks/ a dist/hooks/ con esbuild
 templates/              → plantillas que copia el CLI (CLAUDE.md del vault, project/, vault/ con los README de cada carpeta)
-vault-skills/           → protocolos para Gemini CLI y opencode (los copia `setup`)
+vault-skills/           → protocolos para Antigravity CLI y opencode (los copia `setup`)
 tests/                  → Jest (ESM con --experimental-vm-modules)
 docs/plan-v3.md         → plan de trabajo vigente
 ```
