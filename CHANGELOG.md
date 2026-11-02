@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`mempunk decision remove <decision_id> --yes`** deletes a decision: its record, its search index entry and its markdown file. Without `--yes` it only shows the title and file it would delete. An unknown id fails with a clear message, and a file that was already gone is reported instead of failing. There is no MCP tool for it on purpose: deleting stays an explicit user action.
+
 ## [2.4.0] — 2026-10-22
 
 ### Added

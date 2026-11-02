@@ -303,6 +303,7 @@ Si le vault a besoin de `mempunk vault upgrade`, les outils renvoient cette erre
 | `mempunk decision add <project_id> "<title>"` | Creer un ADR avec fichier markdown | `mempunk decision add api "Utiliser JWT"` |
 | `mempunk decision add ... --tags "t1,t2"` | Creer une decision avec tags | `mempunk decision add api "JWT" --tags "auth,securite"` |
 | `mempunk decision list <project_id>` | Lister les decisions du projet | `mempunk decision list api` |
+| `mempunk decision remove <decision_id> --yes` | Supprimer une décision : enregistrement, index de recherche et fichier | `mempunk decision remove dec_123 --yes` |
 | `mempunk skill add <project_id> <name>` | Creer un fichier de skill du projet | `mempunk skill add api stack` |
 | `mempunk skill list <project_id>` | Lister les skills du projet | `mempunk skill list api` |
 | `mempunk skill update <id> --file <path>` | Ecraser le contenu d'un skill | `mempunk skill update sk_123 --file stack.md` |
