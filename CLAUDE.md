@@ -13,8 +13,9 @@ src/
 ├── lib/                → utilidades del CLI: args.js (flags), i18n.js (mensajes), git.js, vault.js (VAULT_PATH), assets.js, materialize.js…
 ├── store/VaultStore.js → acceso a SQLite (better-sqlite3), WAL, MIGRATIONS y VAULT_VERSION
 ├── services/           → lógica de negocio pura (recibe el store, devuelve datos, no imprime); la usan el CLI y, desde la Fase 1, el MCP
-├── hooks/*.js          → fuente de los hooks de Claude Code (on-start, on-stop, on-compact, on-prompt, on-end)
-├── hooks-lib/common.js → código compartido por los hooks (VAULT_PATH, logger, HOOK_MESSAGES, llamada al CLI)
+├── hooks/*.js          → fuente de los hooks de Claude Code (on-start, on-stop, on-compact, on-prompt, on-tool, on-end)
+├── hooks-lib/common.js → código compartido por los hooks (VAULT_PATH, logger, HOOK_MESSAGES, readHookInput, llamada al CLI)
+├── hooks-lib/session-state.js → estado por sesión (.mempunk/sessions/<id>.json); los hooks no leen el transcript
 ├── agents/*.md         → subagentes que instala `hooks install`
 └── statusline.js       → statusline (medidor de contexto)
 scripts/build-hooks.mjs → bundlea src/hooks/ a dist/hooks/ con esbuild

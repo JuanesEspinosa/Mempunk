@@ -172,9 +172,10 @@ Cuando los hooks estan instalados (`mempunk hooks install`), Mempunk responde au
 
 | Hook | Evento | Comportamiento |
 |------|--------|---------------|
-| `on-prompt.js` | Antes de cada turno | Sin acción por ahora — el uso de contexto se muestra solo en la statusline (la Fase 3 lo usará para contar turnos) |
-| `on-stop.js` | Despues de cada respuesta | **AutoCheckpoint** — guarda un checkpoint incremental cada 5 turnos |
-| `on-compact.js` | Antes de compactacion de contexto | **CompactGuard** — captura un snapshot completo antes de que Claude compacte |
+| `on-prompt.js` | Antes de cada turno | Cuenta el turno y guarda el prompt en el estado de la sesión (`.mempunk/sessions/<session_id>.json`) |
+| `on-tool.js` | Después de Edit, Write, MultiEdit, NotebookEdit y Bash | Registra en el estado de la sesión los archivos editados de verdad y los comandos corridos |
+| `on-stop.js` | Despues de cada respuesta | **AutoCheckpoint** — guarda un checkpoint incremental cada 5 turnos desde el estado de la sesión, sin leer el transcript |
+| `on-compact.js` | Antes de compactacion de contexto | **CompactGuard** — guarda el estado de la sesión (mensajes recientes, archivos editados, comandos) como snapshot antes de que Claude compacte |
 | `on-start.js` | Inicio de sesion | **CompactRestore** — restaura el contexto desde el ultimo snapshot tras una compactacion |
 
 El intervalo de AutoCheckpoint se puede configurar con la variable de entorno `MEMPUNK_CHECKPOINT_INTERVAL` (por defecto: 5).

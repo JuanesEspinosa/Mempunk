@@ -172,9 +172,10 @@ When hooks are installed (`mempunk hooks install`), Mempunk automatically respon
 
 | Hook | Event | Behavior |
 |------|-------|----------|
-| `on-prompt.js` | Before each turn | No-op for now — context usage is shown only in the status line (Phase 3 will use it to count turns) |
-| `on-stop.js` | After each response | **AutoCheckpoint** — saves an incremental checkpoint every 5 turns |
-| `on-compact.js` | Before context compaction | **CompactGuard** — captures a full snapshot before Claude compacts |
+| `on-prompt.js` | Before each turn | Counts the turn and keeps the prompt in the session state (`.mempunk/sessions/<session_id>.json`) |
+| `on-tool.js` | After Edit, Write, MultiEdit, NotebookEdit and Bash | Records the files actually edited and the commands run in the session state |
+| `on-stop.js` | After each response | **AutoCheckpoint** — saves an incremental checkpoint every 5 turns from the session state, without reading the transcript |
+| `on-compact.js` | Before context compaction | **CompactGuard** — saves the session state (recent messages, edited files, commands) as a snapshot before Claude compacts |
 | `on-start.js` | Session start | **CompactRestore** — restores context from the last snapshot after compaction; runs `mempunk pull` first (45 s timeout) if `remote set --auto` is on |
 | `on-end.js` | Session end | **AutoPush** — runs `mempunk push` (50 s timeout) if `remote set --auto` is on. It is a safety net: SessionEnd has a short time budget, so push before closing (`@mempunk-syncer` or `mempunk push`) |
 
