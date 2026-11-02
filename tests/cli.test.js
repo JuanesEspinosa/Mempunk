@@ -391,6 +391,42 @@ describe('mempunk session log', () => {
   });
 });
 
+describe('mempunk session save-auto (interno, hook SessionEnd)', () => {
+  beforeAll(() => run('project add autoproj "Auto"'));
+
+  function saveAuto(payload) {
+    const tmpFile = path.join(os.tmpdir(), `mempunk-cli-autosession-${Date.now()}-${Math.random()}.json`);
+    fs.writeFileSync(tmpFile, JSON.stringify(payload));
+    const result = spawnSync('node', ['src/cli.js', 'session', 'save-auto', tmpFile], {
+      cwd: PROJECT_ROOT,
+      env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+      encoding: 'utf8',
+    });
+    return { result, tmpGone: !fs.existsSync(tmpFile) };
+  }
+
+  it('registra la sesión, imprime { id, action } y borra el temporal', () => {
+    const { result, tmpGone } = saveAuto({
+      project_id: 'autoproj', summary: '%PATH% con\nsalto', files_touched: ['a.js'], since: '2026-01-02T00:00:00.000Z',
+    });
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ action: 'inserted' });
+    expect(tmpGone).toBe(true);
+  });
+
+  it('rechaza un since que no es una fecha', () => {
+    const { result } = saveAuto({ project_id: 'autoproj', summary: 'x', since: 'ayer' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('"since" no es una fecha válida');
+  });
+
+  it('rechaza datos incompletos', () => {
+    const { result } = saveAuto({ project_id: 'autoproj', summary: 'x' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Datos incompletos');
+  });
+});
+
 // ── Sync ──────────────────────────────────────────────────────────────────────
 
 describe('mempunk sync', () => {

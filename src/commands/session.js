@@ -3,7 +3,7 @@ import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail, printJson } from '../lib/output.js';
 import { requireVault, openStore } from '../lib/vault.js';
-import { logSession } from '../services/sessions.js';
+import { logSession, logAutoSession } from '../services/sessions.js';
 
 // ── Handlers — Sesiones ───────────────────────────────────────────────────────
 
@@ -40,6 +40,7 @@ export function cmdSessionLast(projectId) {
     ['ended_at',      session.ended_at],
     ['summary',       session.summary],
     ['files_touched', session.files_touched],
+    ['auto',          session.auto ? 'yes' : 'no'],
   ];
   const labelWidth = Math.max(...fields.map(([k]) => k.length));
   for (const [label, value] of fields) {
@@ -165,6 +166,35 @@ export function cmdSessionSaveCheckpoint(tmpFilePath) {
     files_found ? JSON.parse(files_found) : [],
   );
   // Salida silenciosa — es un hook interno
+}
+
+/** Registro de sesión automático desde un temp JSON file (usado por on-end.js hook).
+ *  Datos por archivo y no por argumentos: en Windows el hook llama al CLI con
+ *  shell, y cmd.exe expandiría %VAR% del resumen y cortaría en los saltos de línea. */
+export function cmdSessionSaveAuto(tmpFilePath) {
+  if (!tmpFilePath) fail(t('usage.internal', { syntax: 'mempunk session save-auto <tmp_json_path>' }));
+  requireVault();
+
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(tmpFilePath, 'utf8'));
+  } catch (err) {
+    fail(t('session.tmpReadError', { message: err.message }));
+  } finally {
+    try { fs.unlinkSync(tmpFilePath); } catch (_) {}
+  }
+
+  const { project_id, summary, files_touched, since } = data ?? {};
+  if (!project_id || !summary || !since) fail(t('session.tmpIncomplete'));
+
+  const result = logAutoSession(openStore(), {
+    projectId: project_id,
+    summary,
+    files: Array.isArray(files_touched) ? files_touched : [],
+    since,
+  });
+  // Salida JSON limpia — el hook la registra en hooks.log
+  process.stdout.write(JSON.stringify(result));
 }
 
 /** Retorna el último compact_snapshot de un proyecto como JSON (usado por on-start.js hook) */

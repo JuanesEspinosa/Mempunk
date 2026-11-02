@@ -88,7 +88,7 @@ function lastSessionSection(store, projectId) {
   const lines = [session.summary];
   const files = parseJsonArray(session.files_touched).slice(0, MAX_SESSION_FILES);
   if (files.length > 0) lines.push(t('context.files', { files: files.join(', ') }));
-  return { key: 'lastSession', title: t('context.lastSession', { date: session.ended_at }), body: lines.join('\n') };
+  return { key: 'lastSession', title: t(session.auto ? 'context.lastSessionAuto' : 'context.lastSession', { date: session.ended_at }), body: lines.join('\n') };
 }
 
 function backlogSection(store, projectId) {
