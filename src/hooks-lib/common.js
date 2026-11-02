@@ -1,4 +1,4 @@
-// Código compartido por los hooks de Mempunk (on-start, on-stop, on-compact, on-prompt).
+// Código compartido por los hooks de Mempunk (on-start, on-stop, on-compact, on-prompt, on-tool, on-end).
 //
 // Los hooks se distribuyen como archivos AUTOCONTENIDOS en ~/.claude/hooks/
 // (sin node_modules ni imports relativos): `npm run build` bundlea cada hook
@@ -16,10 +16,6 @@ export const ACTIVE_FILE = path.join(MEMPUNK_DIR, 'active-project.json');
 export const PATHS_FILE  = path.join(MEMPUNK_DIR, 'project-paths.json');
 export const LOG_FILE    = path.join(MEMPUNK_DIR, 'hooks.log');
 export const REMOTE_FILE = path.join(MEMPUNK_DIR, 'remote.json');
-
-// Regex para detectar rutas de archivo en el contenido de los mensajes.
-// Acepta separadores / y \ (Windows); los matches se normalizan a /.
-export const FILE_RE = /(?:^|[\s"'`(])((?:[\w.-]+[\\/])*[\w.-]+\.(?:js|ts|py|json|md|sh|sql|css|html|jsx|tsx|go|rs))/gm;
 
 // MEMPUNK_CLI permite sobrescribir "mempunk" por "node /path/to/cli.js" en tests
 const [CLI_BIN, ...CLI_ARGS_PREFIX] = (process.env.MEMPUNK_CLI ?? 'mempunk').split(' ');
@@ -110,6 +106,30 @@ export async function readStdinJson() {
   return JSON.parse(input.replace(/^\uFEFF/, '') || '{}');
 }
 
+/** Lee el stdin del hook y comprueba que traiga los campos `required`.
+ *  Si el JSON no es v\u00E1lido o falta alg\u00FAn campo (null/undefined), lo registra en
+ *  hooks.log \u2014 se\u00F1al de que cambi\u00F3 el contrato de Claude Code \u2014 y devuelve null
+ *  para que el hook salga en silencio. */
+export async function readHookInput(required, log) {
+  let data;
+  try {
+    data = await readStdinJson();
+  } catch (err) {
+    log(`stdin inv\u00E1lido: ${err.message}`);
+    return null;
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    log('stdin inv\u00E1lido: no es un objeto JSON');
+    return null;
+  }
+  const missing = required.filter((field) => data[field] === undefined || data[field] === null);
+  if (missing.length > 0) {
+    log(`Contrato: faltan campos ${missing.join(', ')} en ${data.hook_event_name ?? 'el evento'} \u2014 sin acci\u00F3n`);
+    return null;
+  }
+  return data;
+}
+
 /** Normaliza rutas igual que el CLI al escribir project-paths.json:
  *  ruta física (symlinks resueltos — macOS: /var → /private/var),
  *  separadores /, sin slash final, lowercase en Windows. */
@@ -155,18 +175,6 @@ export function getProjectId(cwd) {
   } catch (_) {
     return null;
   }
-}
-
-/** Un turno REAL del usuario: type "user", con texto, fuera de subagentes.
- *  En el transcript de Claude Code cada tool_result también llega como una
- *  línea type:"user" (content: [{type:"tool_result"}]) — contarlos como
- *  turnos dispararía los checkpoints en casi cada Stop. */
-export function isRealUserTurn(entry) {
-  if (entry.type !== 'user' || entry.isSidechain) return false;
-  const content = entry.message?.content;
-  if (typeof content === 'string') return content.trim().length > 0;
-  if (Array.isArray(content)) return content.some((b) => b.type === 'text');
-  return false;
 }
 
 // ── i18n de hooks ─────────────────────────────────────────────────────────────
@@ -228,18 +236,4 @@ export function hookT(key, params = {}) {
   return template.replace(/\{(\w+)\}/g, (match, name) =>
     params[name] !== undefined ? String(params[name]) : match
   );
-}
-
-/** Extrae el texto plano de una entrada del transcript */
-export function extractText(entry) {
-  const content = entry.message?.content;
-  if (!content) return '';
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .filter((b) => b.type === 'text')
-      .map((b) => b.text ?? '')
-      .join(' ');
-  }
-  return '';
 }

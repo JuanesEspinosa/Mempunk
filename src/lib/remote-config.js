@@ -28,6 +28,7 @@ export const REQUIRED_IGNORES = [
   '.mempunk/active-project.json',
   '.mempunk/project-paths.json',
   '.mempunk/checkpoint-state.json',
+  '.mempunk/sessions/',
   '.mempunk/context-warn-state.json',
   '.mempunk/session-touched.json',
   '.mempunk/remote-state.json',

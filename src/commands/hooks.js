@@ -10,7 +10,7 @@ import { CLAUDE_SETTINGS_PATH, readJsonFile, writeJsonFile } from '../lib/config
 // ── Handlers — Hooks ──────────────────────────────────────────────────────────
 
 // Archivos que Mempunk instala — el mismo orden se usa en install y uninstall
-const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js', 'on-end.js'];
+const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js', 'on-tool.js', 'on-end.js'];
 const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md', 'mempunk-syncer.md'];
 
 // Identificadores únicos para distinguir archivos de Mempunk de otros del usuario
@@ -23,8 +23,13 @@ const HOOK_EVENT_MAP = {
   'on-stop.js':    'Stop',
   'on-compact.js': 'PreCompact',
   'on-prompt.js':  'UserPromptSubmit',
+  'on-tool.js':    'PostToolUse',
   'on-end.js':     'SessionEnd',
 };
+
+// Matcher de Claude Code por hook (lista de nombres exactos separados por |).
+// Sin entrada → '' (todos). on-tool solo necesita las herramientas que registra.
+const HOOK_MATCHERS = { 'on-tool.js': 'Edit|Write|MultiEdit|NotebookEdit|Bash' };
 
 // Timeout (segundos, campo `timeout` de Claude Code) para los hooks que hacen
 // push/pull del vault: por encima del tope interno del hook (45 s / 50 s) para
@@ -103,7 +108,7 @@ function _registerHooksInSettings(hooksDir) {
 
     if (!settings.hooks[event]) settings.hooks[event] = [];
     settings.hooks[event].push({
-      matcher: '',
+      matcher: HOOK_MATCHERS[file] ?? '',
       hooks: [{ type: 'command', command: commandStr, ...(timeout ? { timeout } : {}) }],
     });
   }
