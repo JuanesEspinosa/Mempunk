@@ -2,6 +2,7 @@
 
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { t } from '../lib/i18n.js';
 import { requireProject, requireText } from './project.js';
 
 /**
@@ -39,6 +40,20 @@ export function addDecision(store, { projectId, title, context = '', decision = 
 
   const id = store.addDecision(projectId, cleanTitle, filePath, cleanTags, content);
   return { id, file_path: filePath };
+}
+
+/**
+ * Borra un ADR (fila, entrada FTS y markdown). Lanza si el id no existe.
+ *
+ * @param {import('../store/VaultStore.js').default} store
+ * @param {string} decisionId
+ * @returns {{ decision: object, fileRemoved: boolean }}
+ */
+export function removeDecision(store, decisionId) {
+  const id = requireText(decisionId, 'decision_id');
+  const result = store.removeDecision(id);
+  if (!result) throw new Error(t('decision.notFound', { id }));
+  return result;
 }
 
 /** Sección del ADR: título, línea en blanco y, si hay, el cuerpo seguido de otra línea en blanco */
