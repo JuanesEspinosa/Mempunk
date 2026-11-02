@@ -223,7 +223,7 @@ SAVE session: project=<id> summary="Implementei endpoint de login"
 | `save_decision` | Salvar um ADR assim que uma decisao tecnica e acordada |
 | `log_session` | Registrar o resumo da sessao com os arquivos tocados |
 | `backlog_list` / `backlog_add` / `backlog_update` | Ler e alterar tarefas do backlog |
-| `search` | Busca full-text em decisoes, resources e logs diarios |
+| `search` | Busca full-text em decisoes, resources, logs diarios e logs de sessao |
 | `update_state` | Reescrever `wiki/state.md` (o estado anterior vai para o historico) |
 
 `project_id` e opcional: por padrao o servidor usa o projeto vinculado ao diretorio da sessao (`mempunk project activate <id> --here`) ou `CLAUDE_PROJECT_ID`. Nunca recorre ao projeto ativo global; sem vinculo, a ferramenta retorna um erro pedindo `project_id`. Push e pull nao sao expostos.

@@ -5,7 +5,7 @@ import { requireProject, requireText } from './project.js';
 export const DEFAULT_SEARCH_LIMIT = 20;
 
 /**
- * Busca en el índice FTS5 (decisiones, resources y logs diarios).
+ * Busca en el índice FTS5 (decisiones, resources, logs diarios y de sesión).
  * @param {import('../store/VaultStore.js').default} store
  * @param {{ query: string, projectId?: string|null, limit?: number }} input
  * @returns {{ item_id: string, project_id: string, type: string, file_path: string|null, snippet: string }[]}

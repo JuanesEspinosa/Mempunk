@@ -194,6 +194,19 @@ const MIGRATIONS = [
       }
     },
   },
+  {
+    version: 7,
+    up(db) {
+      // Los logs de sesión entran en la búsqueda: indexar los ya registrados.
+      // NOT IN la hace idempotente frente a sesiones que ya tengan entrada.
+      db.exec(`
+        INSERT INTO search_index (item_id, project_id, type, content)
+        SELECT id, project_id, 'session', COALESCE(summary, '')
+        FROM session_log
+        WHERE id NOT IN (SELECT item_id FROM search_index WHERE type = 'session')
+      `);
+    },
+  },
 ];
 
 // Columnas con rutas de archivos del vault y el sufijo que las identifica
@@ -853,12 +866,22 @@ class VaultStore {
   logSession(projectId, summary, filesTouched = []) {
     const id = makeId('sess');
     const now = new Date().toISOString();
-    this.db
-      .prepare(
-        `INSERT INTO session_log (id, project_id, started_at, ended_at, summary, files_touched)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      )
-      .run(id, projectId, now, now, summary, JSON.stringify(filesTouched));
+    // Registro + entrada FTS juntos: una sesión nunca queda fuera de la búsqueda
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO session_log (id, project_id, started_at, ended_at, summary, files_touched)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .run(id, projectId, now, now, summary, JSON.stringify(filesTouched));
+
+      this.db
+        .prepare(
+          `INSERT INTO search_index (item_id, project_id, type, content)
+           VALUES (?, ?, 'session', ?)`
+        )
+        .run(id, projectId, summary);
+    })();
     return id;
   }
 

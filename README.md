@@ -227,7 +227,7 @@ SAVE session: project=<id> summary="Implemented login endpoint"
 | `save_decision` | Save an ADR as soon as a technical decision is agreed |
 | `log_session` | Log a session summary with the files touched |
 | `backlog_list` / `backlog_add` / `backlog_update` | Read and change backlog tasks |
-| `search` | Full-text search over decisions, resources and daily logs |
+| `search` | Full-text search over decisions, resources, daily logs and session logs |
 | `update_state` | Rewrite `wiki/state.md` (the previous state goes to its history) |
 
 `project_id` is optional: by default the server uses the project linked to the session's directory (`mempunk project activate <id> --here`) or `CLAUDE_PROJECT_ID`. It never falls back to the global active project, so a decision is never saved to the wrong project; without a link the tool returns an error asking for `project_id`. Push and pull are not exposed: they stay terminal commands.
