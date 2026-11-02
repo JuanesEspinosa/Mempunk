@@ -15,6 +15,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **`mempunk decision remove <decision_id> --yes`** deletes a decision: its record, its search index entry and its markdown file. Without `--yes` it only shows the title and file it would delete. An unknown id fails with a clear message, and a file that was already gone is reported instead of failing. There is no MCP tool for it on purpose: deleting stays an explicit user action.
 - **`mempunk search` (and the MCP `search` tool) now covers session logs.** Each session is indexed as it is logged, with type `session` and no file (`file_path` is `null`). Vault v7: run `mempunk vault upgrade` once to index the sessions logged before this version.
 
+### Changed
+
+- **Hooks no longer read the Claude Code transcript.** Each session keeps a small state file in `.mempunk/sessions/<session_id>.json`: `on-prompt` counts turns and keeps the prompt, a new `on-tool` hook (PostToolUse, only for Edit, Write, MultiEdit, NotebookEdit and Bash) records the files actually edited and the commands run, `on-stop` keeps `last_assistant_message` and writes the checkpoint from that state, and `on-compact` writes the snapshot from it. Checkpoints and snapshots now list the files that were really edited instead of paths guessed from the conversation text. States untouched for 7 days are removed at session start, and `.mempunk/sessions/` is added to the vault `.gitignore`. Run `mempunk hooks install` again to register `on-tool`.
+
 ### Deprecated
 
 - **Gemini CLI.** It no longer receives updates upstream. `link`/`unlink` without `--cli`, `setup` and `cli list` skip it (`cli list` still shows it while a vault is linked); `--cli gemini` keeps working so an existing setup can be unlinked.
@@ -22,6 +26,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Gemini CLI was detected as installed whenever `~/.gemini` existed — which is also Antigravity's folder. It is now detected by its `gemini` binary. Binaries are looked up with `where` on Windows instead of `which`.
+- `mempunk session recover` labelled every message as `[assistant]`: it looked for `type: "human"`, but turns are stored as `type: "user"`.
 
 ## [2.4.0] — 2026-10-22
 

@@ -1,19 +1,45 @@
 // # mempunk-hook
 
 // Evento: UserPromptSubmit — antes de cada mensaje del usuario.
-// Hoy no hace nada: el % de contexto se muestra solo en la statusline, que usa
-// el dato real de Claude Code (plan v3, 0.2). El hook sigue registrado porque
-// la Fase 3 lo usa para contar turnos reales.
+// Cuenta el turno y guarda el prompt en el estado de la sesión
+// (.mempunk/sessions/<session_id>.json). Es la única fuente de turnos reales:
+// on-stop ya no cuenta turnos leyendo el transcript.
 
-import { createLogger, readStdinJson } from '../hooks-lib/common.js';
+import fs from 'node:fs';
+import { MEMPUNK_DIR, createLogger, readHookInput, getProjectId } from '../hooks-lib/common.js';
+import {
+  isValidSessionId,
+  updateSessionState,
+  appendBounded,
+  truncate,
+  MAX_MESSAGES,
+  MAX_MESSAGE_CHARS,
+} from '../hooks-lib/session-state.js';
 
 const log = createLogger('on-prompt');
 
 try {
-  // Consumir stdin para no dejar el pipe de Claude Code a medio escribir
-  await readStdinJson();
+  const data = await readHookInput(['session_id', 'prompt'], log);
+  if (data) {
+    const { session_id: sessionId, prompt, cwd } = data;
+    if (!isValidSessionId(sessionId)) {
+      log(`session_id inválido: ${JSON.stringify(sessionId)} — sin acción`);
+    } else {
+      fs.mkdirSync(MEMPUNK_DIR, { recursive: true });
+      const text = truncate(prompt, MAX_MESSAGE_CHARS);
+      updateSessionState(sessionId, (state) => ({
+        ...state,
+        project_id: state.project_id ?? getProjectId(cwd),
+        turns: state.turns + 1,
+        first_prompt: state.first_prompt || text || null,
+        recent_messages: text
+          ? appendBounded(state.recent_messages, { role: 'user', text }, MAX_MESSAGES)
+          : state.recent_messages,
+      }));
+    }
+  }
 } catch (err) {
-  log(`stdin inválido: ${err.message}`);
+  log(`Error inesperado: ${err.message}`);
 }
 
 process.stdout.write('{}');

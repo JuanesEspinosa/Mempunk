@@ -38,37 +38,12 @@ function runCli(args) {
   });
 }
 
-/** Crea un transcript JSONL con N mensajes de usuario */
-function makeTranscript(nTurns, extraUsage = {}) {
-  const lines = [];
-  for (let i = 1; i <= nTurns; i++) {
-    lines.push(JSON.stringify({ type: 'user', message: { role: 'user', content: `mensaje ${i}` } }));
-    lines.push(JSON.stringify({
-      message: {
-        role: 'assistant',
-        model: extraUsage.model ?? 'claude-test-model',
-        content: [{ type: 'text', text: `respuesta ${i} con src/auth.ts` }],
-        usage: {
-          input_tokens:                extraUsage.input_tokens ?? 1000,
-          cache_creation_input_tokens: extraUsage.cache_creation_input_tokens ?? 0,
-          cache_read_input_tokens:     extraUsage.cache_read_input_tokens ?? 0,
-        },
-      },
-    }));
-  }
-  return lines.join('\n') + '\n';
-}
-
-let transcriptPath;
-
 beforeAll(() => {
   fs.mkdirSync(MEMPUNK_DIR, { recursive: true });
   fs.mkdirSync(TEMP_HOME, { recursive: true });
   runCli('init');
   runCli('project add testproj "Test Project"');
   fs.writeFileSync(path.join(MEMPUNK_DIR, 'active-project.json'), JSON.stringify({ project_id: 'testproj' }));
-
-  transcriptPath = path.join(MEMPUNK_DIR, 'test.jsonl');
 });
 
 afterAll(() => {
@@ -76,43 +51,164 @@ afterAll(() => {
   fs.rmSync(TEMP_HOME, { recursive: true, force: true });
 });
 
+// ── Estado por sesión (Fase 3) ────────────────────────────────────────────────
+
+const SESSIONS_DIR = path.join(MEMPUNK_DIR, 'sessions');
+const FIXTURES_DIR = path.join(__dirname, 'fixtures', 'hooks');
+
+/** Payload documentado del evento (tests/fixtures/hooks) con los campos de `overrides`. */
+function fixture(name, overrides = {}) {
+  return { ...JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, `${name}.json`), 'utf8')), ...overrides };
+}
+
+function readState(sessionId) {
+  return JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, `${sessionId}.json`), 'utf8'));
+}
+
+function lastLogLines(n = 5) {
+  try {
+    return fs.readFileSync(path.join(MEMPUNK_DIR, 'hooks.log'), 'utf8').trim().split('\n').slice(-n).join('\n');
+  } catch (_) {
+    return '';
+  }
+}
+
+/** Simula `turns` turnos completos (UserPromptSubmit + Stop) de una sesión. */
+function playTurns(sessionId, turns, env = {}, extra = {}) {
+  for (let i = 1; i <= turns; i++) {
+    runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: sessionId, prompt: `mensaje ${i}`, ...extra }), env);
+    runHook('on-stop.js', fixture('stop', { session_id: sessionId, last_assistant_message: `respuesta ${i}`, ...extra }), env);
+  }
+}
+
+function checkpointRows(sessionId) {
+  const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+  const rows = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ? ORDER BY id').all(sessionId);
+  db.close();
+  return rows;
+}
+
+describe('hooks sin transcript (criterio de salida de la Fase 3)', () => {
+  it('ningún hook importa readline ni usa transcript_path', () => {
+    const hooksDir = path.join(PROJECT_ROOT, 'src', 'hooks');
+    for (const file of fs.readdirSync(hooksDir)) {
+      const source = fs.readFileSync(path.join(hooksDir, file), 'utf8');
+      expect({ file, readline: source.includes('readline') }).toEqual({ file, readline: false });
+      expect({ file, transcript: source.includes('transcript_path') }).toEqual({ file, transcript: false });
+    }
+  });
+});
+
 // ── on-prompt.js ──────────────────────────────────────────────────────────────
 
 describe('on-prompt.js', () => {
-  // Plan v3, 0.2: el % de contexto vive solo en la statusline; el hook ya no
-  // lee el transcript ni avisa por umbral
-  it('no lee el transcript ni avisa aunque el contexto esté casi lleno', () => {
-    const warnFile = path.join(MEMPUNK_DIR, 'context-warn-state.json');
-    fs.rmSync(warnFile, { force: true });
-    fs.writeFileSync(transcriptPath, makeTranscript(1, { input_tokens: 190_000 }));
-    const r = runHook('on-prompt.js', { session_id: 'sess-full', transcript_path: transcriptPath });
-    expect(r.status).toBe(0);
-    expect(JSON.parse(r.stdout)).toEqual({});
-    expect(fs.existsSync(warnFile)).toBe(false);
+  it('cuenta el turno y guarda el prompt en el estado de la sesión', () => {
+    const r1 = runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: 'sess-prompt' }));
+    const r2 = runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: 'sess-prompt', prompt: 'segundo' }));
+    expect(r1.status).toBe(0);
+    expect(JSON.parse(r2.stdout)).toEqual({});
+
+    const state = readState('sess-prompt');
+    expect(state.turns).toBe(2);
+    expect(state.first_prompt).toBe('implementa el login con JWT');
+    expect(state.project_id).toBe('testproj');
+    expect(state.recent_messages.map((m) => m.text)).toEqual(['implementa el login con JWT', 'segundo']);
   });
 
-  it('responde {} con stdin vacío o inválido', () => {
+  it('trunca el prompt a 2000 caracteres y guarda solo los últimos 10 mensajes', () => {
+    runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: 'sess-prompt-long', prompt: 'x'.repeat(5000) }));
+    expect(readState('sess-prompt-long').recent_messages[0].text).toHaveLength(2000);
+
+    for (let i = 0; i < 12; i++) {
+      runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: 'sess-prompt-many', prompt: `p${i}` }));
+    }
+    const state = readState('sess-prompt-many');
+    expect(state.turns).toBe(12);
+    expect(state.recent_messages).toHaveLength(10);
+    expect(state.recent_messages.at(-1).text).toBe('p11');
+    expect(state.first_prompt).toBe('p0');
+  });
+
+  it('responde {} con stdin vacío o inválido y registra el contrato roto', () => {
     for (const input of ['', 'no-json']) {
       const r = runHook('on-prompt.js', input);
       expect(r.status).toBe(0);
       expect(JSON.parse(r.stdout)).toEqual({});
     }
+    expect(lastLogLines()).toMatch(/\[on-prompt\] Contrato: faltan campos session_id, prompt/);
+  });
+
+  it('ignora un session_id con caracteres de ruta', () => {
+    const r = runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: '../escape' }));
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(path.join(MEMPUNK_DIR, 'escape.json'))).toBe(false);
+    expect(lastLogLines()).toMatch(/session_id inválido/);
+  });
+});
+
+// ── on-tool.js ────────────────────────────────────────────────────────────────
+
+describe('on-tool.js (PostToolUse)', () => {
+  it('registra el archivo de Edit relativo al cwd y el comando de Bash', () => {
+    const repo = path.join(os.tmpdir(), `mempunk-tool-repo-${Date.now()}`);
+    const r1 = runHook('on-tool.js', fixture('post-tool-use-edit', {
+      session_id: 'sess-tool', cwd: repo,
+      tool_input: { file_path: path.join(repo, 'src', 'auth.ts'), old_string: 'a', new_string: 'b' },
+    }));
+    const r2 = runHook('on-tool.js', fixture('post-tool-use-bash', { session_id: 'sess-tool' }));
+    expect(r1.status).toBe(0);
+    expect(r2.status).toBe(0);
+    expect(r1.stdout).toBe('');
+
+    const state = readState('sess-tool');
+    expect(state.files_touched).toEqual(['src/auth.ts']);
+    expect(state.commands_run).toEqual(['npm test']);
+  });
+
+  it('Write, MultiEdit y NotebookEdit también cuentan; fuera del cwd la ruta queda absoluta con /', () => {
+    const outside = path.join(os.tmpdir(), 'otro', 'nota.md');
+    runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-tool-kinds', tool_name: 'Write', tool_input: { file_path: outside } }));
+    runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-tool-kinds', tool_name: 'MultiEdit', tool_input: { file_path: '/repo/a.js', edits: [] } }));
+    runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-tool-kinds', tool_name: 'NotebookEdit', tool_input: { notebook_path: '/repo/n.ipynb' } }));
+
+    const files = readState('sess-tool-kinds').files_touched;
+    expect(files).toEqual([outside.replace(/\\/g, '/'), 'a.js', 'n.ipynb']);
+  });
+
+  it('no duplica archivos y respeta el tope de 200', () => {
+    for (let i = 0; i < 3; i++) {
+      runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-tool-dup' }));
+    }
+    expect(readState('sess-tool-dup').files_touched).toEqual(['src/auth.ts']);
+  });
+
+  it('trunca los comandos a 200 caracteres', () => {
+    runHook('on-tool.js', fixture('post-tool-use-bash', { session_id: 'sess-tool-cmd', tool_input: { command: 'echo ' + 'y'.repeat(500) } }));
+    expect(readState('sess-tool-cmd').commands_run[0]).toHaveLength(200);
+  });
+
+  it('registra en hooks.log una herramienta de archivo sin file_path ni notebook_path', () => {
+    const r = runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-tool-nopath', tool_input: { path: '/x' } }));
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(path.join(SESSIONS_DIR, 'sess-tool-nopath.json'))).toBe(false);
+    expect(lastLogLines()).toMatch(/\[on-tool\] Contrato: Edit sin file_path ni notebook_path/);
+  });
+
+  it('ignora herramientas que no registra', () => {
+    runHook('on-tool.js', fixture('post-tool-use-bash', { session_id: 'sess-tool-other', tool_name: 'Read', tool_input: { file_path: '/repo/x.js' } }));
+    expect(fs.existsSync(path.join(SESSIONS_DIR, 'sess-tool-other.json'))).toBe(false);
   });
 });
 
 // ── on-compact.js ─────────────────────────────────────────────────────────────
 
 describe('on-compact.js (CompactCapture)', () => {
-  it('guarda compact_snapshot en SQLite y retorna {}', () => {
-    fs.writeFileSync(transcriptPath, makeTranscript(3));
-    // El stdin real de PreCompact trae `trigger` en snake_case, no compactType
-    const input = {
-      session_id: 'sess-compact-001',
-      transcript_path: transcriptPath,
-      hook_event_name: 'PreCompact',
-      trigger: 'auto',
-    };
-    const r = runHook('on-compact.js', input);
+  it('guarda compact_snapshot desde el estado de la sesión y retorna {}', () => {
+    playTurns('sess-compact-001', 3, { MEMPUNK_CHECKPOINT_INTERVAL: '100' });
+    runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-compact-001' }));
+    runHook('on-tool.js', fixture('post-tool-use-bash', { session_id: 'sess-compact-001' }));
+
+    const r = runHook('on-compact.js', fixture('pre-compact', { session_id: 'sess-compact-001' }));
     expect(r.status).toBe(0);
     expect(JSON.parse(r.stdout)).toEqual({});
 
@@ -122,20 +218,48 @@ describe('on-compact.js (CompactCapture)', () => {
     expect(row).toBeDefined();
     expect(row.compact_type).toBe('auto');
     expect(row.message_count).toBe(6); // 3 user + 3 assistant
+    expect(JSON.parse(row.files_found)).toEqual(['src/auth.ts']);
+    expect(JSON.parse(row.commands_run)).toEqual(['npm test']);
+    const turns = JSON.parse(row.raw_turns);
+    expect(turns[0]).toEqual({ type: 'user', message: { role: 'user', content: 'mensaje 1' } });
+    expect(turns.at(-1)).toEqual({ type: 'assistant', message: { role: 'assistant', content: 'respuesta 3' } });
+  });
+
+  it('no escribe un snapshot vacío si la sesión no tiene estado', () => {
+    const r = runHook('on-compact.js', fixture('pre-compact', { session_id: 'sess-compact-empty' }));
+    expect(JSON.parse(r.stdout)).toEqual({});
+    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+    const row = db.prepare('SELECT * FROM compact_snapshots WHERE session_id = ?').get('sess-compact-empty');
+    db.close();
+    expect(row).toBeUndefined();
+  });
+
+  it('retorna {} y registra el contrato roto si falta trigger', () => {
+    const { trigger: _omit, ...payload } = fixture('pre-compact', { session_id: 'sess-compact-001' });
+    const r = runHook('on-compact.js', payload);
+    expect(JSON.parse(r.stdout)).toEqual({});
+    expect(lastLogLines()).toMatch(/\[on-compact\] Contrato: faltan campos trigger en PreCompact/);
   });
 
   it('retorna {} silencioso cuando no hay proyecto activo', () => {
-    // Eliminar temporalmente el active-project.json
+    playTurns('sess-no-proj', 1, { MEMPUNK_CHECKPOINT_INTERVAL: '100' });
     const activeFile = path.join(MEMPUNK_DIR, 'active-project.json');
     const backup = fs.readFileSync(activeFile, 'utf8');
     fs.unlinkSync(activeFile);
-
-    const r = runHook('on-compact.js', { session_id: 'sess-no-proj', transcript_path: transcriptPath });
-    expect(r.status).toBe(0);
-    expect(JSON.parse(r.stdout)).toEqual({});
-
-    // Restaurar
-    fs.writeFileSync(activeFile, backup);
+    // El estado guardó testproj en el primer turno: se borra para probar el caso sin proyecto
+    const statePath = path.join(SESSIONS_DIR, 'sess-no-proj.json');
+    fs.writeFileSync(statePath, JSON.stringify({ ...readState('sess-no-proj'), project_id: null }));
+    try {
+      const r = runHook('on-compact.js', fixture('pre-compact', { session_id: 'sess-no-proj' }));
+      expect(r.status).toBe(0);
+      expect(JSON.parse(r.stdout)).toEqual({});
+      const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+      const row = db.prepare('SELECT * FROM compact_snapshots WHERE session_id = ?').get('sess-no-proj');
+      db.close();
+      expect(row).toBeUndefined();
+    } finally {
+      fs.writeFileSync(activeFile, backup);
+    }
   });
 });
 
@@ -316,97 +440,70 @@ describe('on-start.js (CompactRestore)', () => {
 // ── on-stop.js ────────────────────────────────────────────────────────────────
 
 describe('on-stop.js (AutoCheckpoint)', () => {
-  it('sale con exit 0 sin guardar cuando turno < INTERVAL', () => {
-    fs.writeFileSync(transcriptPath, makeTranscript(2)); // 2 turnos < 5
-    const r = runHook('on-stop.js', {
-      session_id: 'sess-stop-new',
-      transcript_path: transcriptPath,
-      hook_event_name: 'Stop',
-    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
-    expect(r.status).toBe(0);
-    // on-stop.js no escribe nada a stdout cuando no guarda
-    expect(r.stdout.trim()).toBe('');
+  const env = { MEMPUNK_CHECKPOINT_INTERVAL: '5' };
 
-    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
-    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-stop-new');
-    db.close();
-    expect(row).toBeUndefined();
+  it('guarda last_assistant_message sin checkpoint cuando turno < INTERVAL', () => {
+    playTurns('sess-stop-new', 2, env);
+    const state = readState('sess-stop-new');
+    expect(state.recent_messages.at(-1)).toEqual({ role: 'assistant', text: 'respuesta 2' });
+    expect(checkpointRows('sess-stop-new')).toHaveLength(0);
   });
 
-  it('guarda checkpoint cuando turno >= INTERVAL', () => {
-    fs.writeFileSync(transcriptPath, makeTranscript(6)); // 6 >= 5
-    const r = runHook('on-stop.js', {
-      session_id: 'sess-stop-save',
-      transcript_path: transcriptPath,
-      hook_event_name: 'Stop',
-    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
-    expect(r.status).toBe(0);
+  it('guarda checkpoint desde el estado cuando turno >= INTERVAL', () => {
+    // Los tests de auto-start dejan otro proyecto activo global
+    fs.writeFileSync(path.join(MEMPUNK_DIR, 'active-project.json'), JSON.stringify({ project_id: 'testproj' }));
+    runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-stop-save' }));
+    playTurns('sess-stop-save', 5, env);
 
-    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
-    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-stop-save');
-    db.close();
-    expect(row).toBeDefined();
-    expect(row.turn_count).toBe(6);
+    const rows = checkpointRows('sess-stop-save');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].turn_count).toBe(5);
+    expect(rows[0].project_id).toBe('testproj');
+    expect(JSON.parse(rows[0].files_found)).toEqual(['src/auth.ts']);
+    expect(JSON.parse(rows[0].raw_turns)).toHaveLength(10);
+    expect(readState('sess-stop-save').last_checkpoint_turn).toBe(5);
   });
 
-  it('no guarda de nuevo si no hubo nuevos turnos', () => {
-    // La sesión anterior ya guardó turno=6. Nueva llamada con mismo transcript → sin cambio
-    fs.writeFileSync(transcriptPath, makeTranscript(6));
-    const r = runHook('on-stop.js', {
-      session_id: 'sess-stop-save',
-      transcript_path: transcriptPath,
-      hook_event_name: 'Stop',
-    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
-    expect(r.status).toBe(0);
+  it('no guarda de nuevo hasta completar otros INTERVAL turnos', () => {
+    runHook('on-stop.js', fixture('stop', { session_id: 'sess-stop-save' }), env);
+    expect(checkpointRows('sess-stop-save')).toHaveLength(1);
 
-    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
-    const rows = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').all('sess-stop-save');
-    db.close();
-    expect(rows.length).toBe(1); // solo uno, no duplicado
+    playTurns('sess-stop-save', 5, env);
+    expect(checkpointRows('sess-stop-save').map((r) => r.turn_count)).toEqual([5, 10]);
   });
 
-  it('los tool_results (type:user sin texto) no cuentan como turnos', () => {
-    // 2 turnos reales + 8 tool_results: sin el filtro serían 10 "turnos" y guardaría
-    let t = makeTranscript(2);
+  it('un Stop sin UserPromptSubmit previo no cuenta como turno', () => {
     for (let i = 0; i < 8; i++) {
-      t += JSON.stringify({
-        type: 'user',
-        message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: `t${i}`, content: 'ok' }] },
-      }) + '\n';
+      runHook('on-stop.js', fixture('stop', { session_id: 'sess-stop-only' }), env);
     }
-    fs.writeFileSync(transcriptPath, t);
-    const r = runHook('on-stop.js', {
-      session_id: 'sess-toolresult',
-      transcript_path: transcriptPath,
-      hook_event_name: 'Stop',
-    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
-    expect(r.status).toBe(0);
-
-    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
-    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-toolresult');
-    db.close();
-    expect(row).toBeUndefined();
+    expect(readState('sess-stop-only').turns).toBe(0);
+    expect(checkpointRows('sess-stop-only')).toHaveLength(0);
   });
 
-  it('detecta archivos con paths de Windows y los normaliza a /', () => {
-    let t = makeTranscript(5);
-    t += JSON.stringify({
-      type: 'user',
-      message: { role: 'user', content: 'revisa src\\hooks\\on-stop.js por favor' },
-    }) + '\n';
-    fs.writeFileSync(transcriptPath, t);
-    const r = runHook('on-stop.js', {
-      session_id: 'sess-winpath',
-      transcript_path: transcriptPath,
-      hook_event_name: 'Stop',
-    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
+  it('sin last_assistant_message lo registra pero sigue contando hacia el checkpoint', () => {
+    for (let i = 0; i < 5; i++) {
+      runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: 'sess-stop-contract' }), env);
+    }
+    const { last_assistant_message: _omit, ...payload } = fixture('stop', { session_id: 'sess-stop-contract' });
+    const r = runHook('on-stop.js', payload, env);
     expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toBe('');
+    expect(lastLogLines()).toMatch(/\[on-stop\] Contrato: falta last_assistant_message en Stop/);
+    expect(checkpointRows('sess-stop-contract')).toHaveLength(1);
+  });
 
-    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
-    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-winpath');
-    db.close();
-    expect(row).toBeDefined();
-    expect(JSON.parse(row.files_found)).toContain('src/hooks/on-stop.js');
+  it('un estado con tipos inesperados vuelve a los valores por defecto en vez de fallar', () => {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(SESSIONS_DIR, 'sess-bad-types.json'),
+      JSON.stringify({ turns: '5', files_touched: null, recent_messages: 'x', first_prompt: '' }));
+    runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: 'sess-bad-types' }), env);
+    runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-bad-types' }), env);
+
+    const state = readState('sess-bad-types');
+    expect(state.turns).toBe(1);
+    expect(state.files_touched).toEqual(['src/auth.ts']);
+    expect(state.recent_messages).toHaveLength(1);
+    expect(state.first_prompt).toBe('implementa el login con JWT');
   });
 
   it('guarda el checkpoint en el proyecto mapeado al cwd, no en el activo global', () => {
@@ -423,70 +520,58 @@ describe('on-stop.js (AutoCheckpoint)', () => {
     // El activo global queda apuntando a testproj — el cwd debe ganarle
     fs.writeFileSync(path.join(MEMPUNK_DIR, 'active-project.json'), JSON.stringify({ project_id: 'testproj' }));
 
-    fs.writeFileSync(transcriptPath, makeTranscript(6));
-    const r = runHook('on-stop.js', {
-      session_id: 'sess-cwd-map',
-      transcript_path: transcriptPath,
-      cwd: repoDir,
-      hook_event_name: 'Stop',
-    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
-    expect(r.status).toBe(0);
+    playTurns('sess-cwd-map', 5, env, { cwd: repoDir });
 
-    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
-    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-cwd-map');
-    db.close();
-    expect(row).toBeDefined();
-    expect(row.project_id).toBe('cwdproj');
+    const rows = checkpointRows('sess-cwd-map');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].project_id).toBe('cwdproj');
 
     fs.rmSync(repoDir, { recursive: true, force: true });
   });
 
   it('cae al proyecto activo global cuando el cwd no está mapeado', () => {
-    fs.writeFileSync(transcriptPath, makeTranscript(6));
-    const r = runHook('on-stop.js', {
-      session_id: 'sess-cwd-fallback',
-      transcript_path: transcriptPath,
-      cwd: path.join(os.tmpdir(), `dir-sin-mapear-${Date.now()}`),
-      hook_event_name: 'Stop',
-    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
-    expect(r.status).toBe(0);
-
-    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
-    const row = db.prepare('SELECT * FROM session_checkpoints WHERE session_id = ?').get('sess-cwd-fallback');
-    db.close();
-    expect(row).toBeDefined();
-    expect(row.project_id).toBe('testproj');
+    playTurns('sess-cwd-fallback', 5, env, { cwd: path.join(os.tmpdir(), `dir-sin-mapear-${Date.now()}`) });
+    const rows = checkpointRows('sess-cwd-fallback');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].project_id).toBe('testproj');
   });
 
-  it('mantiene el contador por sesión — sesiones concurrentes no se resetean entre sí', () => {
-    fs.writeFileSync(transcriptPath, makeTranscript(6));
-    const base = { transcript_path: transcriptPath, hook_event_name: 'Stop' };
-    const env  = { MEMPUNK_CHECKPOINT_INTERVAL: '5' };
+  it('las sesiones concurrentes llevan contadores independientes', () => {
+    playTurns('sess-conc-a', 3, env);
+    playTurns('sess-conc-b', 5, env);
+    playTurns('sess-conc-a', 2, env);
 
-    runHook('on-stop.js', { ...base, session_id: 'sess-conc-a' }, env);
-    runHook('on-stop.js', { ...base, session_id: 'sess-conc-b' }, env);
-    runHook('on-stop.js', { ...base, session_id: 'sess-conc-a' }, env);
-
-    // El estado conserva ambas sesiones (antes era un objeto global que se pisaba)
-    const state = JSON.parse(fs.readFileSync(path.join(MEMPUNK_DIR, 'checkpoint-state.json'), 'utf8'));
-    expect(state['sess-conc-a']).toBe(6);
-    expect(state['sess-conc-b']).toBe(6);
+    expect(readState('sess-conc-a').turns).toBe(5);
+    expect(readState('sess-conc-b').turns).toBe(5);
+    expect(checkpointRows('sess-conc-a')).toHaveLength(1);
+    expect(checkpointRows('sess-conc-b')).toHaveLength(1);
   });
 
-  it('resetea checkpoint-state cuando cambia la session_id', () => {
-    // Nueva sesión con solo 2 turnos pero checkpoint-state tenía last_saved_turn=6 de otra sesión
-    fs.writeFileSync(transcriptPath, makeTranscript(6));
-    const r = runHook('on-stop.js', {
-      session_id: 'sess-stop-reset-' + Date.now(),
-      transcript_path: transcriptPath,
-      hook_event_name: 'Stop',
-    }, { MEMPUNK_CHECKPOINT_INTERVAL: '5' });
-    expect(r.status).toBe(0);
+  it('el coste no depende del transcript: un transcript enorme e ilegible no cambia nada', () => {
+    const hugeTranscript = path.join(MEMPUNK_DIR, 'huge.jsonl');
+    fs.writeFileSync(hugeTranscript, 'no-json\n'.repeat(200_000));
+    playTurns('sess-huge', 5, env, { transcript_path: hugeTranscript });
+    expect(checkpointRows('sess-huge')).toHaveLength(1);
+    fs.rmSync(hugeTranscript, { force: true });
+  });
+});
 
-    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
-    const rows = db.prepare('SELECT * FROM session_checkpoints WHERE turn_count = 6 ORDER BY id DESC LIMIT 1').all();
-    db.close();
-    expect(rows.length).toBeGreaterThanOrEqual(1);
+// ── on-start.js: limpieza de estados ──────────────────────────────────────────
+
+describe('on-start.js (limpieza de estados de sesión)', () => {
+  it('borra los estados con más de 7 días y conserva los recientes', () => {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+    const oldFile = path.join(SESSIONS_DIR, 'sess-vieja.json');
+    const newFile = path.join(SESSIONS_DIR, 'sess-reciente.json');
+    fs.writeFileSync(oldFile, '{}');
+    fs.writeFileSync(newFile, '{}');
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    fs.utimesSync(oldFile, eightDaysAgo, eightDaysAgo);
+
+    const r = runHook('on-start.js', { session_id: 'sess-x', source: 'startup' });
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(oldFile)).toBe(false);
+    expect(fs.existsSync(newFile)).toBe(true);
   });
 });
 

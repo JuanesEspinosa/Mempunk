@@ -633,7 +633,7 @@ describe('mempunk hooks', () => {
   const localAgentsDir  = path.join(PROJECT_ROOT, '.claude', 'agents');
   const globalAgentsDir = path.join(TEMP_HOME, '.claude', 'agents');
   const settingsPath    = path.join(TEMP_HOME, '.claude', 'settings.json');
-  const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
+  const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js', 'on-tool.js'];
   const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
   const HOOK_MARKER  = '# mempunk-hook';
   const AGENT_MARKER = '# mempunk-agent';
@@ -728,11 +728,20 @@ describe('mempunk hooks', () => {
     fs.unlinkSync(foreignAgent);
   });
 
-  it('hooks install registra los 4 eventos en settings.json con paths entre comillas', () => {
+  it('hooks install registra on-tool en PostToolUse solo para las herramientas que registra', () => {
+    run('hooks install');
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    const group = settings.hooks.PostToolUse.find((g) => g.hooks.some((h) => h.command.includes('on-tool.js')));
+    expect(group.matcher).toBe('Edit|Write|MultiEdit|NotebookEdit|Bash');
+    const stopGroup = settings.hooks.Stop.find((g) => g.hooks.some((h) => h.command.includes('on-stop.js')));
+    expect(stopGroup.matcher).toBe('');
+  });
+
+  it('hooks install registra los 5 eventos en settings.json con paths entre comillas', () => {
     run('hooks install');
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
 
-    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit']) {
+    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit', 'PostToolUse']) {
       expect(Array.isArray(settings.hooks[event])).toBe(true);
       const commands = settings.hooks[event].flatMap((g) => g.hooks.map((h) => h.command));
       // Debe haber exactamente un registro de Mempunk por evento (sin duplicados)
@@ -747,7 +756,7 @@ describe('mempunk hooks', () => {
     run('hooks install');
     run('hooks install');
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit']) {
+    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit', 'PostToolUse']) {
       const mempunkCmds = settings.hooks[event]
         .flatMap((g) => g.hooks.map((h) => h.command))
         .filter((c) => c.includes('.claude/hooks/'));
@@ -762,7 +771,7 @@ describe('mempunk hooks', () => {
 
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     const globalFwd = globalHooksDir.replace(/\\/g, '/');
-    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit']) {
+    for (const event of ['SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit', 'PostToolUse']) {
       const commands = (settings.hooks?.[event] ?? []).flatMap((g) => g.hooks.map((h) => h.command));
       expect(commands.some((c) => c.includes(globalFwd))).toBe(true);
     }

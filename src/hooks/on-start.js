@@ -1,7 +1,8 @@
 // # mempunk-hook
 
 // Evento: SessionStart — al inicio de cada sesión de Claude Code.
-// - Inicializa session-touched.json y persiste el proyecto activo (siempre).
+// - Inicializa session-touched.json, borra estados de sesión de más de 7 días y
+//   persiste el proyecto activo (siempre).
 // - Si source !== "compact": auto-pull (si remote.json lo pide) y materialize de
 //   skills/agentes del vault a ~/.claude y a los repos de esta máquina.
 // - Si auto-start.flag existe y source !== "compact": inyecta `mempunk context <id>` del
@@ -26,6 +27,7 @@ import {
   getMappedProjectId,
   hookT,
 } from '../hooks-lib/common.js';
+import { pruneSessionStates } from '../hooks-lib/session-state.js';
 
 const TOUCHED_FILE = path.join(MEMPUNK_DIR, 'session-touched.json');
 
@@ -232,6 +234,10 @@ try {
   // Reiniciar el registro de archivos tocados al arrancar cada sesión
   fs.writeFileSync(TOUCHED_FILE, '[]', 'utf8');
   log('session-touched.json inicializado');
+
+  // Estados por sesión (on-prompt/on-tool) que llevan más de 7 días sin tocarse
+  const pruned = pruneSessionStates();
+  if (pruned > 0) log(`Estados de sesión viejos borrados: ${pruned}`);
 
   // Persistir el proyecto activo si viene declarado en el entorno
   if (process.env.CLAUDE_PROJECT_ID) {

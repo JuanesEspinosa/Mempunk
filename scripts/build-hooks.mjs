@@ -9,7 +9,7 @@
 import { build } from 'esbuild';
 import { mkdirSync } from 'node:fs';
 
-const HOOKS = ['on-start', 'on-stop', 'on-compact', 'on-prompt', 'on-end'];
+const HOOKS = ['on-start', 'on-stop', 'on-compact', 'on-prompt', 'on-tool', 'on-end'];
 
 const BANNER = [
   '#!/usr/bin/env node',
