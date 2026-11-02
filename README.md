@@ -307,6 +307,7 @@ If the vault needs `mempunk vault upgrade`, the tools return that error instead 
 | `mempunk decision add <project_id> "<title>"` | Create an ADR with markdown file | `mempunk decision add api "Use JWT for auth"` |
 | `mempunk decision add ... --tags "t1,t2"` | Add decision with tags | `mempunk decision add api "Use JWT" --tags "auth,security"` |
 | `mempunk decision list <project_id>` | List project decisions | `mempunk decision list api` |
+| `mempunk decision remove <decision_id> --yes` | Delete a decision: record, search index and file | `mempunk decision remove dec_123 --yes` |
 | `mempunk skill add <name> --global\|--profile <p>\|--project <id> --description "..."` | Create a Claude Code skill (`skills/<name>/SKILL.md`) in that scope | `mempunk skill add commits --global --description "Commit conventions"` |
 | `mempunk skill list <project_id>` | Skills available to a project (global + profiles + project, resolved) | `mempunk skill list api --json` |
 | `mempunk skill update <id> --file <path>` | Replace a skill's content (keeps the frontmatter if the file has none) | `mempunk skill update project:api:stack --file stack.md` |

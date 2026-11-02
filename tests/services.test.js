@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import VaultStore from '../src/store/VaultStore.js';
 import { requireProject, resolveProjectId } from '../src/services/project.js';
-import { addDecision } from '../src/services/decisions.js';
+import { addDecision, removeDecision } from '../src/services/decisions.js';
 import { logSession } from '../src/services/sessions.js';
 import { addItem, listItems, updateItem } from '../src/services/backlog.js';
 import { query } from '../src/services/search.js';
@@ -94,6 +94,33 @@ describe('services/decisions', () => {
   it('addDecision() rechaza título vacío y proyecto inexistente', () => {
     expect(() => addDecision(store, { projectId: PROJ, title: '  ' })).toThrow(/title/);
     expect(() => addDecision(store, { projectId: 'nope', title: 'X' })).toThrow(/nope/);
+  });
+
+  it('removeDecision() borra la fila, el índice de búsqueda y el archivo', () => {
+    const { id, file_path } = addDecision(store, { projectId: PROJ, title: 'Borrable rutabaga' });
+    const other = addDecision(store, { projectId: PROJ, title: 'Se queda rutabaga' });
+    expect(query(store, { query: 'rutabaga' }).length).toBe(2);
+
+    const { decision, fileRemoved } = removeDecision(store, id);
+
+    expect(decision.title).toBe('Borrable rutabaga');
+    expect(fileRemoved).toBe(true);
+    expect(fs.existsSync(file_path)).toBe(false);
+    expect(store.getDecision(id)).toBeNull();
+    expect(query(store, { query: 'rutabaga' }).map((r) => r.item_id)).toEqual([other.id]);
+    expect(fs.existsSync(other.file_path)).toBe(true);
+  });
+
+  it('removeDecision() con el archivo ya borrado limpia la BD e informa', () => {
+    const { id, file_path } = addDecision(store, { projectId: PROJ, title: 'Sin archivo' });
+    fs.rmSync(file_path);
+    expect(removeDecision(store, id).fileRemoved).toBe(false);
+    expect(store.getDecision(id)).toBeNull();
+  });
+
+  it('removeDecision() rechaza un id inexistente o vacío', () => {
+    expect(() => removeDecision(store, 'dec_nope')).toThrow(/dec_nope/);
+    expect(() => removeDecision(store, ' ')).toThrow(/decision_id/);
   });
 });
 

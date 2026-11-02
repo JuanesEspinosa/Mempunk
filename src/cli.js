@@ -7,7 +7,7 @@ import { CLI_VERSION } from './lib/vault.js';
 import { cmdInit } from './commands/init.js';
 import { cmdProjectAdd, cmdProjectList, cmdProjectActivate } from './commands/project.js';
 import { cmdBacklogAdd, cmdBacklogList, cmdBacklogUpdate } from './commands/backlog.js';
-import { cmdDecisionAdd, cmdDecisionList } from './commands/decision.js';
+import { cmdDecisionAdd, cmdDecisionList, cmdDecisionRemove } from './commands/decision.js';
 import { cmdAssetAdd, cmdAssetList, cmdAssetUpdate } from './commands/asset.js';
 import { cmdMaterialize, cmdProfileList, cmdProjectProfile } from './commands/materialize.js';
 import { cmdResourceAdd, cmdResourceList } from './commands/resource.js';
@@ -74,7 +74,8 @@ try {
       switch (subcommand) {
         case 'add':  cmdDecisionAdd(args[0], args[1]); break;
         case 'list': cmdDecisionList(args[0]); break;
-        default: fail(t('cli.unknownSubcommand', { command: 'decision', sub: subcommand ?? '', valid: 'add | list' }));
+        case 'remove': cmdDecisionRemove(args[0]); break;
+        default: fail(t('cli.unknownSubcommand', { command: 'decision', sub: subcommand ?? '', valid: 'add | list | remove' }));
       }
       break;
 

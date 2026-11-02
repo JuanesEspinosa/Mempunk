@@ -1066,6 +1066,43 @@ class VaultStore {
   }
 
   /**
+   * Devuelve una decisión por id, o null si no existe.
+   * @param {string} id
+   * @returns {object|null}
+   */
+  getDecision(id) {
+    const row = this.db
+      .prepare('SELECT id, project_id, title, tags, created_at, file_path FROM decisions WHERE id = ?')
+      .get(id);
+    return row ? this._absRows([row])[0] : null;
+  }
+
+  /**
+   * Borra una decisión: fila + entrada del índice FTS en una transacción, y
+   * después el markdown. El archivo va al final: si la transacción fallara, la
+   * fila seguiría apuntando a un archivo existente (consistente).
+   *
+   * @param {string} id
+   * @returns {{ decision: object, fileRemoved: boolean }|null} null si no existe
+   */
+  removeDecision(id) {
+    const decision = this.getDecision(id);
+    if (!decision) return null;
+
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM decisions WHERE id = ?').run(id);
+      this.db.prepare(`DELETE FROM search_index WHERE item_id = ? AND type = 'decision'`).run(id);
+    })();
+
+    let fileRemoved = false;
+    if (decision.file_path && fs.existsSync(decision.file_path)) {
+      fs.rmSync(decision.file_path, { force: true });
+      fileRemoved = true;
+    }
+    return { decision, fileRemoved };
+  }
+
+  /**
    * Devuelve los skills de un proyecto ordenados por última actualización descendente.
    * @param {string} projectId
    * @returns {object[]}

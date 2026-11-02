@@ -43,6 +43,7 @@ Backlog:
 Knowledge:
   decision add <proj> "<title>"     Create a decision (ADR)
   decision list <proj>              List project decisions
+  decision remove <id> --yes        Delete a decision (record, search index and file)
   skill    add <name> --global|--profile <p>|--project <id> --description "..."
                                     Create a Claude Code skill in that scope
   skill    list <proj> | --global | --profile <p>   List skills (project: resolved)
@@ -110,6 +111,10 @@ Maintenance:
 
     // decision
     'decision.saved': 'Decision saved to {path}',
+    'decision.notFound': 'Decision not found: "{id}". List them with: mempunk decision list <project_id>',
+    'decision.removeConfirm': 'Destructive operation: deletes "{title}" ({path}). Confirm with: mempunk decision remove {id} --yes',
+    'decision.removed': 'Decision "{title}" ({id}) deleted',
+    'decision.fileMissing': '! Its file no longer existed: {path}',
 
     // skill
     'skill.created': 'Skill {name} created at {path}',
@@ -398,6 +403,7 @@ Backlog:
 Conocimiento:
   decision add <proj> "<title>"     Crea una decisión (ADR)
   decision list <proj>              Lista decisiones del proyecto
+  decision remove <id> --yes        Borra una decisión (registro, índice de búsqueda y archivo)
   skill    add <nombre> --global|--profile <p>|--project <id> --description "..."
                                     Crea una skill de Claude Code en ese scope
   skill    list <proj> | --global | --profile <p>   Lista skills (proyecto: resueltas)
@@ -465,6 +471,10 @@ Mantenimiento:
 
     // decision
     'decision.saved': 'Decisión guardada en {path}',
+    'decision.notFound': 'Decisión no encontrada: "{id}". Lístalas con: mempunk decision list <project_id>',
+    'decision.removeConfirm': 'Operación destructiva: borra "{title}" ({path}). Confirma con: mempunk decision remove {id} --yes',
+    'decision.removed': 'Decisión "{title}" ({id}) eliminada',
+    'decision.fileMissing': '! Su archivo ya no existía: {path}',
 
     // skill
     'skill.created': 'Skill {name} creado en {path}',
