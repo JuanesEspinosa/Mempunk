@@ -85,7 +85,7 @@ export function cmdSessionRecover(projectId) {
   if (rawTurns.length > 0) {
     console.log('\n' + t('session.lastMessages'));
     for (const turn of rawTurns.slice(-4)) {
-      const role    = turn.type === 'human' ? 'user' : 'assistant';
+      const role    = turn.type === 'user' || turn.type === 'human' ? 'user' : 'assistant';
       const content = extractFirstTextContent(turn.message?.content ?? '');
       if (content) console.log(`  [${role}] ${content.slice(0, 120)}`);
     }
