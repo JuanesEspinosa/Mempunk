@@ -280,6 +280,92 @@ describe('Sesiones', () => {
   });
 });
 
+describe('Registro de sesión automático (v8)', () => {
+  const AUTO_PROJ = 'proj-auto';
+  const rowsOf = (projectId) => store.db
+    .prepare('SELECT * FROM session_log WHERE project_id = ? ORDER BY ended_at')
+    .all(projectId);
+
+  beforeAll(() => {
+    store.addProject(AUTO_PROJ, 'Proyecto Auto', path.join(TEMP_VAULT, 'projects', AUTO_PROJ));
+  });
+
+  it('la migración v8 agrega session_log.auto con 0 por defecto', () => {
+    const column = store.db.prepare('PRAGMA table_info(session_log)').all().find((c) => c.name === 'auto');
+    expect(column).toMatchObject({ notnull: 1, dflt_value: '0' });
+    const id = store.logSession(AUTO_PROJ, 'Manual', []);
+    expect(store.db.prepare('SELECT auto FROM session_log WHERE id = ?').get(id).auto).toBe(0);
+    store.db.prepare('DELETE FROM session_log WHERE project_id = ?').run(AUTO_PROJ);
+  });
+
+  it('inserta un registro auto = 1 con started_at = since y lo indexa en la búsqueda', () => {
+    const since = '2026-01-01T10:00:00.000Z';
+    const { id, action } = store.logAutoSession(AUTO_PROJ, { summary: 'zorroautomatico', files: ['a.js', 'a.js'], since });
+    expect(action).toBe('inserted');
+    const row = store.db.prepare('SELECT * FROM session_log WHERE id = ?').get(id);
+    expect(row).toMatchObject({ auto: 1, started_at: since, summary: 'zorroautomatico' });
+    expect(JSON.parse(row.files_touched)).toEqual(['a.js']);
+    expect(store.search('zorroautomatico').map((r) => r.item_id)).toContain(id);
+  });
+
+  it('una segunda llamada de la misma sesión actualiza el registro en vez de duplicarlo', () => {
+    const since = '2026-01-01T10:00:00.000Z';
+    const { action } = store.logAutoSession(AUTO_PROJ, { summary: 'zorroactualizado', files: ['b.js'], since });
+    expect(action).toBe('updated');
+    const rows = rowsOf(AUTO_PROJ);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].summary).toBe('zorroactualizado');
+    expect(JSON.parse(rows[0].files_touched)).toEqual(['a.js', 'b.js']);
+    expect(store.search('zorroautomatico')).toHaveLength(0);
+    expect(store.search('zorroactualizado')).toHaveLength(1);
+  });
+
+  it('si el agente ya registró la sesión, solo le añade los archivos que falten', () => {
+    const manualId = store.logSession(AUTO_PROJ, 'Registro del agente', ['x.js']);
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const { id, action } = store.logAutoSession(AUTO_PROJ, { summary: 'no debe quedar', files: ['x.js', 'y.js'], since });
+    expect(action).toBe('merged');
+    expect(id).toBe(manualId);
+    const manual = store.db.prepare('SELECT * FROM session_log WHERE id = ?').get(manualId);
+    expect(manual.summary).toBe('Registro del agente');
+    expect(JSON.parse(manual.files_touched)).toEqual(['x.js', 'y.js']);
+    expect(rowsOf(AUTO_PROJ).some((r) => r.summary === 'no debe quedar')).toBe(false);
+  });
+
+  it('un registro del agente anterior a since no cuenta: se inserta uno automático', () => {
+    const { action } = store.logAutoSession(AUTO_PROJ, {
+      summary: 'sesión nueva', files: [], since: new Date(Date.now() + 60_000).toISOString(),
+    });
+    expect(action).toBe('inserted');
+  });
+
+  it('sesión reanudada que el agente guardó: el registro automático previo se funde en el del agente', () => {
+    const RESUME_PROJ = 'proj-resume';
+    store.addProject(RESUME_PROJ, 'Proyecto Reanudado', path.join(TEMP_VAULT, 'projects', RESUME_PROJ));
+    const since = new Date(Date.now() - 120_000).toISOString();
+    const first = store.logAutoSession(RESUME_PROJ, { summary: 'zorrohuerfano', files: ['p.js'], since });
+    expect(first.action).toBe('inserted');
+    const manualId = store.logSession(RESUME_PROJ, 'Agente tras reanudar', ['q.js']);
+
+    const { id, action } = store.logAutoSession(RESUME_PROJ, { summary: 'segundo cierre', files: ['r.js'], since });
+    expect(action).toBe('merged');
+    expect(id).toBe(manualId);
+    expect(store.db.prepare('SELECT 1 FROM session_log WHERE id = ?').get(first.id)).toBeUndefined();
+    expect(store.search('zorrohuerfano')).toHaveLength(0);
+    const manual = store.db.prepare('SELECT files_touched FROM session_log WHERE id = ?').get(manualId);
+    expect(JSON.parse(manual.files_touched)).toEqual(['q.js', 'p.js', 'r.js']);
+  });
+
+  it('getLastSession prefiere el registro no automático a igual ended_at', () => {
+    const at = '2030-01-01T00:00:00.000Z';
+    store.db.prepare(
+      `INSERT INTO session_log (id, project_id, started_at, ended_at, summary, files_touched, auto)
+       VALUES ('tie-auto', ?, ?, ?, 'auto', '[]', 1), ('tie-manual', ?, ?, ?, 'manual', '[]', 0)`
+    ).run(AUTO_PROJ, at, at, AUTO_PROJ, at, at);
+    expect(store.getLastSession(AUTO_PROJ).id).toBe('tie-manual');
+  });
+});
+
 // ── Búsqueda ──────────────────────────────────────────────────────────────────
 
 describe('Búsqueda', () => {
