@@ -27,6 +27,8 @@ const CALLS_LOG    = path.join(TEMP_VAULT, 'calls.log');
 const FAKE_CLI_SRC = `
 import fs from 'node:fs';
 fs.appendFileSync(process.env.FAKE_CLI_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');
+// El hook borra el temporal al volver: se guarda una copia para inspeccionarla
+if (process.argv[3] === 'save-auto') fs.copyFileSync(process.argv[4], process.env.FAKE_CLI_LOG + '.payload');
 const sleepMs = parseInt(process.env.FAKE_CLI_SLEEP_MS ?? '0', 10);
 if (sleepMs > 0) await new Promise((resolve) => setTimeout(resolve, sleepMs));
 const code = parseInt(process.env.FAKE_CLI_EXIT ?? '0', 10);
@@ -101,7 +103,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  for (const f of [CALLS_LOG, REMOTE_FILE, PATHS_FILE, LOG_FILE]) fs.rmSync(f, { force: true });
+  for (const f of [CALLS_LOG, `${CALLS_LOG}.payload`, REMOTE_FILE, PATHS_FILE, LOG_FILE]) fs.rmSync(f, { force: true });
 });
 
 // ── on-end.js ─────────────────────────────────────────────────────────────────
@@ -147,6 +149,64 @@ describe('on-end.js (SessionEnd auto-push)', () => {
     expect(r.stdout.trim()).toBe('');
     expect(readCalls().length).toBe(1);
     expect(readLog()).toContain('fatal: could not read from remote');
+  });
+
+  it('registra la sesión (save-auto) antes del push cuando hay estado de sesión', () => {
+    writeRemote({ pull_on_start: false, push_on_end: true });
+    fs.writeFileSync(PATHS_FILE, JSON.stringify({ [normalizeForMap(PROJECT_ROOT)]: 'mapped-proj' }));
+    const sessionsDir = path.join(MEMPUNK_DIR, 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(path.join(sessionsDir, 'auto1.json'), JSON.stringify({
+      started_at: '2026-01-01T10:00:00.000Z',
+      turns: 2,
+      first_prompt: 'arregla el bug',
+      files_touched: ['src/a.js'],
+      recent_messages: [{ role: 'user', text: 'arregla el bug' }, { role: 'assistant', text: 'listo, corregido' }],
+    }));
+
+    const r = runHook('on-end.js', { session_id: 'auto1', cwd: PROJECT_ROOT, reason: 'prompt_input_exit' });
+    expect(r.status).toBe(0);
+    const calls = readCalls();
+    expect(calls).toHaveLength(2);
+    expect(calls[0].slice(0, 2)).toEqual(['session', 'save-auto']);
+    expect(calls[1][0]).toBe('push');
+
+    // El hook borra el temporal aunque el CLI no lo haga; la copia del CLI falso muestra lo recibido
+    expect(fs.existsSync(calls[0][2])).toBe(false);
+    const payload = JSON.parse(fs.readFileSync(`${CALLS_LOG}.payload`, 'utf8'));
+    expect(payload).toMatchObject({
+      project_id: 'mapped-proj',
+      files_touched: ['src/a.js'],
+      since: '2026-01-01T10:00:00.000Z',
+    });
+    expect(payload.summary).toContain('arregla el bug');
+    expect(payload.summary).toContain('listo, corregido');
+  });
+
+  it('si save-auto falla, sale 0, borra el temporal, lo registra en hooks.log y sigue con el push', () => {
+    writeRemote({ pull_on_start: false, push_on_end: true });
+    const sessionsDir = path.join(MEMPUNK_DIR, 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(path.join(sessionsDir, 'auto2.json'), JSON.stringify({
+      project_id: 'state-proj', started_at: '2026-01-01T10:00:00.000Z', turns: 1, first_prompt: 'hola',
+    }));
+
+    const r = runHook('on-end.js', { session_id: 'auto2', cwd: path.join(os.tmpdir(), `nomap-${STAMP}`) },
+      { FAKE_CLI_EXIT: '1', FAKE_CLI_STDERR: 'Vault desactualizado' });
+    expect(r.status).toBe(0);
+    const calls = readCalls();
+    expect(calls.map((c) => c[0])).toEqual(['session', 'push']);
+    expect(fs.existsSync(calls[0][2])).toBe(false);
+    expect(JSON.parse(fs.readFileSync(`${CALLS_LOG}.payload`, 'utf8')).project_id).toBe('state-proj');
+    expect(readLog()).toContain('Registro automático falló');
+    expect(readLog()).toContain('Vault desactualizado');
+  });
+
+  it('no registra la sesión si no hay estado (sesión sin prompts)', () => {
+    writeRemote({ pull_on_start: false, push_on_end: true });
+    const r = runHook('on-end.js', { session_id: 'sin-estado', cwd: PROJECT_ROOT });
+    expect(r.status).toBe(0);
+    expect(readCalls().map((c) => c[0])).toEqual(['push']);
   });
 
   it('omite --project (y lo registra) cuando el id mapeado no es un identificador válido', () => {
