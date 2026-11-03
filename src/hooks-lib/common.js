@@ -5,7 +5,7 @@
 // con esbuild a dist/hooks/ inlineando este módulo. Editar la fuente en
 // src/hooks/, nunca los bundles.
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -16,6 +16,8 @@ export const ACTIVE_FILE = path.join(MEMPUNK_DIR, 'active-project.json');
 export const PATHS_FILE  = path.join(MEMPUNK_DIR, 'project-paths.json');
 export const LOG_FILE    = path.join(MEMPUNK_DIR, 'hooks.log');
 export const REMOTE_FILE = path.join(MEMPUNK_DIR, 'remote.json');
+// Lo escribe `mempunk push --background` (src/commands/push-background.js)
+export const LAST_PUSH_FILE = path.join(MEMPUNK_DIR, 'last-push.json');
 
 // MEMPUNK_CLI permite sobrescribir "mempunk" por "node /path/to/cli.js" en tests
 const [CLI_BIN, ...CLI_ARGS_PREFIX] = (process.env.MEMPUNK_CLI ?? 'mempunk').split(' ');
@@ -44,11 +46,35 @@ export function runCli(args, { timeout } = {}) {
     env: { ...process.env, ...NON_INTERACTIVE_GIT_ENV, MEMPUNK_VAULT: VAULT_PATH },
     ...(timeout ? { timeout, killSignal: 'SIGKILL' } : {}),
   };
+  const { bin, argv, shell } = cliSpawnArgs(args);
+  return spawnSync(bin, argv, { ...opts, shell });
+}
+
+/** Binario, argv y shell para llamar al CLI (ver runCli: shim .cmd en Windows) */
+function cliSpawnArgs(args) {
   if (process.env.MEMPUNK_CLI || process.platform !== 'win32') {
-    return spawnSync(CLI_BIN, [...CLI_ARGS_PREFIX, ...args], opts);
+    return { bin: CLI_BIN, argv: [...CLI_ARGS_PREFIX, ...args], shell: false };
   }
   const quoted = args.map((a) => (/[\s"^&|<>]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a));
-  return spawnSync(CLI_BIN, quoted, { ...opts, shell: true });
+  return { bin: CLI_BIN, argv: quoted, shell: true };
+}
+
+/** Lanza el CLI desacoplado y vuelve sin esperarlo: el proceso sigue vivo cuando
+ *  el hook (y Claude Code) terminan. Sin stdio: el comando deja su resultado en
+ *  disco. Devuelve el PID; lanza si el proceso no se pudo crear. */
+export function spawnCliDetached(args) {
+  const { bin, argv, shell } = cliSpawnArgs(args);
+  const child = spawn(bin, argv, {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    shell,
+    env: { ...process.env, ...NON_INTERACTIVE_GIT_ENV, MEMPUNK_VAULT: VAULT_PATH },
+  });
+  // Un fallo asíncrono (ENOENT) llegaría cuando el hook ya salió: no hay a quién avisar
+  child.on('error', () => {});
+  child.unref();
+  return child.pid;
 }
 
 /** Timeout (ms) para los push/pull automáticos. MEMPUNK_HOOK_TIMEOUT_MS lo
@@ -64,12 +90,14 @@ const CLI_FAILURE_PATTERNS = [
   ['auth',      /Authentication|could not read Username|Permission denied/i],
   ['network',   /Could not resolve host|unable to access|Connection/i],
   ['conflict',  /conflict|merge/i],
+  // Último: una línea `remote:` de git no debe poder disfrazar otra clase
+  ['locked',    /push\.lock/],
 ];
 
 /** Clasifica el resultado de un runCli() fallido para mostrar a Claude un
  *  mensaje fijo en vez del stderr crudo (un remote malicioso puede inyectar
  *  texto via las líneas `remote:` de git).
- *  @returns {'timeout'|'no-remote'|'auth'|'network'|'conflict'|'error'} */
+ *  @returns {'timeout'|'locked'|'no-remote'|'auth'|'network'|'conflict'|'error'} */
 export function classifyCliFailure(result) {
   if (result.error?.code === 'ETIMEDOUT' || result.signal) return 'timeout';
   const stderr = result.stderr ?? '';
@@ -202,6 +230,15 @@ const HOOK_MESSAGES = {
     'remote.pull.network': 'Mempunk: automatic vault pull failed (network) — run `mempunk pull` manually.',
     'remote.pull.conflict': 'Mempunk: automatic vault pull failed (conflict) — run `mempunk pull` manually and resolve the conflicts in the vault.',
     'remote.pull.error': 'Mempunk: automatic vault pull failed — run `mempunk pull` manually to see details.',
+    'remote.pull.locked': 'Mempunk: automatic vault pull skipped — another sync (probably the background push of the previous session) was still running; run `mempunk pull` in a moment.',
+    'remote.push.timeout': 'Mempunk: the last automatic vault push (on session end) timed out — run `mempunk push` manually in the terminal.',
+    'remote.push.locked': 'Mempunk: the last automatic vault push (on session end) was skipped because another sync was running — run `mempunk push` manually.',
+    'remote.push.no-remote': 'Mempunk: the last automatic vault push was skipped — no remote configured; run `mempunk remote set <url>`.',
+    'remote.push.auth': 'Mempunk: the last automatic vault push (on session end) failed (authentication) — run `mempunk push` manually in the terminal to provide credentials.',
+    'remote.push.network': 'Mempunk: the last automatic vault push (on session end) failed (network) — run `mempunk push` manually.',
+    'remote.push.conflict': 'Mempunk: the last automatic vault push (on session end) failed (conflict) — run `mempunk push` manually and resolve the conflicts in the vault.',
+    'remote.push.error': 'Mempunk: the last automatic vault push (on session end) failed — run `mempunk push` manually to see details.',
+    'remote.push.interrupted': 'Mempunk: the last automatic vault push (on session end) did not finish — its process was stopped. Run `mempunk push` manually.',
     'materialize.conflicts': 'Mempunk: {count} skill/agent file(s) were not updated because they were edited outside the vault — run `mempunk materialize --dry-run` to see which.',
     'autosession.header': '[auto] Session closed without a log ({turns} turns).',
     'autosession.prompt': 'First prompt: {text}',
@@ -225,6 +262,15 @@ const HOOK_MESSAGES = {
     'remote.pull.network': 'Mempunk: el pull automático del vault falló (red) — ejecuta `mempunk pull` manualmente.',
     'remote.pull.conflict': 'Mempunk: el pull automático del vault falló (conflicto) — ejecuta `mempunk pull` manualmente y resuelve los conflictos del vault.',
     'remote.pull.error': 'Mempunk: el pull automático del vault falló — ejecuta `mempunk pull` manualmente para ver el detalle.',
+    'remote.pull.locked': 'Mempunk: pull automático omitido — otra sincronización (probablemente el push en segundo plano de la sesión anterior) seguía en curso; ejecuta `mempunk pull` en un momento.',
+    'remote.push.timeout': 'Mempunk: el último push automático del vault (al cerrar sesión) excedió el tiempo límite — ejecuta `mempunk push` manualmente en la terminal.',
+    'remote.push.locked': 'Mempunk: el último push automático del vault (al cerrar sesión) se omitió porque había otra sincronización en curso — ejecuta `mempunk push` manualmente.',
+    'remote.push.no-remote': 'Mempunk: el último push automático se omitió — no hay remote configurado; ejecuta `mempunk remote set <url>`.',
+    'remote.push.auth': 'Mempunk: el último push automático del vault (al cerrar sesión) falló (autenticación) — ejecuta `mempunk push` manualmente en la terminal para dar credenciales.',
+    'remote.push.network': 'Mempunk: el último push automático del vault (al cerrar sesión) falló (red) — ejecuta `mempunk push` manualmente.',
+    'remote.push.conflict': 'Mempunk: el último push automático del vault (al cerrar sesión) falló (conflicto) — ejecuta `mempunk push` manualmente y resuelve los conflictos del vault.',
+    'remote.push.error': 'Mempunk: el último push automático del vault (al cerrar sesión) falló — ejecuta `mempunk push` manualmente para ver el detalle.',
+    'remote.push.interrupted': 'Mempunk: el último push automático del vault (al cerrar sesión) no terminó — su proceso se detuvo. Ejecuta `mempunk push` manualmente.',
     'materialize.conflicts': 'Mempunk: {count} archivo(s) de skills/agentes no se actualizaron porque fueron editados fuera del vault — ejecuta `mempunk materialize --dry-run` para ver cuáles.',
     'autosession.header': '[auto] Sesión cerrada sin registro ({turns} turnos).',
     'autosession.prompt': 'Primer prompt: {text}',

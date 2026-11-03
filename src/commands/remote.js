@@ -17,6 +17,8 @@ import {
 } from '../lib/remote-config.js';
 import { createVerifiedBackup } from './vault.js';
 import { _writeProjectPathsFile } from './project.js';
+import { runBackgroundPush } from './push-background.js';
+import { acquireSyncLock } from '../lib/sync-lock.js';
 
 const MAX_MESSAGE_LENGTH   = 2000;
 const PROJECT_ID_RE        = /^[\w.-]+$/;
@@ -328,9 +330,19 @@ function pushOrFail(branch) {
 }
 
 export function cmdPush() {
+  if (opts.background) {
+    // Sin validar aquí: un fail() del padre no dejaría resultado; lo valida el hijo
+    process.exitCode = runBackgroundPush({
+      message:     opts['message-stdin'] ? readStdin() : (opts.message ?? ''),
+      messageFile: opts['message-file'] ?? null,
+      project:     opts.project ?? null,
+    });
+    return;
+  }
   const branch     = requireGitRepo().branch ?? DEFAULT_BRANCH;
   const rawMessage = readRawMessage();
   const project    = validatedProject();
+  acquireSyncLock('push');
   guardRepoIdle();
 
   fetchOrFail();
@@ -387,6 +399,7 @@ function countReceived(before) {
 
 export function cmdPull() {
   const branch = requireGitRepo().branch ?? DEFAULT_BRANCH;
+  acquireSyncLock('pull');
   guardRepoIdle();
 
   fetchOrFail();

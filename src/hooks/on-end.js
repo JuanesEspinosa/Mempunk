@@ -3,9 +3,11 @@
 // Evento: SessionEnd — al cerrar la sesión de Claude Code.
 // 1. Registro de sesión automático desde el estado de la sesión (Fase 3B): si
 //    el agente ya guardó la sesión, el CLI solo le añade los archivos que falten.
-// 2. Si .mempunk/remote.json tiene auto.push_on_end: `mempunk push` con mensaje
-//    genérico como red de seguridad. El commit "bueno" con resumen lo hace el
-//    agente mempunk-syncer.
+// 2. Si .mempunk/remote.json tiene auto.push_on_end: lanza `mempunk push
+//    --background` desacoplado (Fase 3C) con mensaje genérico como red de
+//    seguridad, y sale sin esperarlo. El resultado queda en last-push.json y el
+//    siguiente SessionStart avisa si falló. El commit "bueno" con resumen lo hace
+//    el agente mempunk-syncer.
 // SessionEnd ignora stdout — no se escribe nada.
 
 import fs from 'node:fs';
@@ -14,21 +16,17 @@ import os from 'node:os';
 import {
   MEMPUNK_DIR,
   runCli,
+  spawnCliDetached,
   createLogger,
   readStdinJson,
   getProjectId,
   readRemoteConfig,
   hookTimeoutMs,
-  classifyCliFailure,
   hookT,
 } from '../hooks-lib/common.js';
 import { isValidSessionId, hasSessionState, readSessionState, truncate } from '../hooks-lib/session-state.js';
 
 const AUTO_PUSH_MESSAGE = 'auto-push on session end';
-
-// Tope del push automático: por debajo de los 60 s de SessionEnd para que sea
-// el hook (y no Claude Code) quien corte un remote caído y registre el motivo
-const PUSH_TIMEOUT_MS = 50_000;
 
 // Mismo contrato que `mempunk push --project`: solo identificadores simples
 const PROJECT_ID_RE = /^[\w.-]+$/;
@@ -116,15 +114,12 @@ try {
   const remote = readRemoteConfig();
   if (remote?.auto?.push_on_end) {
     const projectId = getProjectId(cwd);
-    const args = ['push', '-m', AUTO_PUSH_MESSAGE, ...projectArgs(projectId)];
-    const result = runCli(args, { timeout: hookTimeoutMs(PUSH_TIMEOUT_MS) });
-
-    if (result.status === 0) {
-      log(`Push automático OK (reason=${reason ?? 'desconocido'}, proyecto=${projectId ?? 'ninguno'})`);
-    } else {
-      const kind = classifyCliFailure(result);
-      const err  = (result.stderr?.trim() || result.error?.message || 'sin detalle').slice(0, MAX_LOGGED_STDERR);
-      log(`Push automático falló (${kind}, status=${result.status ?? 'null'}): ${err}`);
+    const args = ['push', '--background', '-m', AUTO_PUSH_MESSAGE, ...projectArgs(projectId)];
+    try {
+      const pid = spawnCliDetached(args);
+      log(`Push en segundo plano lanzado (pid=${pid ?? '?'}, reason=${reason ?? 'desconocido'}, proyecto=${projectId ?? 'ninguno'})`);
+    } catch (err) {
+      log(`Push en segundo plano: no se pudo lanzar: ${err.message}`);
     }
   }
 } catch (err) {

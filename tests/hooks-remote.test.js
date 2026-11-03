@@ -16,6 +16,7 @@ const MEMPUNK_DIR  = path.join(TEMP_VAULT, '.mempunk');
 const REMOTE_FILE  = path.join(MEMPUNK_DIR, 'remote.json');
 const PATHS_FILE   = path.join(MEMPUNK_DIR, 'project-paths.json');
 const LOG_FILE     = path.join(MEMPUNK_DIR, 'hooks.log');
+const LAST_PUSH    = path.join(MEMPUNK_DIR, 'last-push.json');
 const TEMP_HOME    = path.join(os.tmpdir(), `mempunk-hooks-remote-home-${STAMP}`);
 const ISOLATED_ENV = { HOME: TEMP_HOME, USERPROFILE: TEMP_HOME };
 
@@ -67,6 +68,17 @@ function readCalls() {
   return fs.readFileSync(CALLS_LOG, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
 }
 
+/** El push de on-end va desacoplado: espera a que el CLI falso registre `count` llamadas */
+async function waitForCalls(count, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (readCalls().length < count && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return readCalls();
+}
+
+const BG_PUSH = ['push', '--background', '-m', 'auto-push on session end'];
+
 /** Solo las llamadas de sync (on-start también invoca materialize) */
 function syncCalls() {
   return readCalls().filter((c) => c[0] === 'pull' || c[0] === 'push');
@@ -103,7 +115,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  for (const f of [CALLS_LOG, `${CALLS_LOG}.payload`, REMOTE_FILE, PATHS_FILE, LOG_FILE]) fs.rmSync(f, { force: true });
+  for (const f of [CALLS_LOG, `${CALLS_LOG}.payload`, REMOTE_FILE, PATHS_FILE, LOG_FILE, LAST_PUSH]) fs.rmSync(f, { force: true });
 });
 
 // ── on-end.js ─────────────────────────────────────────────────────────────────
@@ -123,35 +135,36 @@ describe('on-end.js (SessionEnd auto-push)', () => {
     expect(readCalls()).toEqual([]);
   });
 
-  it('llama push con --project cuando el cwd está mapeado en project-paths.json', () => {
+  it('lanza push --background con --project cuando el cwd está mapeado en project-paths.json', async () => {
     writeRemote({ pull_on_start: false, push_on_end: true });
     fs.writeFileSync(PATHS_FILE, JSON.stringify({ [normalizeForMap(PROJECT_ROOT)]: 'mapped-proj' }));
     const r = runHook('on-end.js', { session_id: 's3', cwd: PROJECT_ROOT });
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe('');
-    expect(readCalls()).toEqual([
-      ['push', '-m', 'auto-push on session end', '--project', 'mapped-proj'],
-    ]);
+    expect(await waitForCalls(1)).toEqual([[...BG_PUSH, '--project', 'mapped-proj']]);
   });
 
-  it('llama push sin --project cuando no hay mapeo ni proyecto activo', () => {
+  it('lanza push --background sin --project cuando no hay mapeo ni proyecto activo', async () => {
     writeRemote({ pull_on_start: false, push_on_end: true });
     const r = runHook('on-end.js', { session_id: 's4', cwd: path.join(os.tmpdir(), `nomap-${STAMP}`) });
     expect(r.status).toBe(0);
-    expect(readCalls()).toEqual([['push', '-m', 'auto-push on session end']]);
+    expect(await waitForCalls(1)).toEqual([BG_PUSH]);
   });
 
-  it('sale 0 y registra el stderr en hooks.log cuando el push falla', () => {
+  it('sale sin esperar al push: un CLI de 4 s no retrasa el hook', async () => {
     writeRemote({ pull_on_start: false, push_on_end: true });
-    const r = runHook('on-end.js', { session_id: 's5', cwd: PROJECT_ROOT },
-      { FAKE_CLI_EXIT: '1', FAKE_CLI_STDERR: 'fatal: could not read from remote' });
+    const started = Date.now();
+    const r = runHook('on-end.js', { session_id: 's5', cwd: PROJECT_ROOT }, { FAKE_CLI_SLEEP_MS: '4000' });
+    const elapsed = Date.now() - started;
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toBe('');
-    expect(readCalls().length).toBe(1);
-    expect(readLog()).toContain('fatal: could not read from remote');
+    expect(elapsed).toBeLessThan(3000);
+    expect(readLog()).toContain('Push en segundo plano lanzado');
+    // El proceso desacoplado sigue vivo y termina por su cuenta
+    expect(await waitForCalls(1)).toEqual([BG_PUSH]);
   });
 
-  it('registra la sesión (save-auto) antes del push cuando hay estado de sesión', () => {
+  it('registra la sesión (save-auto) antes del push cuando hay estado de sesión', async () => {
     writeRemote({ pull_on_start: false, push_on_end: true });
     fs.writeFileSync(PATHS_FILE, JSON.stringify({ [normalizeForMap(PROJECT_ROOT)]: 'mapped-proj' }));
     const sessionsDir = path.join(MEMPUNK_DIR, 'sessions');
@@ -166,7 +179,7 @@ describe('on-end.js (SessionEnd auto-push)', () => {
 
     const r = runHook('on-end.js', { session_id: 'auto1', cwd: PROJECT_ROOT, reason: 'prompt_input_exit' });
     expect(r.status).toBe(0);
-    const calls = readCalls();
+    const calls = await waitForCalls(2);
     expect(calls).toHaveLength(2);
     expect(calls[0].slice(0, 2)).toEqual(['session', 'save-auto']);
     expect(calls[1][0]).toBe('push');
@@ -183,7 +196,7 @@ describe('on-end.js (SessionEnd auto-push)', () => {
     expect(payload.summary).toContain('listo, corregido');
   });
 
-  it('si save-auto falla, sale 0, borra el temporal, lo registra en hooks.log y sigue con el push', () => {
+  it('si save-auto falla, sale 0, borra el temporal, lo registra en hooks.log y sigue con el push', async () => {
     writeRemote({ pull_on_start: false, push_on_end: true });
     const sessionsDir = path.join(MEMPUNK_DIR, 'sessions');
     fs.mkdirSync(sessionsDir, { recursive: true });
@@ -194,7 +207,7 @@ describe('on-end.js (SessionEnd auto-push)', () => {
     const r = runHook('on-end.js', { session_id: 'auto2', cwd: path.join(os.tmpdir(), `nomap-${STAMP}`) },
       { FAKE_CLI_EXIT: '1', FAKE_CLI_STDERR: 'Vault desactualizado' });
     expect(r.status).toBe(0);
-    const calls = readCalls();
+    const calls = await waitForCalls(2);
     expect(calls.map((c) => c[0])).toEqual(['session', 'push']);
     expect(fs.existsSync(calls[0][2])).toBe(false);
     expect(JSON.parse(fs.readFileSync(`${CALLS_LOG}.payload`, 'utf8')).project_id).toBe('state-proj');
@@ -202,19 +215,19 @@ describe('on-end.js (SessionEnd auto-push)', () => {
     expect(readLog()).toContain('Vault desactualizado');
   });
 
-  it('no registra la sesión si no hay estado (sesión sin prompts)', () => {
+  it('no registra la sesión si no hay estado (sesión sin prompts)', async () => {
     writeRemote({ pull_on_start: false, push_on_end: true });
     const r = runHook('on-end.js', { session_id: 'sin-estado', cwd: PROJECT_ROOT });
     expect(r.status).toBe(0);
-    expect(readCalls().map((c) => c[0])).toEqual(['push']);
+    expect((await waitForCalls(1)).map((c) => c[0])).toEqual(['push']);
   });
 
-  it('omite --project (y lo registra) cuando el id mapeado no es un identificador válido', () => {
+  it('omite --project (y lo registra) cuando el id mapeado no es un identificador válido', async () => {
     writeRemote({ pull_on_start: false, push_on_end: true });
     fs.writeFileSync(PATHS_FILE, JSON.stringify({ [normalizeForMap(PROJECT_ROOT)]: 'bad id;rm' }));
     const r = runHook('on-end.js', { session_id: 's5b', cwd: PROJECT_ROOT });
     expect(r.status).toBe(0);
-    expect(readCalls()).toEqual([['push', '-m', 'auto-push on session end']]);
+    expect(await waitForCalls(1)).toEqual([BG_PUSH]);
     expect(readLog()).toContain('bad id;rm');
   });
 });
@@ -312,6 +325,77 @@ describe('on-start.js (SessionStart auto-pull)', () => {
     const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
     expect(ctx).toContain('@mempunk-loader');
     expect(ctx).toContain('mempunk pull');
+  });
+
+  it('avisa la clase "locked" si el pull choca con el lock de otra sincronización', () => {
+    writeRemote({ pull_on_start: true, push_on_end: false });
+    const r = runHook('on-start.js', { session_id: 's11b', source: 'startup', cwd: PROJECT_ROOT },
+      { FAKE_CLI_EXIT: '1', FAKE_CLI_STDERR: 'Error: Hay otra sincronización (pid 1). Borra /v/.mempunk/push.lock' });
+    const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
+    expect(ctx).toContain('another sync');
+    expect(ctx).not.toContain('push.lock');
+  });
+});
+
+describe('on-start.js (aviso de push en segundo plano fallido)', () => {
+  function writeLastPush(fields) {
+    fs.writeFileSync(LAST_PUSH, JSON.stringify({
+      at: '2026-11-02T10:00:00.000Z', ok: false, status: 1, signal: null, error_code: null,
+      stderr: '', notified: false, ...fields,
+    }));
+  }
+
+  const contextOf = (r) => JSON.parse(r.stdout).hookSpecificOutput?.additionalContext ?? '';
+
+  it('avisa una sola vez con la clase del fallo, sin el stderr guardado', () => {
+    writeLastPush({ stderr: "fatal: unable to access 'https://x/': Could not resolve host" });
+
+    const first = runHook('on-start.js', { session_id: 'p1', source: 'startup', cwd: PROJECT_ROOT });
+    expect(first.status).toBe(0);
+    const ctx = contextOf(first);
+    expect(ctx).toContain('automatic vault push');
+    expect(ctx).toContain('(network)');
+    expect(ctx).toContain('mempunk push');
+    expect(ctx).not.toContain('unable to access');
+    expect(JSON.parse(fs.readFileSync(LAST_PUSH, 'utf8')).notified).toBe(true);
+
+    const second = runHook('on-start.js', { session_id: 'p2', source: 'startup', cwd: PROJECT_ROOT });
+    expect(contextOf(second)).not.toContain('automatic vault push');
+  });
+
+  it('clasifica el timeout del push hijo (SIGKILL / ETIMEDOUT)', () => {
+    writeLastPush({ status: null, signal: 'SIGKILL', error_code: 'ETIMEDOUT' });
+    const ctx = contextOf(runHook('on-start.js', { session_id: 'p3', source: 'startup', cwd: PROJECT_ROOT }));
+    expect(ctx).toContain('timed out');
+    expect(ctx).toContain('mempunk push');
+  });
+
+  it('no avisa si el último push fue bien, ni en source=compact', () => {
+    writeLastPush({ ok: true, status: 0 });
+    expect(contextOf(runHook('on-start.js', { session_id: 'p4', source: 'startup', cwd: PROJECT_ROOT })))
+      .not.toContain('automatic vault push');
+
+    writeLastPush({ stderr: 'fake' });
+    runHook('on-start.js', { session_id: 'p5', source: 'compact', cwd: PROJECT_ROOT });
+    expect(JSON.parse(fs.readFileSync(LAST_PUSH, 'utf8')).notified).toBe(false);
+  });
+
+  it('push provisional (ok: null): avisa "did not finish" si su proceso murió, nada si sigue vivo', () => {
+    writeLastPush({ ok: null, pid: process.pid });
+    expect(contextOf(runHook('on-start.js', { session_id: 'p7', source: 'startup', cwd: PROJECT_ROOT })))
+      .not.toContain('automatic vault push');
+
+    writeLastPush({ ok: null, pid: 2 ** 31 - 2 });
+    const ctx = contextOf(runHook('on-start.js', { session_id: 'p8', source: 'startup', cwd: PROJECT_ROOT }));
+    expect(ctx).toContain('did not finish');
+    expect(ctx).toContain('mempunk push');
+  });
+
+  it('un last-push.json corrupto no rompe el arranque', () => {
+    fs.writeFileSync(LAST_PUSH, '{ a medias');
+    const r = runHook('on-start.js', { session_id: 'p6', source: 'startup', cwd: PROJECT_ROOT });
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout)).toEqual({});
   });
 });
 
