@@ -330,6 +330,46 @@ export function isViaPlugin() {
   return process.env.MEMPUNK_VIA_PLUGIN === '1';
 }
 
+// Clave del plugin en enabledPlugins (<plugin>@<marketplace>)
+const PLUGIN_KEY = 'mempunk@mempunk';
+
+/** Valor de enabledPlugins["mempunk@mempunk"] en un settings.json, o undefined si no lo define
+ *  (archivo ausente o ilegible incluidos). */
+function readPluginFlag(settingsPath) {
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8').replace(/^\uFEFF/, ''));
+    const value = settings?.enabledPlugins?.[PLUGIN_KEY];
+    return typeof value === 'boolean' ? value : undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
+
+/** ¿Está activo el plugin de Mempunk? Misma precedencia que Claude Code: settings.local.json y
+ *  settings.json del proyecto (`cwd`) antes que los del usuario (CLAUDE_CONFIG_DIR o ~/.claude).
+ *  Duplicado a propósito en src/lib/config-files.js (los hooks no importan de src/lib). */
+export function isPluginEnabled(cwd = process.cwd()) {
+  const userDir = process.env.CLAUDE_CONFIG_DIR?.trim() || path.join(os.homedir(), '.claude');
+  const candidates = [
+    path.join(cwd, '.claude', 'settings.local.json'),
+    path.join(cwd, '.claude', 'settings.json'),
+    path.join(userDir, 'settings.json'),
+  ];
+  for (const file of candidates) {
+    const flag = readPluginFlag(file);
+    if (flag !== undefined) return flag;
+  }
+  return false;
+}
+
+/** Guardia de doble ejecución (D5): Claude Code suma los hooks del plugin a los de settings.json,
+ *  así que un hook instalado a mano sale sin hacer nada si el plugin está activo. */
+export function exitIfPluginOwnsHooks(log) {
+  if (isViaPlugin() || !isPluginEnabled()) return;
+  log('plugin mempunk@mempunk activo: hook manual omitido (mempunk hooks migrate lo retira)');
+  process.exit(0);
+}
+
 /** Nombres que Claude ve: en el plugin, agentes y skills llevan el prefijo "mempunk:" */
 export function assetNames() {
   return isViaPlugin()

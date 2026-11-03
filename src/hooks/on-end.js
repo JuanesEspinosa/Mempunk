@@ -26,6 +26,7 @@ import {
   readAutoSessionMode,
   hookTimeoutMs,
   hookT,
+  exitIfPluginOwnsHooks,
 } from '../hooks-lib/common.js';
 import { isValidSessionId, hasSessionState, readSessionState, truncate } from '../hooks-lib/session-state.js';
 
@@ -44,6 +45,7 @@ const SUMMARY_PROMPT_CHARS = 300;
 const SUMMARY_REPLY_CHARS  = 700;
 
 const log = createLogger('on-end');
+exitIfPluginOwnsHooks(log);
 
 /** Argumentos --project para el push; vacío (y log) si el id mapeado no es válido */
 function projectArgs(projectId) {

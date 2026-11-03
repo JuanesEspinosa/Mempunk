@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { MEMPUNK_DIR, runCli, createLogger, readHookInput, getProjectId, readAutoSessionMode } from '../hooks-lib/common.js';
+import { MEMPUNK_DIR, runCli, createLogger, readHookInput, getProjectId, readAutoSessionMode, exitIfPluginOwnsHooks } from '../hooks-lib/common.js';
 import {
   isValidSessionId,
   hasSessionState,
@@ -18,6 +18,7 @@ import {
 } from '../hooks-lib/session-state.js';
 
 const log = createLogger('on-compact');
+exitIfPluginOwnsHooks(log);
 
 function exit() {
   process.stdout.write('{}');

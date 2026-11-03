@@ -26,7 +26,7 @@ function runHook(hookFile, input, extraEnv = {}) {
     input: typeof input === 'string' ? input : JSON.stringify(input),
     encoding: 'utf8',
     cwd: PROJECT_ROOT,
-    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI, HOME: TEMP_HOME, USERPROFILE: TEMP_HOME, ...extraEnv },
+    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI, HOME: TEMP_HOME, USERPROFILE: TEMP_HOME, CLAUDE_CONFIG_DIR: '', ...extraEnv },
   });
 }
 
@@ -143,6 +143,82 @@ describe('on-prompt.js', () => {
     expect(r.status).toBe(0);
     expect(fs.existsSync(path.join(MEMPUNK_DIR, 'escape.json'))).toBe(false);
     expect(lastLogLines()).toMatch(/session_id inválido/);
+  });
+});
+
+// ── Guardia de doble ejecución (plugin activo, D5) ───────────────────────────
+
+describe('hooks manuales con el plugin mempunk@mempunk activo', () => {
+  const base = path.join(os.tmpdir(), `mempunk-guard-${Date.now()}`);
+  const configDir = path.join(base, 'claude-config');
+  const repo = path.join(base, 'repo');
+
+  function writeSettings(file, enabled) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ enabledPlugins: { 'mempunk@mempunk': enabled } }));
+  }
+
+  /** on-tool desde `repo` (Claude Code lanza el hook con el cwd del proyecto). */
+  function runToolHook(sessionId, extraEnv = {}) {
+    return spawnSync('node', [path.join(PROJECT_ROOT, 'dist', 'hooks', 'on-tool.js')], {
+      input: JSON.stringify(fixture('post-tool-use-bash', { session_id: sessionId })),
+      encoding: 'utf8',
+      cwd: repo,
+      env: {
+        ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI,
+        HOME: TEMP_HOME, USERPROFILE: TEMP_HOME, CLAUDE_CONFIG_DIR: configDir, MEMPUNK_VIA_PLUGIN: '',
+        ...extraEnv,
+      },
+    });
+  }
+
+  const stateExists = (sessionId) => fs.existsSync(path.join(SESSIONS_DIR, `${sessionId}.json`));
+
+  beforeAll(() => fs.mkdirSync(repo, { recursive: true }));
+  afterAll(() => fs.rmSync(base, { recursive: true, force: true }));
+
+  it('activo en CLAUDE_CONFIG_DIR: el hook manual sale sin hacer nada y lo registra', () => {
+    writeSettings(path.join(configDir, 'settings.json'), true);
+    const r = runToolHook('guard-skip');
+    expect(r.status).toBe(0);
+    expect(stateExists('guard-skip')).toBe(false);
+    expect(lastLogLines()).toMatch(/\[on-tool\] plugin mempunk@mempunk activo: hook manual omitido/);
+  });
+
+  it('lee un settings.json con BOM (PowerShell y editores de Windows lo añaden)', () => {
+    const file = path.join(configDir, 'settings.json');
+    writeSettings(file, true);
+    fs.writeFileSync(file, `\uFEFF${fs.readFileSync(file, 'utf8')}`);
+    runToolHook('guard-bom');
+    expect(stateExists('guard-bom')).toBe(false);
+  });
+
+  it('el mismo hook lanzado por el plugin sí corre', () => {
+    writeSettings(path.join(configDir, 'settings.json'), true);
+    runToolHook('guard-plugin', { MEMPUNK_VIA_PLUGIN: '1' });
+    expect(stateExists('guard-plugin')).toBe(true);
+  });
+
+  it('desactivado en settings.local.json del proyecto: gana el proyecto y el hook corre', () => {
+    writeSettings(path.join(configDir, 'settings.json'), true);
+    writeSettings(path.join(repo, '.claude', 'settings.local.json'), false);
+    runToolHook('guard-project-off');
+    expect(stateExists('guard-project-off')).toBe(true);
+    fs.rmSync(path.join(repo, '.claude'), { recursive: true, force: true });
+  });
+
+  it('sin CLAUDE_CONFIG_DIR lee ~/.claude/settings.json', () => {
+    writeSettings(path.join(configDir, 'settings.json'), false);
+    writeSettings(path.join(TEMP_HOME, '.claude', 'settings.json'), true);
+    runToolHook('guard-home', { CLAUDE_CONFIG_DIR: '' });
+    expect(stateExists('guard-home')).toBe(false);
+    fs.rmSync(path.join(TEMP_HOME, '.claude', 'settings.json'));
+  });
+
+  it('plugin desactivado: el hook manual corre como siempre', () => {
+    writeSettings(path.join(configDir, 'settings.json'), false);
+    runToolHook('guard-off');
+    expect(stateExists('guard-off')).toBe(true);
   });
 });
 

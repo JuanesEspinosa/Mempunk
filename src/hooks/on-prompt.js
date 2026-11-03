@@ -6,7 +6,7 @@
 // on-stop ya no cuenta turnos leyendo el transcript.
 
 import fs from 'node:fs';
-import { MEMPUNK_DIR, createLogger, readHookInput, getProjectId } from '../hooks-lib/common.js';
+import { MEMPUNK_DIR, createLogger, readHookInput, getProjectId, exitIfPluginOwnsHooks } from '../hooks-lib/common.js';
 import {
   isValidSessionId,
   updateSessionState,
@@ -17,6 +17,7 @@ import {
 } from '../hooks-lib/session-state.js';
 
 const log = createLogger('on-prompt');
+exitIfPluginOwnsHooks(log);
 
 try {
   const data = await readHookInput(['session_id', 'prompt'], log);

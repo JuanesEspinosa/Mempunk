@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { MEMPUNK_DIR, createLogger, readHookInput } from '../hooks-lib/common.js';
+import { MEMPUNK_DIR, createLogger, readHookInput, exitIfPluginOwnsHooks } from '../hooks-lib/common.js';
 import {
   isValidSessionId,
   updateSessionState,
@@ -22,6 +22,7 @@ import {
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
 const log = createLogger('on-tool');
+exitIfPluginOwnsHooks(log);
 
 /** Ruta relativa al cwd si está dentro de él (más legible al restaurar), con separadores /. */
 function displayPath(filePath, cwd) {
