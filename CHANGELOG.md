@@ -15,6 +15,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   `plugin/scripts/run.cjs` localiza el `mempunk` instalado con npm y ejecuta sus hooks, así que
   actualizar el CLI actualiza los hooks. Si falta el CLI, o es más antiguo que el plugin,
   SessionStart lo avisa.
+- **`mempunk hooks migrate`** retira los hooks y agentes instalados a mano para pasarse al plugin.
+  Deja la statusline y lo que no sea de Mempunk.
+- **`mempunk statusline install|uninstall`**: la statusline tiene comando propio, porque un plugin
+  no puede configurarla. No reemplaza una statusline ajena sin `--force`.
+
+### Changed
+- **Hooks manuales y plugin ya no se ejecutan dos veces.** Con `mempunk@mempunk` activo en
+  `enabledPlugins`, los hooks manuales salen sin hacer nada y lo dejan en `hooks.log`.
+- `hooks install` con el plugin activo no instala nada y retira los hooks manuales que queden; sin
+  plugin, instala como siempre y sugiere el plugin al final.
+- `hooks install --check` informa del plugin y avisa si conviven plugin y hooks manuales.
+- `doctor` y `auto-start on` ya no piden instalar hooks si el plugin está activo.
 
 ## [2.5.0] — 2026-11-03
 

@@ -26,3 +26,42 @@ export function writeJsonFile(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
 }
+
+// Clave del plugin en enabledPlugins (<plugin>@<marketplace>)
+const PLUGIN_KEY = 'mempunk@mempunk';
+
+/** JSON de un archivo de Claude Code, o undefined si falta o está roto: la detección nunca aborta.
+ *  trimStart quita también el BOM. */
+function readJsonQuiet(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8').trimStart());
+  } catch (_) {
+    return undefined;
+  }
+}
+
+/** ¿Lo instaló Claude Code en esta máquina? La clave de enabledPlugins puede venir de un
+ *  settings.json compartido (repo de equipo, dotfiles) sin que el plugin esté instalado. */
+function isPluginInstalled(userDir) {
+  const entries = readJsonQuiet(path.join(userDir, 'plugins', 'installed_plugins.json'))?.plugins?.[PLUGIN_KEY];
+  return Array.isArray(entries) && entries.length > 0;
+}
+
+/** ¿Está activo el plugin de Mempunk? Instalado y habilitado, con la precedencia de Claude Code:
+ *  settings.local.json y settings.json del proyecto antes que los del usuario (CLAUDE_CONFIG_DIR
+ *  o ~/.claude). Ante la duda devuelve false: ejecutar dos veces es mejor que quedarse sin hooks.
+ *  Duplicado a propósito en src/hooks-lib/common.js (los hooks no importan de src/lib). */
+export function isPluginEnabled(projectDir = process.env.CLAUDE_PROJECT_DIR?.trim() || process.cwd()) {
+  const userDir = process.env.CLAUDE_CONFIG_DIR?.trim() || path.join(os.homedir(), '.claude');
+  if (!isPluginInstalled(userDir)) return false;
+  const candidates = [
+    path.join(projectDir, '.claude', 'settings.local.json'),
+    path.join(projectDir, '.claude', 'settings.json'),
+    path.join(userDir, 'settings.json'),
+  ];
+  for (const file of candidates) {
+    const flag = readJsonQuiet(file)?.enabledPlugins?.[PLUGIN_KEY];
+    if (typeof flag === 'boolean') return flag;
+  }
+  return false;
+}

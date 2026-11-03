@@ -333,31 +333,38 @@ export function isViaPlugin() {
 // Clave del plugin en enabledPlugins (<plugin>@<marketplace>)
 const PLUGIN_KEY = 'mempunk@mempunk';
 
-/** Valor de enabledPlugins["mempunk@mempunk"] en un settings.json, o undefined si no lo define
- *  (archivo ausente o ilegible incluidos). */
-function readPluginFlag(settingsPath) {
+/** JSON de un archivo de Claude Code, o undefined si falta o está roto: la detección nunca aborta.
+ *  trimStart quita también el BOM. */
+function readJsonQuiet(file) {
   try {
-    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8').replace(/^\uFEFF/, ''));
-    const value = settings?.enabledPlugins?.[PLUGIN_KEY];
-    return typeof value === 'boolean' ? value : undefined;
+    return JSON.parse(fs.readFileSync(file, 'utf8').trimStart());
   } catch (_) {
     return undefined;
   }
 }
 
-/** ¿Está activo el plugin de Mempunk? Misma precedencia que Claude Code: settings.local.json y
- *  settings.json del proyecto (`cwd`) antes que los del usuario (CLAUDE_CONFIG_DIR o ~/.claude).
+/** ¿Lo instaló Claude Code en esta máquina? La clave de enabledPlugins puede venir de un
+ *  settings.json compartido (repo de equipo, dotfiles) sin que el plugin esté instalado. */
+function isPluginInstalled(userDir) {
+  const entries = readJsonQuiet(path.join(userDir, 'plugins', 'installed_plugins.json'))?.plugins?.[PLUGIN_KEY];
+  return Array.isArray(entries) && entries.length > 0;
+}
+
+/** ¿Está activo el plugin de Mempunk? Instalado y habilitado, con la precedencia de Claude Code:
+ *  settings.local.json y settings.json del proyecto antes que los del usuario (CLAUDE_CONFIG_DIR
+ *  o ~/.claude). Ante la duda devuelve false: ejecutar dos veces es mejor que quedarse sin hooks.
  *  Duplicado a propósito en src/lib/config-files.js (los hooks no importan de src/lib). */
-export function isPluginEnabled(cwd = process.cwd()) {
+export function isPluginEnabled(projectDir = process.env.CLAUDE_PROJECT_DIR?.trim() || process.cwd()) {
   const userDir = process.env.CLAUDE_CONFIG_DIR?.trim() || path.join(os.homedir(), '.claude');
+  if (!isPluginInstalled(userDir)) return false;
   const candidates = [
-    path.join(cwd, '.claude', 'settings.local.json'),
-    path.join(cwd, '.claude', 'settings.json'),
+    path.join(projectDir, '.claude', 'settings.local.json'),
+    path.join(projectDir, '.claude', 'settings.json'),
     path.join(userDir, 'settings.json'),
   ];
   for (const file of candidates) {
-    const flag = readPluginFlag(file);
-    if (flag !== undefined) return flag;
+    const flag = readJsonQuiet(file)?.enabledPlugins?.[PLUGIN_KEY];
+    if (typeof flag === 'boolean') return flag;
   }
   return false;
 }
