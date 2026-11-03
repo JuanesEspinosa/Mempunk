@@ -27,6 +27,8 @@ Setup:
   doctor                            Check vault integrity
   auto-start on|off                 Enable/disable auto-start on session start
   auto-session full|minimal|off     Automatic session log on close (minimal: no conversation excerpts)
+  hooks    migrate                  Remove manual hooks and agents to use the plugin (keeps the statusline)
+  statusline install|uninstall      Context meter statusline (--force replaces another one)
   cli      list                     Show CLIs linked to the vault
   -v                                Show the CLI version
 
@@ -250,6 +252,15 @@ Maintenance:
     'hooks.noneFound': 'No Mempunk hooks found in {dir}',
     'hooks.agentsRemoved': 'Agents removed from {dir}',
     'hooks.statuslineUnregistered': 'Statusline unregistered from settings.json',
+    'hooks.pluginActive': 'Plugin mempunk@mempunk is active: manual hooks are not installed. Statusline: mempunk statusline install',
+    'hooks.pluginHint': 'Mempunk is also available as a Claude Code plugin (mempunk hooks migrate removes the manual hooks first):\n  claude plugin marketplace add JuanesEspinosa/Mempunk\n  claude plugin install mempunk@mempunk',
+    'hooks.migratedPluginActive': 'Plugin mempunk@mempunk is active: nothing else to do.',
+    'hooks.migratedInstallPlugin': 'Now install the plugin:\n  claude plugin marketplace add JuanesEspinosa/Mempunk\n  claude plugin install mempunk@mempunk',
+    'hooks.checkPluginOn': 'Plugin mempunk@mempunk: active',
+    'hooks.checkPluginOff': 'Plugin mempunk@mempunk: not active',
+    'hooks.checkCoexist': '! Manual hooks and the plugin coexist: the manual ones exit without running. Remove them with: mempunk hooks migrate',
+    'statusline.foreign': 'Another statusline is configured: {command}. Use --force to replace it',
+    'statusline.noneFound': 'Mempunk statusline is not registered',
 
     // auto-start
     'autostart.status': 'Auto-start: {state}',
@@ -303,6 +314,7 @@ Maintenance:
     'doctor.linked': 'Vault linked to {name}',
     'doctor.notLinked': 'Vault not linked to {name} — run mempunk link --cli {flag}',
     'doctor.hooksInstalled': 'Hooks installed ({scope})',
+    'doctor.pluginActive': 'Hooks and agents provided by the plugin mempunk@mempunk',
     'doctor.hooksMissing': 'Hooks not installed — run mempunk hooks install',
     'doctor.agentsInstalled': 'Agents installed ({scope})',
     'doctor.agentsMissing': 'Agents not installed — run mempunk hooks install',
@@ -396,6 +408,8 @@ Setup:
   doctor                            Verifica integridad del vault
   auto-start on|off                 Activa/desactiva auto-start al iniciar sesión
   auto-session full|minimal|off     Registro automático al cerrar (minimal: sin extractos de la conversación)
+  hooks    migrate                  Retira hooks y agentes manuales para usar el plugin (deja la statusline)
+  statusline install|uninstall      Statusline con el medidor de contexto (--force reemplaza otra)
   cli      list                     Muestra CLIs vinculados al vault
   -v                                Muestra la versión del CLI
 
@@ -619,6 +633,15 @@ Mantenimiento:
     'hooks.noneFound': 'No se encontraron hooks de Mempunk en {dir}',
     'hooks.agentsRemoved': 'Agentes eliminados de {dir}',
     'hooks.statuslineUnregistered': 'Statusline desregistrado de settings.json',
+    'hooks.pluginActive': 'Plugin mempunk@mempunk activo: no se instalan hooks manuales. Statusline: mempunk statusline install',
+    'hooks.pluginHint': 'Mempunk también está disponible como plugin de Claude Code (mempunk hooks migrate retira antes los hooks manuales):\n  claude plugin marketplace add JuanesEspinosa/Mempunk\n  claude plugin install mempunk@mempunk',
+    'hooks.migratedPluginActive': 'Plugin mempunk@mempunk activo: no hay nada más que hacer.',
+    'hooks.migratedInstallPlugin': 'Ahora instala el plugin:\n  claude plugin marketplace add JuanesEspinosa/Mempunk\n  claude plugin install mempunk@mempunk',
+    'hooks.checkPluginOn': 'Plugin mempunk@mempunk: activo',
+    'hooks.checkPluginOff': 'Plugin mempunk@mempunk: no activo',
+    'hooks.checkCoexist': '! Conviven hooks manuales y plugin: los manuales salen sin ejecutarse. Retíralos con: mempunk hooks migrate',
+    'statusline.foreign': 'Hay otra statusline configurada: {command}. Usa --force para reemplazarla',
+    'statusline.noneFound': 'La statusline de Mempunk no está registrada',
 
     // auto-start
     'autostart.status': 'Auto-start: {state}',
@@ -672,6 +695,7 @@ Mantenimiento:
     'doctor.linked': 'Vault vinculado a {name}',
     'doctor.notLinked': 'Vault no vinculado a {name} — ejecuta mempunk link --cli {flag}',
     'doctor.hooksInstalled': 'Hooks instalados ({scope})',
+    'doctor.pluginActive': 'Hooks y agentes provistos por el plugin mempunk@mempunk',
     'doctor.hooksMissing': 'Hooks no instalados — ejecuta mempunk hooks install',
     'doctor.agentsInstalled': 'Agentes instalados ({scope})',
     'doctor.agentsMissing': 'Agentes no instalados — ejecuta mempunk hooks install',

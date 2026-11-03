@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { MEMPUNK_DIR, runCli, createLogger, readHookInput, getProjectId, readAutoSessionMode } from '../hooks-lib/common.js';
+import { MEMPUNK_DIR, runCli, createLogger, readHookInput, getProjectId, readAutoSessionMode, exitIfPluginOwnsHooks } from '../hooks-lib/common.js';
 import {
   isValidSessionId,
   updateSessionState,
@@ -25,6 +25,7 @@ import {
 const INTERVAL = parseInt(process.env.MEMPUNK_CHECKPOINT_INTERVAL ?? '5', 10);
 
 const log = createLogger('on-stop');
+exitIfPluginOwnsHooks(log);
 
 /** Persiste el checkpoint vía CLI. Devuelve true si se guardó. */
 function saveCheckpoint(projectId, sessionId, state) {

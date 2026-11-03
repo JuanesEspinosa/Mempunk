@@ -5,6 +5,7 @@ import { VAULT_VERSION } from '../store/VaultStore.js';
 import { VAULT_PATH, requireVault, openStore } from '../lib/vault.js';
 import { CLI_DEFS, cliFlag } from '../lib/cli-defs.js';
 import { t } from '../lib/i18n.js';
+import { isPluginEnabled } from '../lib/config-files.js';
 
 // ── Handlers — Doctor ─────────────────────────────────────────────────────────
 
@@ -64,12 +65,17 @@ export function cmdDoctor() {
   const globalAgentsOk = AGENT_FILES_DOC.every(f => fs.existsSync(path.join(globalAgentsDir, f)));
   const localAgentsOk  = AGENT_FILES_DOC.every(f => fs.existsSync(path.join(localAgentsDir, f)));
 
-  if (globalHooksOk)     { ok(t('doctor.hooksInstalled', { scope: 'global' })); }
-  else if (localHooksOk) { ok(t('doctor.hooksInstalled', { scope: 'local' })); }
-  else { warn(t('doctor.hooksMissing')); }
+  // Con el plugin activo, hooks y agentes vienen de él: no faltan aunque no haya copias manuales
+  if (isPluginEnabled()) {
+    ok(t('doctor.pluginActive'));
+  } else {
+    if (globalHooksOk)     { ok(t('doctor.hooksInstalled', { scope: 'global' })); }
+    else if (localHooksOk) { ok(t('doctor.hooksInstalled', { scope: 'local' })); }
+    else { warn(t('doctor.hooksMissing')); }
 
-  if (globalAgentsOk || localAgentsOk) { ok(t('doctor.agentsInstalled', { scope: globalAgentsOk ? 'global' : 'local' })); }
-  else { warn(t('doctor.agentsMissing')); }
+    if (globalAgentsOk || localAgentsOk) { ok(t('doctor.agentsInstalled', { scope: globalAgentsOk ? 'global' : 'local' })); }
+    else { warn(t('doctor.agentsMissing')); }
+  }
 
   // Revisar hooks.log por errores recientes (últimas 50 líneas)
   const hooksLogPath = path.join(VAULT_PATH, '.mempunk', 'hooks.log');

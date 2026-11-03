@@ -19,7 +19,8 @@ import {
 import { cmdSearch } from './commands/search.js';
 import { cmdSync } from './commands/sync.js';
 import { cmdVaultVersion, cmdVaultUpgrade, cmdVaultBackup, cmdExport } from './commands/vault.js';
-import { cmdHooksInstall, cmdHooksUninstall, cmdAutoStart, cmdAutoSession } from './commands/hooks.js';
+import { cmdHooksInstall, cmdHooksUninstall, cmdHooksMigrate, cmdAutoStart, cmdAutoSession } from './commands/hooks.js';
+import { cmdStatusline } from './commands/statusline.js';
 import { cmdSetup } from './commands/setup.js';
 import { cmdLink, cmdUnlink, cmdCliList } from './commands/link.js';
 import { cmdStatus } from './commands/status.js';
@@ -185,8 +186,13 @@ try {
       switch (subcommand) {
         case 'install':   cmdHooksInstall(); break;
         case 'uninstall': cmdHooksUninstall(); break;
-        default: fail(t('cli.unknownSubcommand', { command: 'hooks', sub: subcommand ?? '', valid: 'install | uninstall' }));
+        case 'migrate':   cmdHooksMigrate(); break;
+        default: fail(t('cli.unknownSubcommand', { command: 'hooks', sub: subcommand ?? '', valid: 'install | uninstall | migrate' }));
       }
+      break;
+
+    case 'statusline':
+      cmdStatusline(subcommand);
       break;
 
     case 'setup':

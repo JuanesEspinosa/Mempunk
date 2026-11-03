@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from '@jest/globals';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,7 +26,7 @@ function runHook(hookFile, input, extraEnv = {}) {
     input: typeof input === 'string' ? input : JSON.stringify(input),
     encoding: 'utf8',
     cwd: PROJECT_ROOT,
-    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI, HOME: TEMP_HOME, USERPROFILE: TEMP_HOME, ...extraEnv },
+    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI, HOME: TEMP_HOME, USERPROFILE: TEMP_HOME, CLAUDE_CONFIG_DIR: '', CLAUDE_PROJECT_DIR: '', ...extraEnv },
   });
 }
 
@@ -143,6 +143,126 @@ describe('on-prompt.js', () => {
     expect(r.status).toBe(0);
     expect(fs.existsSync(path.join(MEMPUNK_DIR, 'escape.json'))).toBe(false);
     expect(lastLogLines()).toMatch(/session_id inválido/);
+  });
+});
+
+// ── Guardia de doble ejecución (plugin activo, D5) ───────────────────────────
+
+describe('hooks manuales con el plugin mempunk@mempunk activo', () => {
+  const base = path.join(os.tmpdir(), `mempunk-guard-${Date.now()}`);
+  const configDir = path.join(base, 'claude-config');
+  const repo = path.join(base, 'repo');
+
+  function writeSettings(file, enabled) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ enabledPlugins: { 'mempunk@mempunk': enabled } }));
+  }
+
+  /** Lo que deja `claude plugin install` (formato comprobado con Claude Code 2.1.296). */
+  function writeInstalled(userDir) {
+    fs.mkdirSync(path.join(userDir, 'plugins'), { recursive: true });
+    fs.writeFileSync(path.join(userDir, 'plugins', 'installed_plugins.json'), JSON.stringify({
+      version: 2,
+      plugins: { 'mempunk@mempunk': [{ scope: 'user', installPath: '/x', version: '2.5.0' }] },
+    }));
+  }
+
+  /** on-tool desde `repo` (Claude Code lanza el hook con el cwd del proyecto). */
+  function runToolHook(sessionId, extraEnv = {}, cwd = repo) {
+    return spawnSync('node', [path.join(PROJECT_ROOT, 'dist', 'hooks', 'on-tool.js')], {
+      input: JSON.stringify(fixture('post-tool-use-bash', { session_id: sessionId })),
+      encoding: 'utf8',
+      cwd,
+      env: {
+        ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, MEMPUNK_CLI,
+        HOME: TEMP_HOME, USERPROFILE: TEMP_HOME, CLAUDE_CONFIG_DIR: configDir, CLAUDE_PROJECT_DIR: '', MEMPUNK_VIA_PLUGIN: '',
+        ...extraEnv,
+      },
+    });
+  }
+
+  const stateExists = (sessionId) => fs.existsSync(path.join(SESSIONS_DIR, `${sessionId}.json`));
+
+  beforeAll(() => {
+    fs.mkdirSync(repo, { recursive: true });
+    writeInstalled(configDir);
+  });
+  // En afterEach: si un test falla antes de limpiar, los ajustes contaminarían a los demás
+  afterEach(() => {
+    const home = path.join(TEMP_HOME, '.claude');
+    fs.rmSync(path.join(repo, '.claude'), { recursive: true, force: true });
+    fs.rmSync(path.join(home, 'settings.json'), { force: true });
+    fs.rmSync(path.join(home, 'plugins'), { recursive: true, force: true });
+  });
+  afterAll(() => fs.rmSync(base, { recursive: true, force: true }));
+
+  it('activo en CLAUDE_CONFIG_DIR: el hook manual sale sin hacer nada y lo registra', () => {
+    writeSettings(path.join(configDir, 'settings.json'), true);
+    const r = runToolHook('guard-skip');
+    expect(r.status).toBe(0);
+    expect(stateExists('guard-skip')).toBe(false);
+    expect(lastLogLines()).toMatch(/\[on-tool\] plugin mempunk@mempunk activo: hook manual omitido/);
+  });
+
+  it('lee un settings.json con BOM (PowerShell y editores de Windows lo añaden)', () => {
+    const file = path.join(configDir, 'settings.json');
+    writeSettings(file, true);
+    fs.writeFileSync(file, `\uFEFF${fs.readFileSync(file, 'utf8')}`);
+    runToolHook('guard-bom');
+    expect(stateExists('guard-bom')).toBe(false);
+  });
+
+  it('el mismo hook lanzado por el plugin sí corre', () => {
+    writeSettings(path.join(configDir, 'settings.json'), true);
+    runToolHook('guard-plugin', { MEMPUNK_VIA_PLUGIN: '1' });
+    expect(stateExists('guard-plugin')).toBe(true);
+  });
+
+  it('desactivado en settings.local.json del proyecto: gana el proyecto y el hook corre', () => {
+    writeSettings(path.join(configDir, 'settings.json'), true);
+    writeSettings(path.join(repo, '.claude', 'settings.local.json'), false);
+    runToolHook('guard-project-off');
+    expect(stateExists('guard-project-off')).toBe(true);
+  });
+
+  it('desde un subdirectorio usa los ajustes de CLAUDE_PROJECT_DIR, no los del cwd', () => {
+    const sub = path.join(repo, 'src', 'deep');
+    fs.mkdirSync(sub, { recursive: true });
+    writeSettings(path.join(configDir, 'settings.json'), true);
+    writeSettings(path.join(repo, '.claude', 'settings.local.json'), false);
+    runToolHook('guard-subdir', { CLAUDE_PROJECT_DIR: repo }, sub);
+    expect(stateExists('guard-subdir')).toBe(true);
+  });
+
+  it('clave activa pero plugin sin instalar (settings compartido): el hook corre', () => {
+    const shared = path.join(base, 'config-sin-plugin');
+    writeSettings(path.join(shared, 'settings.json'), true);
+    runToolHook('guard-not-installed', { CLAUDE_CONFIG_DIR: shared });
+    expect(stateExists('guard-not-installed')).toBe(true);
+  });
+
+  it('installed_plugins.json ilegible: ante la duda el hook corre', () => {
+    const broken = path.join(base, 'config-roto');
+    writeSettings(path.join(broken, 'settings.json'), true);
+    fs.mkdirSync(path.join(broken, 'plugins'), { recursive: true });
+    fs.writeFileSync(path.join(broken, 'plugins', 'installed_plugins.json'), '{roto');
+    runToolHook('guard-broken', { CLAUDE_CONFIG_DIR: broken });
+    expect(stateExists('guard-broken')).toBe(true);
+  });
+
+  it('sin CLAUDE_CONFIG_DIR lee ~/.claude', () => {
+    const home = path.join(TEMP_HOME, '.claude');
+    writeSettings(path.join(configDir, 'settings.json'), false);
+    writeSettings(path.join(home, 'settings.json'), true);
+    writeInstalled(home);
+    runToolHook('guard-home', { CLAUDE_CONFIG_DIR: '' });
+    expect(stateExists('guard-home')).toBe(false);
+  });
+
+  it('plugin desactivado: el hook manual corre como siempre', () => {
+    writeSettings(path.join(configDir, 'settings.json'), false);
+    runToolHook('guard-off');
+    expect(stateExists('guard-off')).toBe(true);
   });
 });
 

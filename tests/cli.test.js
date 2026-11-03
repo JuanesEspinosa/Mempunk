@@ -18,7 +18,7 @@ const TEMP_VAULT = path.join(os.tmpdir(), `mempunk-cli-test-${Date.now()}`);
 // Sin esto, correr los tests destruye la instalación real del desarrollador.
 // os.homedir() usa HOME en POSIX y USERPROFILE en Windows: setear ambos.
 const TEMP_HOME = path.join(os.tmpdir(), `mempunk-cli-home-${Date.now()}`);
-const ISOLATED_ENV = { HOME: TEMP_HOME, USERPROFILE: TEMP_HOME };
+const ISOLATED_ENV = { HOME: TEMP_HOME, USERPROFILE: TEMP_HOME, CLAUDE_CONFIG_DIR: '', CLAUDE_PROJECT_DIR: '' };
 
 /**
  * Ejecuta un comando del CLI apuntando al vault y HOME temporales.

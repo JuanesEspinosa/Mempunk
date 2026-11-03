@@ -29,6 +29,7 @@ import {
   getMappedProjectId,
   hookT,
   assetNames,
+  exitIfPluginOwnsHooks,
 } from '../hooks-lib/common.js';
 import { pruneSessionStates } from '../hooks-lib/session-state.js';
 
@@ -56,6 +57,7 @@ const CONTEXT_TIMEOUT_MS = 15_000;
 const AUTO_START_FLAG = path.join(MEMPUNK_DIR, 'auto-start.flag');
 
 const log = createLogger('on-start');
+exitIfPluginOwnsHooks(log);
 
 /** Llama al CLI para obtener el último compact_snapshot como objeto */
 function fetchLastCompactSnapshot(projectId) {

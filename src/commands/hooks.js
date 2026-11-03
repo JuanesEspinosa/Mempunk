@@ -5,7 +5,8 @@ import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail } from '../lib/output.js';
 import { VAULT_PATH, __cliDir } from '../lib/vault.js';
-import { CLAUDE_SETTINGS_PATH, readJsonFile, writeJsonFile } from '../lib/config-files.js';
+import { CLAUDE_SETTINGS_PATH, isPluginEnabled, readJsonFile, writeJsonFile } from '../lib/config-files.js';
+import { installStatusline, uninstallStatusline } from './statusline.js';
 
 // ── Handlers — Hooks ──────────────────────────────────────────────────────────
 
@@ -16,6 +17,9 @@ const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.m
 // Identificadores únicos para distinguir archivos de Mempunk de otros del usuario
 const HOOK_MARKER  = '# mempunk-hook';
 const AGENT_MARKER = '# mempunk-agent';
+
+// package.json que `hooks install` deja junto a los hooks
+const ESM_PACKAGE_JSON = JSON.stringify({ type: 'module' }) + '\n';
 
 // Mapeo hook file → evento de Claude Code
 export const HOOK_EVENT_MAP = {
@@ -174,26 +178,38 @@ export function cmdHooksInstall() {
     const settings   = readJsonFile(CLAUDE_SETTINGS_PATH);
     const targetFwd  = targetDir.replace(/\\/g, '/');
     console.log(t('hooks.checkSettingsHeader', { path: CLAUDE_SETTINGS_PATH }));
-    for (const [file, event] of Object.entries(HOOK_EVENT_MAP)) {
+    const registeredFiles = Object.entries(HOOK_EVENT_MAP).filter(([file, event]) => {
       const registered = Array.isArray(settings.hooks?.[event]) &&
         settings.hooks[event].some((g) => g.hooks?.some(
           (h) => h.type === 'command' && _referencesMempunkHook(h, file, [targetFwd])
         ));
       console.log(`  ${registered ? '✓' : '✗'} ${event} → ${file}`);
-    }
+      return registered;
+    });
 
     console.log(t('hooks.checkAgentsHeader', { dir: agentsDir }));
     AGENT_FILES.forEach((f) => console.log(`  ${agentsOk.includes(f) ? '✓' : '✗'} ${f}`));
 
     const statuslineOk = fs.existsSync(path.join(os.homedir(), '.mempunk', 'statusline.js'));
     console.log(`Statusline: ${statuslineOk ? '✓' : '✗'}`);
+
+    const pluginActive = isPluginEnabled();
+    console.log(t(pluginActive ? 'hooks.checkPluginOn' : 'hooks.checkPluginOff'));
+    if (pluginActive && (hooksOk.length > 0 || registeredFiles.length > 0)) console.log(t('hooks.checkCoexist'));
+    return;
+  }
+
+  // Plugin activo (D5.2): no escribir hooks y barrer los manuales que queden
+  if (isPluginEnabled()) {
+    console.log(t('hooks.pluginActive'));
+    _removeManualHooks(targetDir, agentsTargetDir());
     return;
   }
 
   fs.mkdirSync(targetDir, { recursive: true });
 
   // package.json ESM necesario para que Node.js trate los hooks como módulos ESM
-  fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify({ type: 'module' }) + '\n');
+  fs.writeFileSync(path.join(targetDir, 'package.json'), ESM_PACKAGE_JSON);
 
   for (const file of HOOK_FILES) {
     const dest = path.join(targetDir, file);
@@ -205,37 +221,8 @@ export function cmdHooksInstall() {
   // Registrar hooks en settings.json como command hooks
   _registerHooksInSettings(targetDir);
 
-  // Instalar statusline: copiar src/statusline.js a ~/.mempunk/statusline.js
-  const statuslineSrc  = path.join(__cliDir, 'statusline.js');
-  const statuslineDest = path.join(os.homedir(), '.mempunk', 'statusline.js');
-  if (fs.existsSync(statuslineSrc)) {
-    fs.mkdirSync(path.dirname(statuslineDest), { recursive: true });
-    fs.copyFileSync(statuslineSrc, statuslineDest);
-    try { fs.chmodSync(statuslineDest, 0o755); } catch (_) {}
-    // package.json ESM: sin él, Node <22.7 no acepta los import del statusline
-    fs.writeFileSync(
-      path.join(path.dirname(statuslineDest), 'package.json'),
-      JSON.stringify({ type: 'module' }) + '\n'
-    );
-
-    // Registrar statusline en ~/.claude/settings.json
-    // Usa path completo de node y forward slashes para compatibilidad con bash en Windows
-    const fwdSlash   = (p) => p.replace(/\\/g, '/');
-    const nodeExe    = fwdSlash(process.execPath);
-    const destFwd    = fwdSlash(statuslineDest);
-    // Comillas: node puede vivir en una ruta con espacios (C:/Program Files/...)
-    const newCommand = `"${nodeExe}" "${destFwd}"`;
-
-    const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
-    const currentCmd = settings.statusLine?.command ?? '';
-    if (currentCmd !== newCommand) {
-      settings.statusLine = { type: 'command', command: newCommand };
-      writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
-      console.log(t('hooks.statuslineConfigured', { path: CLAUDE_SETTINGS_PATH }));
-    } else {
-      console.log(t('hooks.statuslineUnchanged'));
-    }
-  }
+  // Mantiene el comportamiento de siempre: `hooks install` reemplaza la statusline
+  installStatusline({ force: true });
 
   // Instalar agentes: copiar src/agents/*.md a .claude/agents/ (local o global)
   const agentSrcDir  = path.join(__cliDir, 'agents');
@@ -252,10 +239,15 @@ export function cmdHooksInstall() {
   }
 
   console.log(t('hooks.installed', { dir: targetDir }));
+  console.log(t('hooks.pluginHint'));
 }
 
-export function cmdHooksUninstall() {
-  const targetDir = hooksTargetDir();
+/** Retira los hooks y agentes manuales: archivos con marcador y registros de settings.json.
+ *  No toca la statusline. */
+function _removeManualHooks(targetDir, agentDir) {
+  // Antes de borrar: con settings.json roto, _unregisterHooksFromSettings aborta al final y
+  // los registros quedarían apuntando a scripts que ya no existen
+  readJsonFile(CLAUDE_SETTINGS_PATH);
 
   let removed = 0;
   if (fs.existsSync(targetDir)) {
@@ -274,10 +266,13 @@ export function cmdHooksUninstall() {
     }
 
     // El package.json ESM lo escribió install: retirarlo si no quedan otros scripts,
-    // para no dejar un directorio que "parece instalado" sin estarlo
+    // para no dejar un directorio que "parece instalado" sin estarlo. Solo si es el
+    // nuestro: este barrido también corre en directorios donde Mempunk no instaló nada
     try {
+      const packagePath = path.join(targetDir, 'package.json');
       const remaining = fs.readdirSync(targetDir).filter((f) => f.endsWith('.js'));
-      if (remaining.length === 0) fs.unlinkSync(path.join(targetDir, 'package.json'));
+      const isOurs = fs.readFileSync(packagePath, 'utf8') === ESM_PACKAGE_JSON;
+      if (removed > 0 && remaining.length === 0 && isOurs) fs.unlinkSync(packagePath);
     } catch (_) {}
   }
 
@@ -288,7 +283,6 @@ export function cmdHooksUninstall() {
   }
 
   // Eliminar agentes de Mempunk (solo los marcados con # mempunk-agent)
-  const agentDir = agentsTargetDir();
   let agentsRemoved = 0;
   for (const file of AGENT_FILES) {
     const filePath = path.join(agentDir, file);
@@ -303,22 +297,21 @@ export function cmdHooksUninstall() {
   }
   if (agentsRemoved > 0) console.log(t('hooks.agentsRemoved', { dir: agentDir }));
 
-  // Statusline: solo el uninstall global lo retira (settings.json + archivo)
-  if (!opts.local) {
-    const statuslineDest = path.join(os.homedir(), '.mempunk', 'statusline.js');
-    const destFwd = statuslineDest.replace(/\\/g, '/');
-    const settings = readJsonFile(CLAUDE_SETTINGS_PATH);
-    if (settings.statusLine?.command?.includes(destFwd)) {
-      delete settings.statusLine;
-      writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
-      console.log(t('hooks.statuslineUnregistered'));
-    }
-    try { fs.unlinkSync(statuslineDest); } catch (_) {}
-  }
-
   // Eliminar registros de settings.json — siempre, aunque el directorio no exista,
   // para no dejar entradas zombie apuntando a scripts borrados
   _unregisterHooksFromSettings(targetDir);
+}
+
+export function cmdHooksUninstall() {
+  // Statusline: solo el uninstall global la retira (settings.json + archivo)
+  if (!opts.local) uninstallStatusline();
+  _removeManualHooks(hooksTargetDir(), agentsTargetDir());
+}
+
+/** Paso de los hooks manuales al plugin (D6): deja la statusline, que el plugin no puede fijar. */
+export function cmdHooksMigrate() {
+  _removeManualHooks(hooksTargetDir(), agentsTargetDir());
+  console.log(t(isPluginEnabled() ? 'hooks.migratedPluginActive' : 'hooks.migratedInstallPlugin'));
 }
 
 // ── Handlers — Auto-start ─────────────────────────────────────────────────────
@@ -339,7 +332,7 @@ export function cmdAutoStart(action) {
 
     // Advertir si los hooks no están instalados — on-start.js los necesita
     const globalHooksDir = path.join(os.homedir(), '.claude', 'hooks');
-    if (!fs.existsSync(path.join(globalHooksDir, 'on-start.js'))) {
+    if (!isPluginEnabled() && !fs.existsSync(path.join(globalHooksDir, 'on-start.js'))) {
       process.stderr.write(t('autostart.requiresHooks'));
     }
 
