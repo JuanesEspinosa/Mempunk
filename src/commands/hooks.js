@@ -40,6 +40,12 @@ const HOOK_TIMEOUT_SECONDS = { 'on-start.js': 90, 'on-end.js': 60 };
 // Flag file para auto-start — vive dentro del vault para ser aislable en tests
 const AUTO_START_FLAG = path.join(VAULT_PATH, '.mempunk', 'auto-start.flag');
 
+// Ajustes versionados del vault; on-end.js los lee con readAutoSessionMode
+// (src/hooks-lib/common.js, que duplica la ruta y los modos a propósito)
+const SETTINGS_PATH = path.join(VAULT_PATH, '.mempunk', 'settings.json');
+const AUTO_SESSION_MODES = ['full', 'minimal', 'off'];
+const DEFAULT_AUTO_SESSION = 'full';
+
 /** Devuelve el directorio destino de hooks. Global por defecto; --local para scope de proyecto. */
 function hooksTargetDir() {
   return opts.local
@@ -347,4 +353,31 @@ export function cmdAutoStart(action) {
   } else {
     fail(t('autostart.unknownAction', { action }));
   }
+}
+
+// ── Handlers — Auto-session ───────────────────────────────────────────────────
+
+// Modo del registro automático de SessionEnd. Va en settings.json (versionado)
+// y no en un flag por máquina: el modo debe respetarse en todas las máquinas
+// que empujan al mismo remote.
+
+export function cmdAutoSession(mode) {
+  const settings = readJsonFile(SETTINGS_PATH);
+  // JSON válido pero no objeto: abortar antes de reescribirlo (no se pierde nada)
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    fail(t('config.parseError', { path: SETTINGS_PATH, message: 'not a JSON object' }));
+  }
+
+  if (!mode) {
+    // Modo efectivo, igual que readAutoSessionMode: un valor desconocido es minimal
+    const stored = settings.auto_session;
+    const effective = stored === undefined ? DEFAULT_AUTO_SESSION
+      : AUTO_SESSION_MODES.includes(stored) ? stored : 'minimal';
+    console.log(t('autosession.status', { mode: effective }));
+    return;
+  }
+  if (!AUTO_SESSION_MODES.includes(mode)) fail(t('autosession.unknownMode', { mode }));
+
+  writeJsonFile(SETTINGS_PATH, { ...settings, auto_session: mode });
+  console.log(t('autosession.set', { mode }));
 }

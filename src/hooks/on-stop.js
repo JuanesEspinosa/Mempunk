@@ -4,11 +4,13 @@
 // Guarda `last_assistant_message` en el estado de la sesión y, cada INTERVAL
 // turnos (contados por on-prompt), escribe un checkpoint en SQLite desde ese
 // estado. No lee el transcript: el coste no depende del largo de la sesión.
+// Fuera del modo `full` de `mempunk auto-session` el checkpoint no lleva los
+// mensajes (raw_turns vacío): la BD viaja al remote del vault.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { MEMPUNK_DIR, runCli, createLogger, readHookInput, getProjectId } from '../hooks-lib/common.js';
+import { MEMPUNK_DIR, runCli, createLogger, readHookInput, getProjectId, readAutoSessionMode } from '../hooks-lib/common.js';
 import {
   isValidSessionId,
   updateSessionState,
@@ -31,7 +33,7 @@ function saveCheckpoint(projectId, sessionId, state) {
     project_id:  projectId,
     session_id:  sessionId,
     turn_count:  state.turns,
-    raw_turns:   JSON.stringify(toRawTurns(state.recent_messages)),
+    raw_turns:   JSON.stringify(readAutoSessionMode(log) === 'full' ? toRawTurns(state.recent_messages) : []),
     files_found: JSON.stringify(state.files_touched),
   }), 'utf8');
 

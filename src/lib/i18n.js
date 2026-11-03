@@ -26,6 +26,7 @@ Setup:
   status                            Dashboard: vault, projects and sessions
   doctor                            Check vault integrity
   auto-start on|off                 Enable/disable auto-start on session start
+  auto-session full|minimal|off     Automatic session log on close (minimal: no conversation excerpts)
   cli      list                     Show CLIs linked to the vault
   -v                                Show the CLI version
 
@@ -259,6 +260,11 @@ Maintenance:
     'autostart.disabled': 'Auto-start disabled',
     'autostart.unknownAction': 'Unknown action: "{action}". Use: on | off',
 
+    // auto-session
+    'autosession.status': 'Automatic session log: {mode}',
+    'autosession.set': 'Automatic session log: {mode} (saved in .mempunk/settings.json, travels with the vault)',
+    'autosession.unknownMode': 'Unknown mode: "{mode}". Use: full | minimal | off',
+
     // link / unlink / cli list
     'link.linked': 'Vault linked to {name}: {path}',
     'link.alreadyLinked': 'Vault already linked to {name}',
@@ -389,6 +395,7 @@ Setup:
   status                            Dashboard: vault, proyectos y sesiones
   doctor                            Verifica integridad del vault
   auto-start on|off                 Activa/desactiva auto-start al iniciar sesión
+  auto-session full|minimal|off     Registro automático al cerrar (minimal: sin extractos de la conversación)
   cli      list                     Muestra CLIs vinculados al vault
   -v                                Muestra la versión del CLI
 
@@ -621,6 +628,11 @@ Mantenimiento:
     'autostart.alreadyOff': 'Auto-start ya estaba inactivo',
     'autostart.disabled': 'Auto-start desactivado',
     'autostart.unknownAction': 'Acción desconocida: "{action}". Usa: on | off',
+
+    // auto-session
+    'autosession.status': 'Registro automático de sesión: {mode}',
+    'autosession.set': 'Registro automático de sesión: {mode} (guardado en .mempunk/settings.json, viaja con el vault)',
+    'autosession.unknownMode': 'Modo desconocido: "{mode}". Usa: full | minimal | off',
 
     // link / unlink / cli list
     'link.linked': 'Vault vinculado a {name}: {path}',
