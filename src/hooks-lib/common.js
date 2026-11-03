@@ -56,6 +56,11 @@ export function runCli(args, { timeout } = {}) {
 
 /** Binario, argv y shell para llamar al CLI (ver runCli: shim .cmd en Windows) */
 function cliSpawnArgs(args) {
+  // El lanzador del plugin (plugin/scripts/run.cjs) fija la ruta exacta de cli.js:
+  // node + ruta, sin dividir por espacios ni pasar por el shim .cmd
+  if (!process.env.MEMPUNK_CLI && process.env.MEMPUNK_CLI_JS) {
+    return { bin: process.execPath, argv: [process.env.MEMPUNK_CLI_JS, ...args], shell: false };
+  }
   if (process.env.MEMPUNK_CLI || process.platform !== 'win32') {
     return { bin: CLI_BIN, argv: [...CLI_ARGS_PREFIX, ...args], shell: false };
   }
@@ -251,9 +256,9 @@ export function getProjectId(cwd) {
 
 const HOOK_MESSAGES = {
   en: {
-    'autostart.context': 'mempunk-auto-start: The user has auto-start enabled. Invoke @mempunk-loader ' +
+    'autostart.context': 'mempunk-auto-start: The user has auto-start enabled. Invoke {loader} ' +
       'to load the vault context for the current project before responding.',
-    'autostart.unmapped': 'This directory is not linked to a Mempunk project; use /mempunk to choose or create one.',
+    'autostart.unmapped': 'This directory is not linked to a Mempunk project; use {loadCmd} to choose or create one.',
     'restore.title': '⚠️ CONTEXT RESTORED AFTER COMPACTION ({date})',
     'restore.unknownDate': 'unknown date',
     'restore.files': 'Files you were editing:',
@@ -283,9 +288,9 @@ const HOOK_MESSAGES = {
     'autosession.reply': 'Last reply: {text}',
   },
   es: {
-    'autostart.context': 'mempunk-auto-start: El usuario tiene auto-start activado. Invoca @mempunk-loader ' +
+    'autostart.context': 'mempunk-auto-start: El usuario tiene auto-start activado. Invoca {loader} ' +
       'para cargar el contexto del vault del proyecto actual antes de responder.',
-    'autostart.unmapped': 'Este directorio no está vinculado a un proyecto de Mempunk; usa /mempunk para elegir o crear uno.',
+    'autostart.unmapped': 'Este directorio no está vinculado a un proyecto de Mempunk; usa {loadCmd} para elegir o crear uno.',
     'restore.title': '⚠️ CONTEXTO RESTAURADO TRAS COMPACTACION ({date})',
     'restore.unknownDate': 'fecha desconocida',
     'restore.files': 'Archivos que estabas editando:',
@@ -319,6 +324,18 @@ const HOOK_MESSAGES = {
 // Idioma activo — mismo contrato que src/lib/i18n.js: MEMPUNK_LANG que empiece
 // con "es" → español; cualquier otra cosa o ausente → inglés.
 const HOOK_LANG = (process.env.MEMPUNK_LANG ?? '').trim().toLowerCase().startsWith('es') ? 'es' : 'en';
+
+/** ¿Corre el hook desde el plugin de Claude Code? Lo marca plugin/scripts/run.cjs. */
+export function isViaPlugin() {
+  return process.env.MEMPUNK_VIA_PLUGIN === '1';
+}
+
+/** Nombres que Claude ve: en el plugin, agentes y skills llevan el prefijo "mempunk:" */
+export function assetNames() {
+  return isViaPlugin()
+    ? { loader: '@mempunk:mempunk-loader', loadCmd: '/mempunk:load' }
+    : { loader: '@mempunk-loader', loadCmd: '/mempunk' };
+}
 
 /** Mensaje de UI del hook traducido, con placeholders {name}. Nunca lanza. */
 export function hookT(key, params = {}) {

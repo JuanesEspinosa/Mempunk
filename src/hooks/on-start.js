@@ -28,6 +28,7 @@ import {
   classifyCliFailure,
   getMappedProjectId,
   hookT,
+  assetNames,
 } from '../hooks-lib/common.js';
 import { pruneSessionStates } from '../hooks-lib/session-state.js';
 
@@ -146,12 +147,12 @@ function buildAutoStartContext(cwd) {
   const projectId = getMappedProjectId(cwd);
   if (!projectId) {
     log('auto-start: cwd sin proyecto vinculado — aviso de /mempunk');
-    return hookT('autostart.unmapped');
+    return hookT('autostart.unmapped', assetNames());
   }
   const block = fetchContextBlock(projectId, { withSnapshot: false });
   if (!block) {
     log(`auto-start: context falló para ${projectId} — se delega en @mempunk-loader`);
-    return hookT('autostart.context');
+    return hookT('autostart.context', assetNames());
   }
   log(`auto-start: inyectando ${block.length} chars de contexto para ${projectId}`);
   return block;
@@ -248,7 +249,9 @@ function materializeAssets() {
 
 /** Emite la respuesta JSON de SessionStart. Contexto vacío → {}. */
 function writeSessionStartOutput(contextLines) {
-  const additionalContext = contextLines.filter(Boolean).join('\n').slice(0, MAX_CONTEXT_CHARS);
+  // Aviso del lanzador del plugin (CLI más antiguo que el plugin), si lo hay
+  const lines = [process.env.MEMPUNK_PLUGIN_NOTICE, ...contextLines];
+  const additionalContext = lines.filter(Boolean).join('\n').slice(0, MAX_CONTEXT_CHARS);
   if (!additionalContext) {
     process.stdout.write('{}');
     return;

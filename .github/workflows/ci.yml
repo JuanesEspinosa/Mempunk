@@ -37,6 +37,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # El build sincroniza plugin/ (versión y agentes): si cambió algo, el commit lo olvidó
+      - name: plugin/ al día con el build
+        shell: bash
+        run: test -z "$(git status --porcelain -- plugin/)" || { git status --porcelain -- plugin/; exit 1; }
 
   coverage:
     name: Coverage (>= 80% lines)
@@ -51,6 +55,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:coverage
+
+  plugin:
+    name: Plugin (claude plugin validate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g @anthropic-ai/claude-code@2.1.296
+      - run: claude plugin validate ./plugin --strict
+      - run: claude plugin validate . --strict
 
   secrets:
     name: Secret scan (gitleaks)
