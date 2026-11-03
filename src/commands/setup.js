@@ -1,4 +1,5 @@
 import { createInterface } from 'node:readline/promises';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { opts } from '../lib/args.js';
@@ -10,6 +11,27 @@ import { cmdInit } from './init.js';
 import { cmdHooksInstall, cmdAutoStart } from './hooks.js';
 
 // ── Handlers — Setup ──────────────────────────────────────────────────────────
+
+const PLUGIN_INSTALL_COMMANDS = [
+  'claude plugin marketplace add JuanesEspinosa/Mempunk',
+  'claude plugin install mempunk@mempunk',
+];
+
+/**
+ * Instala el plugin con el CLI de Claude Code. Ambos comandos son idempotentes.
+ * Van por shell porque en Windows `claude` puede ser un shim .cmd; son cadenas fijas,
+ * sin nada que citar. Si falla, el `hooks install` que sigue en cmdSetup deja los hooks manuales.
+ */
+function installPlugin() {
+  for (const command of PLUGIN_INSTALL_COMMANDS) {
+    const { status } = spawnSync(command, { stdio: 'inherit', shell: true });
+    if (status !== 0) {
+      console.log(t('setup.pluginFailed'));
+      return;
+    }
+  }
+  console.log(t('setup.pluginInstalled'));
+}
 
 /**
  * Copia vault-skills al directorio del vault.
@@ -38,8 +60,13 @@ export function installVaultSkills(
  *   vault-skills → Antigravity / opencode + vault-skills (sin hooks)
  *
  * Pasa --setup-mode <modo> para saltear las preguntas (CI / tests).
+ * --plugin implica 'auto' e instala el plugin de Claude Code en vez de los hooks manuales.
  */
 export async function cmdSetup() {
+  if (opts.plugin && (opts['setup-mode'] ?? 'auto') !== 'auto') {
+    fail(t('setup.pluginRequiresAuto', { mode: opts['setup-mode'] }));
+  }
+
   // ── Step 1: Vault ────────────────────────────────────────────────────────
   if (!fs.existsSync(VAULT_PATH)) {
     cmdInit();
@@ -49,7 +76,7 @@ export async function cmdSetup() {
   }
 
   // ── Step 2: Determinar modo ──────────────────────────────────────────────
-  let mode = opts['setup-mode'] ?? null;
+  let mode = opts['setup-mode'] ?? (opts.plugin ? 'auto' : null);
 
   if (!mode) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -105,6 +132,7 @@ export async function cmdSetup() {
 
   // ── Step 4: Instalar hooks+agentes o vault-skills ────────────────────────
   if (mode === 'auto') {
+    if (opts.plugin) installPlugin();
     cmdHooksInstall();
     cmdAutoStart('on');
   } else {
