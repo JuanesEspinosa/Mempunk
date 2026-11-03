@@ -32,6 +32,7 @@ const { values: opts, positionals } = parseArgs({
     branch:       { type: 'string'  },  // remote set --branch <rama>
     auto:         { type: 'boolean' },  // remote set --auto → pull_on_start + push_on_end
     strict:       { type: 'boolean' },  // push/pull --strict → exit 1 si se resolvió un conflicto de BD
+    background:   { type: 'boolean' },  // push --background → supervisor; resultado en .mempunk/last-push.json
     profile:      { type: 'string'  },  // skill/agent add|list --profile <p>
     description:  { type: 'string'  },  // skill/agent add --description "..."
     add:          { type: 'string'  },  // project profile <id> --add <p>

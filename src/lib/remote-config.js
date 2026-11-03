@@ -32,6 +32,8 @@ export const REQUIRED_IGNORES = [
   '.mempunk/context-warn-state.json',
   '.mempunk/session-touched.json',
   '.mempunk/remote-state.json',
+  '.mempunk/last-push.json',
+  '.mempunk/push.lock',
   '.mempunk/auto-start.flag',
   '.obsidian/workspace.json',
   '.obsidian/workspace-mobile.json',

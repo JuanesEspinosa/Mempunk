@@ -67,7 +67,7 @@ Remote:
   remote   set <url> [--branch b] [--auto]  Register the git remote for the vault
   remote   show                     Show the configured remote
   remote   unset                    Remove the remote configuration
-  push     [-m "<msg>" | --message-file <path> | --message-stdin] [--project <id>]  Commit and push the vault to the remote
+  push     [-m "<msg>" | --message-file <path> | --message-stdin] [--project <id>] [--background]  Commit and push the vault to the remote (--background: result to .mempunk/last-push.json)
   pull                              Pull the vault from the remote
 
 Maintenance:
@@ -219,6 +219,7 @@ Maintenance:
     'push.failed': 'git push failed: {stderr}',
     'push.messageFileUnreadable': 'Could not read --message-file {path}: {message}',
     'push.done': '✓ {message} · {hash} · {files} file(s) · pushed to origin/{branch}',
+    'sync.locked': 'Another vault sync is in progress ({command}, pid {pid}, since {at}). Wait for it to finish or, if that process no longer exists, delete {path}',
 
     // pull
     'pull.noRemoteBranch': 'The remote branch origin/{branch} does not exist yet — nothing to pull. Run mempunk push to publish the vault.',
@@ -429,7 +430,7 @@ Remote:
   remote   set <url> [--branch b] [--auto]  Registra el remote git del vault
   remote   show                     Muestra el remote configurado
   remote   unset                    Elimina la configuración del remote
-  push     [-m "<msg>" | --message-file <path> | --message-stdin] [--project <id>]  Commit y push del vault al remote
+  push     [-m "<msg>" | --message-file <path> | --message-stdin] [--project <id>] [--background]  Commit y push del vault al remote (--background: resultado en .mempunk/last-push.json)
   pull                              Trae el vault desde el remote
 
 Mantenimiento:
@@ -581,6 +582,7 @@ Mantenimiento:
     'push.failed': 'git push falló: {stderr}',
     'push.messageFileUnreadable': 'No se pudo leer --message-file {path}: {message}',
     'push.done': '✓ {message} · {hash} · {files} archivo(s) · subido a origin/{branch}',
+    'sync.locked': 'Hay otra sincronización del vault en curso ({command}, pid {pid}, desde {at}). Espera a que termine o, si ese proceso ya no existe, borra {path}',
 
     // pull
     'pull.noRemoteBranch': 'La rama remota origin/{branch} todavía no existe — nada que traer. Ejecuta mempunk push para publicar el vault.',

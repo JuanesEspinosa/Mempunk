@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from '@jest/globals';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -529,5 +529,136 @@ describeGit('pull sobre un vault creado con init en vez de clonar', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('git clone');
     expect(fx.git(['stash', 'list'], fx.vault).trim()).toBe('');
+  });
+});
+
+// ── Fase 3C: lock de sincronización y push --background ──────────────────────
+
+describeGit('lock de sincronización (push.lock)', () => {
+  let fx;
+  let lockFile;
+
+  beforeAll(() => {
+    fx = createFixture('sync-lock');
+    fx.bootstrap();
+    fx.run(['remote', 'set', fx.bare, '--branch', 'main']);
+    lockFile = path.join(fx.vault, '.mempunk', 'push.lock');
+  });
+
+  afterEach(() => {
+    fs.rmSync(lockFile, { force: true });
+  });
+
+  it('push y pull abortan si otro proceso vivo tiene el lock, sin tocar el remote', () => {
+    // El propio proceso de Jest está vivo: lock vigente
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid, command: 'push', at: new Date().toISOString() }));
+    fs.writeFileSync(path.join(fx.vault, 'areas', 'locked.md'), '# locked\n');
+
+    for (const cmd of ['push', 'pull']) {
+      const r = fx.runRaw([cmd]);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain('push.lock');
+    }
+    expect(() => fx.bareLog()).toThrow(); // el bare sigue sin commits
+    expect(fs.existsSync(lockFile)).toBe(true); // el lock ajeno no se borra
+  });
+
+  it('ignora un lock huérfano (PID inexistente) y lo libera al terminar', () => {
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: 2 ** 31 - 2, command: 'push', at: new Date().toISOString() }));
+    const r = fx.runRaw(['push', '-m', 'tras lock huérfano']);
+    expect(r.status).toBe(0);
+    expect(fx.bareLog()).toContain('vault: tras lock huérfano');
+    expect(fs.existsSync(lockFile)).toBe(false);
+  });
+
+  it('ignora un lock de más de 10 minutos aunque el PID exista', () => {
+    const old = new Date(Date.now() - 11 * 60_000).toISOString();
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid, command: 'pull', at: old }));
+    fs.writeFileSync(path.join(fx.vault, 'areas', 'viejo.md'), '# viejo\n');
+    expect(fx.runRaw(['push', '-m', 'tras lock viejo']).status).toBe(0);
+    expect(fs.existsSync(lockFile)).toBe(false);
+  });
+
+  it('un lock ilegible reciente se respeta (no se toma por huérfano al instante)', () => {
+    fs.writeFileSync(lockFile, '');
+    const r = fx.runRaw(['push']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('push.lock');
+    expect(fs.existsSync(lockFile)).toBe(true);
+  });
+
+  it('un lock ilegible con mtime de más de 10 minutos se retira', () => {
+    fs.writeFileSync(lockFile, '{ a medias');
+    const old = new Date(Date.now() - 11 * 60_000);
+    fs.utimesSync(lockFile, old, old);
+    fs.writeFileSync(path.join(fx.vault, 'areas', 'ilegible.md'), '# ilegible\n');
+    expect(fx.runRaw(['push', '-m', 'tras lock ilegible']).status).toBe(0);
+    expect(fs.existsSync(lockFile)).toBe(false);
+    expect(fs.readdirSync(path.join(fx.vault, '.mempunk')).filter((f) => f.startsWith('push.lock.'))).toEqual([]);
+  });
+
+  it('libera el lock también cuando el push falla', () => {
+    fx.run(['remote', 'set', path.join(fx.root, 'no-existe.git')]);
+    fs.writeFileSync(path.join(fx.vault, 'areas', 'falla.md'), '# falla\n');
+    expect(fx.runRaw(['push']).status).toBe(1);
+    expect(fs.existsSync(lockFile)).toBe(false);
+    fx.run(['remote', 'set', fx.bare]);
+  });
+
+  it('push.lock y last-push.json quedan en el .gitignore del vault', () => {
+    const ignore = fs.readFileSync(path.join(fx.vault, '.gitignore'), 'utf8');
+    expect(ignore).toContain('.mempunk/push.lock');
+    expect(ignore).toContain('.mempunk/last-push.json');
+  });
+});
+
+describeGit('push --background', () => {
+  let fx;
+  let lastPush;
+
+  beforeAll(() => {
+    fx = createFixture('push-background');
+    fx.bootstrap();
+    fx.run(['remote', 'set', fx.bare, '--branch', 'main']);
+    lastPush = path.join(fx.vault, '.mempunk', 'last-push.json');
+  });
+
+  it('hace el push y deja ok: true en last-push.json y una línea en hooks.log', () => {
+    const r = fx.runRaw(['push', '--background', '-m', 'desde el fondo', '--project', 'myproj']);
+    expect(r.status).toBe(0);
+    expect(fx.bareLog()).toContain('vault(myproj): desde el fondo');
+    expect(readJson(lastPush)).toMatchObject({ ok: true, status: 0, notified: false, stderr: '' });
+    expect(fs.readFileSync(path.join(fx.vault, '.mempunk', 'hooks.log'), 'utf8')).toContain('[push-bg] Push OK');
+  });
+
+  it('si el push falla, sale 1 y guarda el stderr (truncado) con ok: false', () => {
+    fx.run(['remote', 'set', path.join(fx.root, 'no-existe.git')]);
+    fs.writeFileSync(path.join(fx.vault, 'areas', 'bg.md'), '# bg\n');
+    const r = fx.runRaw(['push', '--background']);
+    expect(r.status).toBe(1);
+    const last = readJson(lastPush);
+    expect(last).toMatchObject({ ok: false, status: 1, notified: false });
+    expect(last.stderr.length).toBeGreaterThan(0);
+    expect(last.stderr.length).toBeLessThanOrEqual(500);
+    fx.run(['remote', 'set', fx.bare]);
+  });
+
+  it('un error de validación del hijo (--message-file ilegible) también queda en last-push.json', () => {
+    const r = fx.runRaw(['push', '--background', '--message-file', path.join(fx.root, 'no-existe.txt')]);
+    expect(r.status).toBe(1);
+    const last = readJson(lastPush);
+    expect(last.ok).toBe(false);
+    expect(last.stderr).toContain('no-existe.txt');
+  });
+
+  it('si otro proceso tiene el lock, queda registrado como fallo con push.lock en el stderr', () => {
+    const lockFile = path.join(fx.vault, '.mempunk', 'push.lock');
+    fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid, command: 'pull', at: new Date().toISOString() }));
+    try {
+      expect(fx.runRaw(['push', '--background']).status).toBe(1);
+      expect(readJson(lastPush).stderr).toContain('push.lock');
+    } finally {
+      fs.rmSync(lockFile, { force: true });
+    }
   });
 });
