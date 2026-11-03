@@ -18,7 +18,7 @@ const HOOK_MARKER  = '# mempunk-hook';
 const AGENT_MARKER = '# mempunk-agent';
 
 // Mapeo hook file → evento de Claude Code
-const HOOK_EVENT_MAP = {
+export const HOOK_EVENT_MAP = {
   'on-start.js':   'SessionStart',
   'on-stop.js':    'Stop',
   'on-compact.js': 'PreCompact',
@@ -29,13 +29,13 @@ const HOOK_EVENT_MAP = {
 
 // Matcher de Claude Code por hook (lista de nombres exactos separados por |).
 // Sin entrada → '' (todos). on-tool solo necesita las herramientas que registra.
-const HOOK_MATCHERS = { 'on-tool.js': 'Edit|Write|MultiEdit|NotebookEdit|Bash' };
+export const HOOK_MATCHERS = { 'on-tool.js': 'Edit|Write|MultiEdit|NotebookEdit|Bash' };
 
 // Timeout (segundos, campo `timeout` de Claude Code) para los hooks que hacen
 // push/pull del vault: por encima del tope interno del hook (45 s / 50 s) para
 // que sea el hook quien corte el git colgado y registre el motivo, no Claude Code.
 // SessionEnd: tope de 60 s, el presupuesto ampliado de ese evento (docs/plan-v3.md, 0.4).
-const HOOK_TIMEOUT_SECONDS = { 'on-start.js': 90, 'on-end.js': 60 };
+export const HOOK_TIMEOUT_SECONDS = { 'on-start.js': 90, 'on-end.js': 60 };
 
 // Flag file para auto-start — vive dentro del vault para ser aislable en tests
 const AUTO_START_FLAG = path.join(VAULT_PATH, '.mempunk', 'auto-start.flag');
