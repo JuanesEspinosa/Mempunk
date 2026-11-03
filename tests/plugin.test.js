@@ -264,7 +264,8 @@ describe('plugin: run.cjs', () => {
     const env = isolatedEnv({ PATH: pathWith(path.join(prefix, 'bin')) });
     runPluginHook('PostToolUse', { session_id: 's' }, env);
     expect(readJson(fake.report).what).toBe('on-tool');
-    expect(readJson(path.join(env.CLAUDE_PLUGIN_DATA, 'cli-root.json')).root).toBe(root);
+    // realpath: en macOS el tmpdir (/var/…) es un symlink a /private/var/…
+    expect(readJson(path.join(env.CLAUDE_PLUGIN_DATA, 'cli-root.json')).root).toBe(fs.realpathSync(root));
   });
 
   it('un bundle que no carga deja la causa en hooks.log y sale con 0', () => {
