@@ -649,6 +649,106 @@ describe('on-end.js (registro de sesión automático)', () => {
     expect(endSession('end-vacia').status).toBe(0);
     expect(sessionRows()).toHaveLength(before);
   });
+
+  describe('modo auto_session (.mempunk/settings.json)', () => {
+    const SETTINGS = path.join(MEMPUNK_DIR, 'settings.json');
+    afterEach(() => fs.rmSync(SETTINGS, { force: true }));
+
+    function closeWithFile(sessionId, settings) {
+      if (settings !== undefined) fs.writeFileSync(SETTINGS, settings);
+      playTurns(sessionId, 2, {}, { cwd: END_CWD });
+      editFile(sessionId, path.join(END_CWD, 'src', `${sessionId}.js`));
+      const before = sessionRows().length;
+      expect(endSession(sessionId).status).toBe(0);
+      const rows = sessionRows();
+      return { added: rows.length - before, row: rows.at(-1) };
+    }
+
+    // En minimal el resumen es solo la cabecera: una línea "[auto] … (N …)"
+    function expectHeaderOnly(row) {
+      expect(row.summary).toMatch(/^\[auto\] [^\n]*\(2 [^\n]*$/);
+    }
+
+    it('minimal registra turnos y archivos sin extractos de la conversación', () => {
+      const { added, row } = closeWithFile('mode-min', JSON.stringify({ auto_session: 'minimal' }));
+      expect(added).toBe(1);
+      expect(row.auto).toBe(1);
+      expect(JSON.parse(row.files_touched)).toEqual(['src/mode-min.js']);
+      expectHeaderOnly(row);
+    });
+
+    it('off no escribe el registro automático', () => {
+      const { added } = closeWithFile('mode-off', JSON.stringify({ auto_session: 'off' }));
+      expect(added).toBe(0);
+    });
+
+    it('full explícito guarda los extractos como hasta ahora', () => {
+      const { row } = closeWithFile('mode-full', JSON.stringify({ auto_session: 'full' }));
+      expect(row.summary).toContain('mensaje 1');
+      expect(row.summary).toContain('respuesta 2');
+    });
+
+    it('minimal: checkpoint y snapshot sin mensajes, con archivos y comandos', () => {
+      fs.writeFileSync(SETTINGS, JSON.stringify({ auto_session: 'minimal' }));
+      fs.writeFileSync(path.join(MEMPUNK_DIR, 'active-project.json'), JSON.stringify({ project_id: 'testproj' }));
+      runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'mode-snap' }));
+      runHook('on-tool.js', fixture('post-tool-use-bash', { session_id: 'mode-snap' }));
+      playTurns('mode-snap', 2, { MEMPUNK_CHECKPOINT_INTERVAL: '2' });
+      runHook('on-compact.js', fixture('pre-compact', { session_id: 'mode-snap' }));
+
+      const checkpoints = checkpointRows('mode-snap');
+      expect(checkpoints).toHaveLength(1);
+      expect(JSON.parse(checkpoints[0].raw_turns)).toEqual([]);
+      expect(JSON.parse(checkpoints[0].files_found)).toEqual(['src/auth.ts']);
+
+      const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+      const snap = db.prepare('SELECT * FROM compact_snapshots WHERE session_id = ?').get('mode-snap');
+      db.close();
+      expect(JSON.parse(snap.raw_turns)).toEqual([]);
+      expect(snap.message_count).toBe(0);
+      expect(JSON.parse(snap.files_found)).toEqual(['src/auth.ts']);
+      expect(JSON.parse(snap.commands_run)).toEqual(['npm test']);
+    });
+
+    it('settings.json vacío o sin la clave usa full', () => {
+      expect(closeWithFile('mode-empty', '  \n').row.summary).toContain('respuesta 2');
+      expect(closeWithFile('mode-nokey', JSON.stringify({ otra: 1 })).row.summary).toContain('respuesta 2');
+    });
+
+    it('un valor desconocido cae a minimal (sin extractos) y se anota en hooks.log', () => {
+      const { added, row } = closeWithFile('mode-bad', JSON.stringify({ auto_session: 'todo' }));
+      expect(added).toBe(1);
+      expectHeaderOnly(row);
+      expect(fs.readFileSync(path.join(MEMPUNK_DIR, 'hooks.log'), 'utf8')).toMatch(/auto_session inválido/);
+    });
+
+    it.each([
+      ['mode-null', 'null'],
+      ['mode-array', '[]'],
+      ['mode-nullval', JSON.stringify({ auto_session: null })],
+      ['mode-broken', '{no es json'],
+    ])('%s: JSON que no es un objeto válido cae a minimal', (sessionId, content) => {
+      const { added, row } = closeWithFile(sessionId, content);
+      expect(added).toBe(1);
+      expectHeaderOnly(row);
+    });
+
+    it('settings.json que no se puede leer (es un directorio) cae a minimal', () => {
+      fs.mkdirSync(SETTINGS);
+      try {
+        const { added, row } = closeWithFile('mode-dir');
+        expect(added).toBe(1);
+        expectHeaderOnly(row);
+      } finally {
+        fs.rmSync(SETTINGS, { recursive: true, force: true });
+      }
+    });
+
+    it('tolera el BOM de UTF-8 (settings.json guardado desde PowerShell)', () => {
+      const { added } = closeWithFile('mode-bom', '\uFEFF' + JSON.stringify({ auto_session: 'off' }));
+      expect(added).toBe(0);
+    });
+  });
 });
 
 // ── statusline.js ─────────────────────────────────────────────────────────────

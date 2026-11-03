@@ -18,6 +18,10 @@ export const LOG_FILE    = path.join(MEMPUNK_DIR, 'hooks.log');
 export const REMOTE_FILE = path.join(MEMPUNK_DIR, 'remote.json');
 // Lo escribe `mempunk push --background` (src/commands/push-background.js)
 export const LAST_PUSH_FILE = path.join(MEMPUNK_DIR, 'last-push.json');
+// Ajustes versionados del vault (`mempunk auto-session`); duplicado a propósito
+// de src/commands/hooks.js porque los hooks no importan de src/lib
+export const SETTINGS_FILE = path.join(MEMPUNK_DIR, 'settings.json');
+export const AUTO_SESSION_MODES = ['full', 'minimal', 'off'];
 
 // MEMPUNK_CLI permite sobrescribir "mempunk" por "node /path/to/cli.js" en tests
 const [CLI_BIN, ...CLI_ARGS_PREFIX] = (process.env.MEMPUNK_CLI ?? 'mempunk').split(' ');
@@ -114,6 +118,40 @@ export function readRemoteConfig() {
   } catch (_) {
     return null;
   }
+}
+
+/** Modo de `mempunk auto-session`: decide si el registro de SessionEnd, los
+ *  checkpoints (on-stop) y los snapshots (on-compact) guardan texto de la
+ *  conversación (solo en 'full'). Archivo vacío o clave ausente →
+ *  'full' (el comportamiento por defecto); archivo ilegible, JSON que no es un
+ *  objeto o valor desconocido → 'minimal': ante la duda no se guardan extractos
+ *  de la conversación. Misma lectura que cmdAutoSession (src/commands/hooks.js). */
+export function readAutoSessionMode(log) {
+  let raw;
+  try {
+    raw = fs.readFileSync(SETTINGS_FILE, 'utf8').replace(/^\uFEFF/, '');
+  } catch (err) {
+    if (err.code === 'ENOENT') return 'full';
+    log?.(`settings.json ilegible (${err.code ?? err.message}); auto_session=minimal`);
+    return 'minimal';
+  }
+  if (!raw.trim()) return 'full';
+  let settings;
+  try {
+    settings = JSON.parse(raw);
+  } catch (_) {
+    log?.('settings.json con JSON inválido; auto_session=minimal');
+    return 'minimal';
+  }
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    log?.('settings.json no es un objeto; auto_session=minimal');
+    return 'minimal';
+  }
+  const mode = settings.auto_session;
+  if (mode === undefined) return 'full';
+  if (AUTO_SESSION_MODES.includes(mode)) return mode;
+  log?.(`auto_session inválido ${JSON.stringify(mode)}; se usa minimal`);
+  return 'minimal';
 }
 
 /** Crea un logger con el nombre del hook como prefijo. Nunca lanza. */

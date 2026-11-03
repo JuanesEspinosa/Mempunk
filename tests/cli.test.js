@@ -1093,6 +1093,71 @@ describe('mempunk auto-start — advertencia sin agentes', () => {
   });
 });
 
+// ── Auto-session — modo del registro automático ───────────────────────────────
+
+describe('mempunk auto-session', () => {
+  const settingsPath = path.join(TEMP_VAULT, '.mempunk', 'settings.json');
+  const readSettings = () => JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  const runRaw = (...args) => spawnSync('node', ['src/cli.js', 'auto-session', ...args], {
+    cwd: PROJECT_ROOT,
+    env: { ...process.env, MEMPUNK_LANG: 'es', MEMPUNK_VAULT: TEMP_VAULT, ...ISOLATED_ENV },
+    encoding: 'utf8',
+  });
+
+  beforeAll(() => fs.rmSync(settingsPath, { force: true }));
+  afterAll(() => fs.rmSync(settingsPath, { force: true }));
+
+  it('sin settings.json muestra el modo por defecto (full)', () => {
+    expect(run('auto-session')).toContain('Registro automático de sesión: full');
+  });
+
+  it('cambia a minimal y lo guarda en settings.json', () => {
+    expect(run('auto-session minimal')).toContain('minimal');
+    expect(readSettings()).toEqual({ auto_session: 'minimal' });
+    expect(run('auto-session')).toContain('Registro automático de sesión: minimal');
+  });
+
+  it('conserva las demás claves de settings.json', () => {
+    fs.writeFileSync(settingsPath, JSON.stringify({ otra: 1, auto_session: 'minimal' }));
+    run('auto-session off');
+    expect(readSettings()).toEqual({ otra: 1, auto_session: 'off' });
+  });
+
+  it('rechaza un modo desconocido sin tocar settings.json', () => {
+    fs.writeFileSync(settingsPath, JSON.stringify({ auto_session: 'off' }));
+    const result = runRaw('todo');
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('full | minimal | off');
+    expect(readSettings()).toEqual({ auto_session: 'off' });
+  });
+
+  it('con un valor guardado desconocido muestra el modo efectivo (minimal)', () => {
+    fs.writeFileSync(settingsPath, JSON.stringify({ auto_session: 'todo' }));
+    expect(run('auto-session')).toContain('Registro automático de sesión: minimal');
+    fs.writeFileSync(settingsPath, JSON.stringify({ auto_session: null }));
+    expect(run('auto-session')).toContain('Registro automático de sesión: minimal');
+  });
+
+  it.each([
+    ['JSON corrupto', '{no es json'],
+    ['null', 'null'],
+    ['un array', '[1,2]'],
+  ])('con settings.json %s falla sin reescribirlo', (_label, content) => {
+    fs.writeFileSync(settingsPath, content);
+    const result = runRaw('off');
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('settings.json');
+    expect(fs.readFileSync(settingsPath, 'utf8')).toBe(content);
+  });
+
+  it('settings.json no está en el .gitignore del vault (viaja con git)', () => {
+    run('remote set https://example.com/vault.git');
+    const ignore = fs.readFileSync(path.join(TEMP_VAULT, '.gitignore'), 'utf8');
+    expect(ignore).not.toContain('settings.json');
+    run('remote unset');
+  });
+});
+
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 describe('mempunk link / unlink — Antigravity y Gemini deprecado', () => {

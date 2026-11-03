@@ -3,11 +3,13 @@
 // Evento: PreCompact — justo antes de que Claude Code compacte el contexto.
 // Persiste el estado de la sesión (mensajes recientes, archivos editados y
 // comandos corridos) como compact_snapshot en SQLite. No lee el transcript.
+// Fuera del modo `full` de `mempunk auto-session` el snapshot no lleva los
+// mensajes (raw_turns vacío): la BD viaja al remote del vault.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { MEMPUNK_DIR, runCli, createLogger, readHookInput, getProjectId } from '../hooks-lib/common.js';
+import { MEMPUNK_DIR, runCli, createLogger, readHookInput, getProjectId, readAutoSessionMode } from '../hooks-lib/common.js';
 import {
   isValidSessionId,
   hasSessionState,
@@ -47,7 +49,7 @@ try {
   }
 
   fs.mkdirSync(MEMPUNK_DIR, { recursive: true });
-  const rawTurns = toRawTurns(state.recent_messages);
+  const rawTurns = readAutoSessionMode(log) === 'full' ? toRawTurns(state.recent_messages) : [];
   const tmpFile = path.join(os.tmpdir(), `mempunk-compact-${process.pid}-${Date.now()}.json`);
   fs.writeFileSync(tmpFile, JSON.stringify({
     project_id:    projectId,

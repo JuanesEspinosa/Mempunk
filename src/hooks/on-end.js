@@ -3,6 +3,8 @@
 // Evento: SessionEnd — al cerrar la sesión de Claude Code.
 // 1. Registro de sesión automático desde el estado de la sesión (Fase 3B): si
 //    el agente ya guardó la sesión, el CLI solo le añade los archivos que falten.
+//    `mempunk auto-session` elige el modo: full (con extractos), minimal (sin
+//    extractos de la conversación) u off (sin registro).
 // 2. Si .mempunk/remote.json tiene auto.push_on_end: lanza `mempunk push
 //    --background` desacoplado (Fase 3C) con mensaje genérico como red de
 //    seguridad, y sale sin esperarlo. El resultado queda en last-push.json y el
@@ -21,6 +23,7 @@ import {
   readStdinJson,
   getProjectId,
   readRemoteConfig,
+  readAutoSessionMode,
   hookTimeoutMs,
   hookT,
 } from '../hooks-lib/common.js';
@@ -50,10 +53,13 @@ function projectArgs(projectId) {
   return [];
 }
 
-/** Resumen del registro automático: primer prompt + última respuesta, truncados. */
-function buildSummary(state) {
+/** Resumen del registro automático: cabecera y, en modo full, primer prompt +
+ *  última respuesta truncados. */
+function buildSummary(state, mode) {
+  const header = hookT('autosession.header', { turns: state.turns });
+  if (mode !== 'full') return header;
   const lastReply = [...state.recent_messages].reverse().find((m) => m.role === 'assistant')?.text;
-  const lines = [hookT('autosession.header', { turns: state.turns })];
+  const lines = [header];
   if (state.first_prompt) lines.push(hookT('autosession.prompt', { text: truncate(state.first_prompt, SUMMARY_PROMPT_CHARS) }));
   if (lastReply) lines.push(hookT('autosession.reply', { text: truncate(lastReply, SUMMARY_REPLY_CHARS) }));
   return lines.join('\n');
@@ -66,6 +72,9 @@ function recordAutoSession(sessionId, cwd) {
     return;
   }
   if (!hasSessionState(sessionId)) return; // sesión sin prompts: nada que registrar
+
+  const mode = readAutoSessionMode(log);
+  if (mode === 'off') return;
 
   const state = readSessionState(sessionId);
   if (state.turns === 0 && state.files_touched.length === 0) return;
@@ -80,7 +89,7 @@ function recordAutoSession(sessionId, cwd) {
   // un archivo existente
   fs.writeFileSync(tmpFile, JSON.stringify({
     project_id:    projectId,
-    summary:       buildSummary(state),
+    summary:       buildSummary(state, mode),
     files_touched: state.files_touched,
     since:         state.started_at,
   }), { encoding: 'utf8', mode: 0o600, flag: 'wx' });

@@ -19,7 +19,7 @@ import {
 import { cmdSearch } from './commands/search.js';
 import { cmdSync } from './commands/sync.js';
 import { cmdVaultVersion, cmdVaultUpgrade, cmdVaultBackup, cmdExport } from './commands/vault.js';
-import { cmdHooksInstall, cmdHooksUninstall, cmdAutoStart } from './commands/hooks.js';
+import { cmdHooksInstall, cmdHooksUninstall, cmdAutoStart, cmdAutoSession } from './commands/hooks.js';
 import { cmdSetup } from './commands/setup.js';
 import { cmdLink, cmdUnlink, cmdCliList } from './commands/link.js';
 import { cmdStatus } from './commands/status.js';
@@ -215,6 +215,10 @@ try {
 
     case 'auto-start':
       cmdAutoStart(subcommand);
+      break;
+
+    case 'auto-session':
+      cmdAutoSession(subcommand);
       break;
 
     case 'log':

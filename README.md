@@ -276,6 +276,7 @@ If the vault needs `mempunk vault upgrade`, the tools return that error instead 
 | `mempunk status` | Dashboard: vault info, projects, backlog counts, last session | `mempunk status` |
 | `mempunk cli list` | List compatible CLIs and their link status | `mempunk cli list` |
 | `mempunk auto-start on\|off` | Toggle loading the linked project's context on session start | `mempunk auto-start on` |
+| `mempunk auto-session full\|minimal\|off` | Whether hooks store conversation text (session log, checkpoints, compaction snapshots): yes (`full`, default), no (`minimal`), or no and no automatic session log (`off`). File paths and commands are kept in every mode. Stored in `.mempunk/settings.json`, versioned with the vault | `mempunk auto-session minimal` |
 
 ### Projects
 
@@ -361,7 +362,7 @@ The vault is a git repo; these commands push and pull it without you touching gi
 
 **New machine.** Clone the vault into `~/Dev-Brain` *before* running any mempunk command there. Running `mempunk init` first and then `remote set`/`pull` fails with an "unrelated histories" error; the CLI prints a hint to clone instead.
 
-**Remote URL.** Accepted forms: https/ssh/git/file URLs, scp-style `git@host:path`, and local paths. URLs that embed credentials (`https://user:token@…`) are rejected — use git's credential helper or SSH keys. Branch names are validated with `git check-ref-format`. `remote set` also untracks per-machine files that were previously committed (`auto-start.flag`, `hooks.log`, backups) and warns that the DB contains session snapshots with conversation excerpts, so the remote must be a **private** repository.
+**Remote URL.** Accepted forms: https/ssh/git/file URLs, scp-style `git@host:path`, and local paths. URLs that embed credentials (`https://user:token@…`) are rejected — use git's credential helper or SSH keys. Branch names are validated with `git check-ref-format`. `remote set` also untracks per-machine files that were previously committed (`auto-start.flag`, `hooks.log`, backups) and warns that the DB contains session snapshots with conversation excerpts, so the remote must be a **private** repository. To keep conversation text out of the DB from now on, run `mempunk auto-session minimal`.
 
 **Commit messages.** Sources in precedence order: `--message-file <path>`, `--message-stdin` (whole message from stdin), `-m "<msg>"`, default `vault: session <YYYY-MM-DD> — <n> files`. The message is prefixed `vault(<project>):` with `--project` or `vault:` without. Messages are sanitized (control characters removed, 2000 chars max); `--project` must be a plain identifier (letters, digits, `_`, `-`, `.`).
 
