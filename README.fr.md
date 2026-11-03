@@ -272,6 +272,7 @@ Si le vault a besoin de `mempunk vault upgrade`, les outils renvoient cette erre
 | `mempunk status` | Dashboard: vault, projets, backlogs, derniere session | `mempunk status` |
 | `mempunk cli list` | Lister les CLI compatibles et leur statut de liaison | `mempunk cli list` |
 | `mempunk auto-start on\|off` | Activer/desactiver le chargement du contexte du projet lie au demarrage | `mempunk auto-start on` |
+| `mempunk auto-session full\|minimal\|off` | Si les hooks stockent du texte de la conversation (journal de session, checkpoints, snapshots) : oui (`full`, par défaut), non (`minimal`) ou non et sans journal automatique (`off`). Les chemins de fichiers et les commandes sont toujours stockés. Enregistré dans `.mempunk/settings.json`, versionné avec le vault | `mempunk auto-session minimal` |
 
 ### Projets
 
