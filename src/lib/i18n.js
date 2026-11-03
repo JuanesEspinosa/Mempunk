@@ -334,6 +334,7 @@ Maintenance:
     'context.invalidMaxChars': '--max-chars must be an integer >= {min}',
     'context.state': 'Project state (wiki/state.md)',
     'context.lastSession': 'Last session ({date})',
+    'context.lastSessionAuto': 'Last session ({date}, auto-logged on session end)',
     'context.backlog': 'Pending backlog',
     'context.decisions': 'Recent decisions',
     'context.snapshot': 'Last snapshot ({date})',
@@ -345,6 +346,7 @@ Maintenance:
     // Servicios (compartidos por CLI y MCP)
     'service.noProject': 'No project_id given and the directory {cwd} is not linked to a Mempunk project. Pass project_id or run "mempunk project activate <id> --here" in the repo.',
     'service.emptyField': '"{field}" cannot be empty',
+    'service.invalidDate': '"{field}" is not a valid date: {value}',
     'service.invalidStatus': 'Invalid status "{status}". Use: {valid}',
     'service.invalidPriority': 'Invalid priority "{priority}". Use an integer from {min} to {max}',
     'service.unknownBacklogItem': 'Backlog task "{id}" does not exist',
@@ -694,6 +696,7 @@ Mantenimiento:
     'context.invalidMaxChars': '--max-chars debe ser un entero >= {min}',
     'context.state': 'Estado del proyecto (wiki/state.md)',
     'context.lastSession': 'Última sesión ({date})',
+    'context.lastSessionAuto': 'Última sesión ({date}, registrada automáticamente al cerrar)',
     'context.backlog': 'Backlog pendiente',
     'context.decisions': 'Decisiones recientes',
     'context.snapshot': 'Último snapshot ({date})',
@@ -705,6 +708,7 @@ Mantenimiento:
     // Servicios (compartidos por CLI y MCP)
     'service.noProject': 'No se indicó project_id y el directorio {cwd} no está vinculado a un proyecto de Mempunk. Pasa project_id o ejecuta "mempunk project activate <id> --here" en el repo.',
     'service.emptyField': '"{field}" no puede estar vacío',
+    'service.invalidDate': '"{field}" no es una fecha válida: {value}',
     'service.invalidStatus': 'Estado inválido "{status}". Usa: {valid}',
     'service.invalidPriority': 'Prioridad inválida "{priority}". Usa un entero de {min} a {max}',
     'service.unknownBacklogItem': 'La tarea "{id}" no existe en el backlog',

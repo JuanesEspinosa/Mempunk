@@ -575,6 +575,82 @@ describe('on-start.js (limpieza de estados de sesión)', () => {
   });
 });
 
+// ── on-end.js: registro de sesión automático (Fase 3B) ────────────────────────
+
+describe('on-end.js (registro de sesión automático)', () => {
+  // cwd fuera de project-paths: el proyecto sale del active-project (testproj)
+  const END_CWD = path.join(os.tmpdir(), `mempunk-end-cwd-${Date.now()}`);
+
+  function sessionRows() {
+    const db = new Database(path.join(MEMPUNK_DIR, 'mempunk.db'));
+    const rows = db.prepare("SELECT * FROM session_log WHERE project_id = 'testproj' ORDER BY ended_at").all();
+    db.close();
+    return rows;
+  }
+
+  function endSession(sessionId) {
+    return runHook('on-end.js', fixture('stop', { session_id: sessionId, cwd: END_CWD, reason: 'prompt_input_exit' }));
+  }
+
+  function editFile(sessionId, filePath) {
+    runHook('on-tool.js', fixture('post-tool-use-edit', {
+      session_id: sessionId, cwd: END_CWD, tool_input: { file_path: filePath },
+    }));
+  }
+
+  it('cerrar sin guardar deja un registro automático con los archivos editados (criterio de salida)', () => {
+    const before = sessionRows().length;
+    playTurns('end-a', 2, {}, { cwd: END_CWD });
+    editFile('end-a', path.join(END_CWD, 'src', 'login.js'));
+
+    const r = endSession('end-a');
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toBe('');
+
+    const rows = sessionRows();
+    expect(rows).toHaveLength(before + 1);
+    const auto = rows.at(-1);
+    expect(auto.auto).toBe(1);
+    expect(auto.started_at).toBe(readState('end-a').started_at);
+    expect(JSON.parse(auto.files_touched)).toEqual(['src/login.js']);
+    expect(auto.summary).toContain('mensaje 1');
+    expect(auto.summary).toContain('respuesta 2');
+  });
+
+  it('volver a cerrar la misma sesión (resume) actualiza el registro en vez de duplicarlo', () => {
+    const before = sessionRows().length;
+    editFile('end-a', path.join(END_CWD, 'src', 'logout.js'));
+    expect(endSession('end-a').status).toBe(0);
+
+    const rows = sessionRows();
+    expect(rows).toHaveLength(before);
+    expect(JSON.parse(rows.at(-1).files_touched)).toEqual(['src/login.js', 'src/logout.js']);
+  });
+
+  it('si el agente ya registró la sesión, solo le añade los archivos', () => {
+    playTurns('end-b', 1, {}, { cwd: END_CWD });
+    editFile('end-b', path.join(END_CWD, 'src', 'pago.js'));
+    expect(runCli('session log testproj Resumen-del-agente').status).toBe(0);
+    const before = sessionRows().length;
+
+    expect(endSession('end-b').status).toBe(0);
+
+    const rows = sessionRows();
+    expect(rows).toHaveLength(before);
+    const manual = rows.find((row) => row.summary === 'Resumen-del-agente');
+    expect(manual.auto).toBe(0);
+    expect(JSON.parse(manual.files_touched)).toEqual(['src/pago.js']);
+  });
+
+  it('una sesión sin turnos ni archivos no deja registro', () => {
+    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(SESSIONS_DIR, 'end-vacia.json'), JSON.stringify({ started_at: new Date().toISOString() }));
+    const before = sessionRows().length;
+    expect(endSession('end-vacia').status).toBe(0);
+    expect(sessionRows()).toHaveLength(before);
+  });
+});
+
 // ── statusline.js ─────────────────────────────────────────────────────────────
 
 describe('statusline.js (ContextMeter)', () => {

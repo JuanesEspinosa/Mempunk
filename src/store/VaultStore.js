@@ -207,6 +207,16 @@ const MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 8,
+    up(db) {
+      // Registros de sesión escritos por el hook SessionEnd (Fase 3B) frente a
+      // los que escribe el agente o el usuario: los automáticos ceden ante estos
+      // Idempotente como v7: re-aplicar la migración no falla si la columna ya existe
+      const hasAuto = db.prepare('PRAGMA table_info(session_log)').all().some((c) => c.name === 'auto');
+      if (!hasAuto) db.exec('ALTER TABLE session_log ADD COLUMN auto INTEGER NOT NULL DEFAULT 0');
+    },
+  },
 ];
 
 // Columnas con rutas de archivos del vault y el sufijo que las identifica
@@ -218,6 +228,16 @@ const LEGACY_PATH_COLUMNS = [
   ['daily_logs',     'file_path', /(?:^|\/)(daily\/[^/]+)$/],
   ['projects',       'path',      /(?:^|\/)(projects\/[^/]+)$/],
 ];
+
+/** Lista guardada como JSON en una columna; nulo o corrupto → [] */
+function parseJsonList(value) {
+  try {
+    const parsed = JSON.parse(value ?? '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
 
 /** true si p es absoluta en cualquier plataforma (una ruta C:/ en POSIX también cuenta) */
 function isAnyAbsolute(p) {
@@ -891,14 +911,78 @@ class VaultStore {
    * @returns {object|undefined}
    */
   getLastSession(projectId) {
+    // A igual fecha gana el registro escrito por el agente o el usuario (auto = 0)
     return this.db
       .prepare(
         `SELECT * FROM session_log
          WHERE project_id = ?
-         ORDER BY ended_at DESC
+         ORDER BY ended_at DESC, auto ASC
          LIMIT 1`
       )
       .get(projectId);
+  }
+
+  /**
+   * Registro de sesión automático (hook SessionEnd). Por orden:
+   * 1. Si el proyecto ya tiene un registro no automático cerrado desde `since`
+   *    (el agente guardó la sesión), solo le añade los archivos que falten.
+   * 2. Si ya hay un registro automático de esta sesión (mismo `started_at`,
+   *    p. ej. una sesión reanudada que vuelve a cerrarse), lo actualiza.
+   * 3. Si no, inserta uno nuevo con auto = 1.
+   * @param {string}   projectId
+   * @param {{ summary: string, files?: string[], since: string }} input
+   * @returns {{ id: string, action: 'merged' | 'updated' | 'inserted' }}
+   */
+  logAutoSession(projectId, { summary, files = [], since }) {
+    const now = new Date().toISOString();
+    const union = (stored) => JSON.stringify([...new Set([...parseJsonList(stored), ...files])]);
+
+    return this.db.transaction(() => {
+      const manual = this.db
+        .prepare(
+          `SELECT id, files_touched FROM session_log
+           WHERE project_id = ? AND auto = 0 AND ended_at >= ?
+           ORDER BY ended_at DESC LIMIT 1`
+        )
+        .get(projectId, since);
+      const previous = this.db
+        .prepare('SELECT id, files_touched FROM session_log WHERE project_id = ? AND auto = 1 AND started_at = ?')
+        .get(projectId, since);
+
+      if (manual) {
+        // Sesión reanudada que el agente guardó tras un cierre previo: el registro
+        // automático de ese cierre sobra; sus archivos pasan al del agente
+        const previousFiles = previous ? parseJsonList(previous.files_touched) : [];
+        const merged = [...new Set([...parseJsonList(manual.files_touched), ...previousFiles, ...files])];
+        this.db.prepare('UPDATE session_log SET files_touched = ? WHERE id = ?')
+          .run(JSON.stringify(merged), manual.id);
+        if (previous) {
+          this.db.prepare('DELETE FROM session_log WHERE id = ?').run(previous.id);
+          this.db.prepare(`DELETE FROM search_index WHERE item_id = ? AND type = 'session'`).run(previous.id);
+        }
+        return { id: manual.id, action: 'merged' };
+      }
+
+      if (previous) {
+        this.db.prepare('UPDATE session_log SET ended_at = ?, summary = ?, files_touched = ? WHERE id = ?')
+          .run(now, summary, union(previous.files_touched), previous.id);
+        this.db.prepare(`UPDATE search_index SET content = ? WHERE item_id = ? AND type = 'session'`)
+          .run(summary, previous.id);
+        return { id: previous.id, action: 'updated' };
+      }
+
+      const id = makeId('sess');
+      this.db
+        .prepare(
+          `INSERT INTO session_log (id, project_id, started_at, ended_at, summary, files_touched, auto)
+           VALUES (?, ?, ?, ?, ?, ?, 1)`
+        )
+        .run(id, projectId, since, now, summary, JSON.stringify([...new Set(files)]));
+      this.db
+        .prepare(`INSERT INTO search_index (item_id, project_id, type, content) VALUES (?, ?, 'session', ?)`)
+        .run(id, projectId, summary);
+      return { id, action: 'inserted' };
+    })();
   }
 
   // ---------------------------------------------------------------------------

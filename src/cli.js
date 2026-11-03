@@ -14,7 +14,7 @@ import { cmdResourceAdd, cmdResourceList } from './commands/resource.js';
 import { cmdDailyLog, cmdDailyList } from './commands/daily.js';
 import {
   cmdSessionLog, cmdSessionLast, cmdSessionRecover, cmdSessionCheckpoints,
-  cmdSessionSaveCheckpoint, cmdSessionGetCompact, cmdSessionSaveCompact,
+  cmdSessionSaveCheckpoint, cmdSessionGetCompact, cmdSessionSaveCompact, cmdSessionSaveAuto,
 } from './commands/session.js';
 import { cmdSearch } from './commands/search.js';
 import { cmdSync } from './commands/sync.js';
@@ -133,7 +133,8 @@ try {
         case 'save-compact':    cmdSessionSaveCompact(args[0]); break;
         case 'get-compact':     cmdSessionGetCompact(args[0]); break;
         case 'save-checkpoint': cmdSessionSaveCheckpoint(args[0]); break;
-        default: fail(t('cli.unknownSubcommand', { command: 'session', sub: subcommand ?? '', valid: 'log | last | recover | checkpoints | save-compact | get-compact | save-checkpoint' }));
+        case 'save-auto':       cmdSessionSaveAuto(args[0]); break;
+        default: fail(t('cli.unknownSubcommand', { command: 'session', sub: subcommand ?? '', valid: 'log | last | recover | checkpoints | save-compact | get-compact | save-checkpoint | save-auto' }));
       }
       break;
 
