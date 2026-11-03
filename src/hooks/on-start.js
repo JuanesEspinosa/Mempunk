@@ -3,8 +3,9 @@
 // Evento: SessionStart — al inicio de cada sesión de Claude Code.
 // - Inicializa session-touched.json, borra estados de sesión de más de 7 días y
 //   persiste el proyecto activo (siempre).
-// - Si source !== "compact": auto-pull (si remote.json lo pide) y materialize de
-//   skills/agentes del vault a ~/.claude y a los repos de esta máquina.
+// - Si source !== "compact": aviso si falló el push en segundo plano de la sesión
+//   anterior (last-push.json, una sola vez), auto-pull (si remote.json lo pide) y
+//   materialize de skills/agentes del vault a ~/.claude y a los repos de esta máquina.
 // - Si auto-start.flag existe y source !== "compact": inyecta `mempunk context <id>` del
 //   proyecto vinculado al cwd (o CLAUDE_PROJECT_ID); sin vínculo, un aviso de una línea;
 //   si el CLI falla, la instrucción anterior de invocar @mempunk-loader.
@@ -17,6 +18,7 @@ import path from 'node:path';
 import {
   MEMPUNK_DIR,
   ACTIVE_FILE,
+  LAST_PUSH_FILE,
   runCli,
   createLogger,
   readStdinJson,
@@ -174,6 +176,55 @@ function autoPullVault() {
   return hookT(`remote.pull.${kind}`);
 }
 
+function processAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return err.code === 'EPERM';
+  }
+}
+
+/** Aviso FIJO (clasificado) si falló el último push en segundo plano y aún no se
+ *  avisó; lo marca como avisado para no repetirlo en cada sesión. El stderr
+ *  guardado nunca llega a Claude, igual que en el pull. */
+function lastPushWarning() {
+  let last;
+  try {
+    last = JSON.parse(fs.readFileSync(LAST_PUSH_FILE, 'utf8'));
+  } catch (_) {
+    return null; // nunca hubo push en segundo plano, o el archivo está a medias
+  }
+  if (!last || last.ok === true || last.notified) return null;
+
+  let kind;
+  if (last.ok === null) {
+    // Provisional: si el supervisor sigue vivo el push está en curso; si murió, no terminó
+    if (processAlive(last.pid)) return null;
+    kind = 'interrupted';
+  } else {
+    kind = classifyCliFailure({
+      status: last.status,
+      signal: last.signal,
+      stderr: last.stderr,
+      error:  last.error_code ? { code: last.error_code } : undefined,
+    });
+  }
+  try {
+    // Un push de fondo pudo terminar entre la lectura y aquí: no pisar su resultado
+    const current = JSON.parse(fs.readFileSync(LAST_PUSH_FILE, 'utf8'));
+    if (current.at !== last.at) return null;
+    const tmp = `${LAST_PUSH_FILE}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ ...last, notified: true }, null, 2));
+    fs.renameSync(tmp, LAST_PUSH_FILE);
+  } catch (err) {
+    log(`No se pudo marcar last-push.json como avisado: ${err.message}`);
+  }
+  log(`Aviso de push en segundo plano fallido (${kind}, at=${last.at ?? '?'})`);
+  return hookT(`remote.push.${kind}`);
+}
+
 /** Copia skills/agentes del vault a sus carpetas .claude/. Nunca aborta la sesión.
  *  Devuelve un aviso fijo para Claude si hubo conflictos, o null. */
 function materializeAssets() {
@@ -252,6 +303,9 @@ try {
   // ── Auto-start: inyectar el contexto del proyecto en sesiones normales ──────
 
   if (source !== 'compact') {
+    // Antes del pull: el resultado es del push de la sesión anterior
+    const pushWarning = lastPushWarning();
+
     // Pull del vault antes de cargar contexto (solo si remote.json lo pide)
     const pullWarning = autoPullVault();
 
@@ -265,7 +319,7 @@ try {
     } else {
       log(`SessionStart source=${source ?? 'startup'} — sin restauración ni auto-start`);
     }
-    writeSessionStartOutput([autoStartContext, pullWarning, materializeWarning]);
+    writeSessionStartOutput([autoStartContext, pushWarning, pullWarning, materializeWarning]);
     process.exit(0);
   }
 
