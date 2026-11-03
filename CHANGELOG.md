@@ -9,6 +9,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-11-03
+
 ### Added
 
 - **Antigravity CLI (`agy`) in `link`, `unlink`, `setup` and `cli list`.** `mempunk link --cli agy` (aliases `agy`, `antigravity`) adds the vault and the session protocols to a marked block in `~/.gemini/config/AGENTS.md`, and registers the MCP server as `mcpServers.mempunk` in `~/.gemini/config/mcp_config.json` (`node <cli.js> mcp`, with `MEMPUNK_VAULT` when the vault is not `~/Dev-Brain`). An existing `mempunk` entry is never overwritten. `unlink --cli agy` removes the block, and removes the MCP entry once no vault is left. `setup` option 2 now links Antigravity CLI and opencode.
