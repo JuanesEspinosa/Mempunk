@@ -1,0 +1,79 @@
+{
+  "description": "Mempunk: session state, checkpoints, compaction snapshots, auto-start context and vault sync. Each hook runs the bundle of the installed mempunk CLI through scripts/run.cjs.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["-e", "require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','run.cjs'))", "on-start"],
+            "timeout": 90
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["-e", "require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','run.cjs'))", "on-prompt"]
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["-e", "require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','run.cjs'))", "on-tool"]
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["-e", "require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','run.cjs'))", "on-stop"]
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["-e", "require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','run.cjs'))", "on-compact"]
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["-e", "require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','run.cjs'))", "on-end"],
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

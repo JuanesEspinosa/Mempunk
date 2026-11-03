@@ -1,0 +1,12 @@
+{
+  "name": "mempunk",
+  "owner": { "name": "JuanesEspinosa" },
+  "description": "Mempunk — persistent dev brain for Claude Code",
+  "plugins": [
+    {
+      "name": "mempunk",
+      "source": "./plugin",
+      "description": "Hooks, MCP server, agents and skills for the Mempunk CLI (requires: npm install -g mempunk)"
+    }
+  ]
+}

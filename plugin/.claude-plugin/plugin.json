@@ -1,0 +1,10 @@
+{
+  "name": "mempunk",
+  "version": "2.5.0",
+  "description": "Persistent dev brain for Claude Code: session memory, decisions and backlog in a local vault. Requires the mempunk CLI (npm install -g mempunk).",
+  "author": { "name": "JuanesEspinosa" },
+  "homepage": "https://github.com/JuanesEspinosa/Mempunk",
+  "repository": "https://github.com/JuanesEspinosa/Mempunk",
+  "license": "MIT",
+  "keywords": ["memory", "context", "vault", "sessions"]
+}
