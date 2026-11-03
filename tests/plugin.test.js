@@ -149,8 +149,9 @@ describe('plugin: manifiestos', () => {
   it('los skills load y end tienen description; end solo a petición del usuario', () => {
     const load = fs.readFileSync(path.join(PLUGIN_ROOT, 'skills', 'load', 'SKILL.md'), 'utf8');
     const end = fs.readFileSync(path.join(PLUGIN_ROOT, 'skills', 'end', 'SKILL.md'), 'utf8');
-    expect(load).toMatch(/^---\ndescription: .+/);
-    expect(end).toMatch(/^---\ndescription: .+/);
+    // \r?: el checkout de Windows (autocrlf) deja CRLF
+    expect(load).toMatch(/^---\r?\ndescription: .+/);
+    expect(end).toMatch(/^---\r?\ndescription: .+/);
     expect(end).toMatch(/disable-model-invocation: true/);
   });
 
