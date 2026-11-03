@@ -9,7 +9,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [2.6.0] — 2026-11-03
+
 ### Added
+- **`mempunk setup --plugin`** instala el plugin de Claude Code. Si `claude` no está o falla, usa los
+  hooks manuales. Sin `--plugin`, `setup` instala hooks como siempre y sugiere el plugin al final.
 - **Plugin de Claude Code** (`plugin/`, marketplace en la raíz del repo): hooks, servidor MCP,
   agentes y los skills `/mempunk:load` y `/mempunk:end`. El plugin no trae código de hooks propio:
   `plugin/scripts/run.cjs` localiza el `mempunk` instalado con npm y ejecuta sus hooks, así que

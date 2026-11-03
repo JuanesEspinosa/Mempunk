@@ -19,7 +19,7 @@ const MESSAGES = {
     'cli.help': `Usage: mempunk <command> [options]
 
 Setup:
-  setup                             Initialize, link and configure hooks (all in one)
+  setup      [--plugin]             Initialize, link and configure hooks (all in one)
   init                              Initialize the vault at ~/Dev-Brain
   link       [--cli claude|agy|opencode]  Link the vault (default: all installed)
   unlink     [--cli claude|agy|opencode]  Unlink the vault
@@ -385,6 +385,9 @@ Maintenance:
     'setup.autoHint': '\nWhen Claude Code starts: @mempunk-loader runs automatically.',
     'setup.manualHint': '\nTo load context at session start:',
     'setup.manualHintRead': '  Read {path}',
+    'setup.pluginInstalled': '✓ Claude Code plugin installed',
+    'setup.pluginFailed': '⚠ Could not install the plugin. Falling back to manual hooks.',
+    'setup.pluginRequiresAuto': '--plugin only works in auto mode, not with --setup-mode {mode}',
     'setup.migrateHint': '\nIf you migrate to Claude Code in the future:',
     'setup.migrateHintCmd': '  mempunk setup --setup-mode auto',
   },
@@ -400,7 +403,7 @@ Maintenance:
     'cli.help': `Uso: mempunk <comando> [opciones]
 
 Setup:
-  setup                             Inicializa, vincula y configura hooks (todo en uno)
+  setup      [--plugin]             Inicializa, vincula y configura hooks (todo en uno)
   init                              Inicializa el vault en ~/Dev-Brain
   link       [--cli claude|agy|opencode]  Vincula el vault (default: todos los instalados)
   unlink     [--cli claude|agy|opencode]  Desvincula el vault
@@ -766,6 +769,9 @@ Mantenimiento:
     'setup.autoHint': '\nAl iniciar Claude Code: @mempunk-loader se ejecuta automáticamente.',
     'setup.manualHint': '\nPara cargar contexto al inicio de sesión:',
     'setup.manualHintRead': '  Lee {path}',
+    'setup.pluginInstalled': '✓ Plugin de Claude Code instalado',
+    'setup.pluginFailed': '⚠ No se pudo instalar el plugin. Se usan hooks manuales.',
+    'setup.pluginRequiresAuto': '--plugin solo funciona en modo auto, no con --setup-mode {mode}',
     'setup.migrateHint': '\nSi migras a Claude Code en el futuro:',
     'setup.migrateHintCmd': '  mempunk setup --setup-mode auto',
   },

@@ -342,3 +342,77 @@ describe('comandos que asumían hooks manuales', () => {
     fs.rmSync(flag, { force: true });
   });
 });
+
+describe('mempunk setup --plugin', () => {
+  const BIN = path.join(BASE, 'bin');
+  const CALLS = path.join(BASE, 'claude-calls.log');
+  // En Windows la clave es `Path`: añadir `PATH` dejaría dos y no se sabe cuál gana.
+  const PATH_KEY = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+
+  /** `claude` falso en el PATH: anota sus argumentos y sale con `exitCode`. */
+  function fakeClaude(exitCode) {
+    fs.rmSync(BIN, { recursive: true, force: true });
+    fs.mkdirSync(BIN, { recursive: true });
+    fs.rmSync(CALLS, { force: true });
+    if (process.platform === 'win32') {
+      fs.writeFileSync(path.join(BIN, 'claude.cmd'), `@echo off\r\necho %*>>"${CALLS}"\r\nexit /b ${exitCode}\r\n`);
+    } else {
+      fs.writeFileSync(path.join(BIN, 'claude'), `#!/bin/sh\necho "$*" >> "${CALLS}"\nexit ${exitCode}\n`, { mode: 0o755 });
+    }
+    return { [PATH_KEY]: `${BIN}${path.delimiter}${process.env[PATH_KEY]}` };
+  }
+
+  const claudeCalls = () => fs.readFileSync(CALLS, 'utf8').trim().split(/\r?\n/).map((l) => l.trim());
+
+  it('añade el marketplace, instala el plugin y no escribe hooks si queda activo', () => {
+    enablePlugin();
+    const r = cli(['setup', '--plugin'], fakeClaude(0));
+
+    expect(r.status).toBe(0);
+    expect(claudeCalls()).toEqual([
+      'plugin marketplace add JuanesEspinosa/Mempunk',
+      'plugin install mempunk@mempunk',
+    ]);
+    expect(installedHooks()).toEqual([]);
+    expect(r.out).toMatch(/Plugin de Claude Code instalado/);
+  });
+
+  it('no pregunta: --plugin implica el modo automático', () => {
+    enablePlugin();
+    cli(['setup', '--plugin'], fakeClaude(0));
+    const config = JSON.parse(fs.readFileSync(path.join(VAULT, '.mempunk', 'setup.json'), 'utf8'));
+    expect(config.mode).toBe('auto');
+  });
+
+  it('si claude falla, cae a hooks install', () => {
+    const r = cli(['setup', '--plugin'], fakeClaude(1));
+
+    expect(r.status).toBe(0);
+    expect(claudeCalls()).toEqual(['plugin marketplace add JuanesEspinosa/Mempunk']);
+    expect(installedHooks().length).toBeGreaterThan(0);
+    expect(r.out).toMatch(/No se pudo instalar el plugin/);
+  });
+
+  it('si claude no está, cae a hooks install', () => {
+    fs.rmSync(BIN, { recursive: true, force: true });
+    fs.mkdirSync(BIN, { recursive: true });
+    const r = cli(['setup', '--plugin'], { [PATH_KEY]: `${BIN}${path.delimiter}${path.dirname(process.execPath)}` });
+
+    expect(r.status).toBe(0);
+    expect(installedHooks().length).toBeGreaterThan(0);
+    expect(r.out).toMatch(/No se pudo instalar el plugin/);
+  });
+
+  it('rechaza --plugin con un modo sin hooks', () => {
+    const r = cli(['setup', '--plugin', '--setup-mode', 'manual'], fakeClaude(0));
+
+    expect(r.status).not.toBe(0);
+    expect(r.out).toMatch(/--plugin/);
+    expect(fs.existsSync(CALLS)).toBe(false);
+  });
+
+  it('sin --plugin no llama a claude', () => {
+    cli(['setup', '--setup-mode', 'auto'], fakeClaude(0));
+    expect(fs.existsSync(CALLS)).toBe(false);
+  });
+});

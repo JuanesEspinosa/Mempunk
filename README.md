@@ -60,6 +60,21 @@ mempunk setup
 
 It creates `~/Dev-Brain/`, adds it to your CLI's directories, and installs hooks + agents (Claude Code, automatic) or the `vault-skills/` protocols (manual, opencode). Running it again is safe: it keeps the existing vault. Set `MEMPUNK_VAULT` before running it to use a different location.
 
+#### Claude Code: plugin or manual hooks
+
+With Claude Code you can run Mempunk as a plugin instead of installing hooks into `~/.claude`:
+
+```bash
+mempunk setup --plugin
+```
+
+This runs `claude plugin marketplace add JuanesEspinosa/Mempunk` and `claude plugin install mempunk@mempunk`. If `claude` is missing or fails, `setup` falls back to manual hooks. You can also run those two commands yourself, or use `/plugin marketplace add JuanesEspinosa/Mempunk` and then `/plugin install mempunk@mempunk` inside Claude Code.
+
+- **The plugin still needs the CLI.** It ships no hook code: it finds your installed `mempunk` and runs its hooks, so `npm update -g mempunk` updates them too.
+- **Already using manual hooks?** Run `mempunk hooks migrate` first. With the plugin active, manual hooks don't run, so nothing fires twice.
+- **Status line.** A plugin can't set it: run `mempunk statusline install`.
+- **Volta or a custom prefix.** If the plugin warns that it can't find the CLI, set `MEMPUNK_CLI="node <package path>/src/cli.js"`.
+
 ### 3. Register your first project
 
 From the root of your repository:
@@ -270,6 +285,7 @@ If the vault needs `mempunk vault upgrade`, the tools return that error instead 
 | Command | Description | Example |
 |---------|-------------|---------|
 | `mempunk setup` | Interactive setup: init + link + hooks install | `mempunk setup` |
+| `mempunk setup --plugin` | Same, using the Claude Code plugin instead of manual hooks | `mempunk setup --plugin` |
 | `mempunk init` | Create vault structure and initialize DB | `mempunk init` |
 | `mempunk link [--cli <name>]` | Link vault to Claude Code, opencode, or Antigravity CLI (`agy`) | `mempunk link --cli agy` |
 | `mempunk unlink [--cli <name>]` | Unlink from a CLI | `mempunk unlink` |
@@ -346,6 +362,8 @@ If the vault needs `mempunk vault upgrade`, the tools return that error instead 
 | `mempunk hooks install` | Install hooks + agents globally in `~/.claude/` | `mempunk hooks install` |
 | `mempunk hooks install --local` | Install hooks in `.claude/` of the current project | `mempunk hooks install --local` |
 | `mempunk hooks install --check` | Verify hooks, agents, and statusline are installed | `mempunk hooks install --check` |
+| `mempunk hooks migrate` | Remove manual hooks + agents to move to the plugin | `mempunk hooks migrate` |
+| `mempunk statusline install` | Install the status line (`uninstall` removes it; `--force` replaces another one) | `mempunk statusline install` |
 | `mempunk hooks uninstall` | Remove Mempunk hooks | `mempunk hooks uninstall` |
 
 ### Sync between machines

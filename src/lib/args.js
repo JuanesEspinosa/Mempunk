@@ -26,6 +26,7 @@ const { values: opts, positionals } = parseArgs({
     version:      { type: 'boolean' },  // --version
     help:         { type: 'boolean', short: 'h' },  // --help / -h en cualquier comando → ayuda, nunca ejecutarlo
     cli:          { type: 'string'  },  // link/unlink --cli <name>
+    plugin:       { type: 'boolean' },  // setup --plugin → instala el plugin de Claude Code
     'setup-mode': { type: 'string'  },  // setup --setup-mode auto|manual|vault-skills
     message:      { type: 'string', short: 'm' },  // push -m "<msg>" / --message
     'message-file':  { type: 'string'  },  // push --message-file <path> → mensaje desde archivo (sin shell)
