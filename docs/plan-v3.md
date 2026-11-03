@@ -214,7 +214,7 @@ La descripción de cada herramienta sustituye a buena parte del protocolo del CL
 
 **Criterio de salida:** desde Claude Code, Gemini y opencode se puede llamar a `get_context`, `save_decision` y `search` sobre el mismo vault; dos sesiones simultáneas guardando decisiones no producen `SQLITE_BUSY`.
 
-## Fase 2 — Plugin de Claude Code (v2.5.0)
+## Fase 2 — Plugin de Claude Code (v2.6.0)
 
 El plugin es un adaptador fino: declara hooks, agentes, skills y el servidor MCP, y todos ellos llaman al CLI `mempunk` instalado por npm. No contiene lógica de negocio ni la base de datos.
 
@@ -260,7 +260,7 @@ El hook SessionStart verifica que `mempunk` está en el PATH y que su versión e
 
 **2.6 Migración desde `hooks install`**
 
-- v2.5.0: `mempunk hooks install` sigue funcionando pero imprime un aviso de obsolescencia y sugiere el plugin.
+- v2.6.0: `mempunk hooks install` sigue funcionando pero imprime un aviso de obsolescencia y sugiere el plugin.
 - Nuevo `mempunk hooks migrate`: elimina las entradas de Mempunk de `settings.json` (reutiliza `_unregisterHooksFromSettings`), borra los archivos de `~/.claude/hooks` y `~/.claude/agents` con el marcador `# mempunk-hook`/`# mempunk-agent`, y deja la statusline intacta.
 - `hooks install --check` detecta si conviven plugin y hooks manuales (se ejecutarían dos veces) y lo reporta como error.
 - v3.0.0: se retira `hooks install`.
@@ -272,7 +272,7 @@ El hook SessionStart verifica que `mempunk` está en el PATH y que su versión e
 
 **Criterio de salida:** en una máquina limpia, `npm install -g mempunk` + `/plugin install` deja hooks, MCP y agentes funcionando sin tocar `settings.json`; `/plugin uninstall` no deja residuos.
 
-## Fase 3 — Hooks sin parsear el transcript (v2.6.0)
+## Fase 3 — Hooks sin parsear el transcript (v2.5.0)
 
 Cada hook usa los campos de su propio payload y acumula estado incremental por sesión; ningún hook vuelve a abrir el JSONL. La documentación de Claude Code advierte que ese formato es interno y cambia entre versiones.
 
@@ -427,8 +427,8 @@ Cada fase sale como versión menor con su propio criterio de salida; v3.0.0 solo
 | --- | --- | --- |
 | 2.3.0 | Fase 0 | — |
 | 2.4.0 | Fase 1: `mempunk mcp`, capa de servicios | — |
-| 2.5.0 | Fase 2: plugin, `hooks migrate` | `hooks install` |
-| 2.6.0 | Fase 3: hooks incrementales, registro automático | Lectura de transcript |
+| 2.5.0 | Fase 3: hooks incrementales, registro automático | Lectura de transcript |
+| 2.6.0 | Fase 2: plugin, `hooks migrate` | `hooks install` |
 | 2.7.0 | Fase 4: skills, auto-start determinista | `mempunk-saver`, `mempunk-loader` |
 | 2.8.0 | Fase 5: `memory link`, MCP en Gemini/opencode | — |
 | 3.0.0 | Retiro de lo obsoleto; CLAUDE.md corto por defecto | — |
