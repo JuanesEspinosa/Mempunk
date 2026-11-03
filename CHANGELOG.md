@@ -9,6 +9,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Plugin de Claude Code** (`plugin/`, marketplace en la raíz del repo): hooks, servidor MCP,
+  agentes y los skills `/mempunk:load` y `/mempunk:end`. El plugin no trae código de hooks propio:
+  `plugin/scripts/run.cjs` localiza el `mempunk` instalado con npm y ejecuta sus hooks, así que
+  actualizar el CLI actualiza los hooks. Si falta el CLI, o es más antiguo que el plugin,
+  SessionStart lo avisa.
+
 ## [2.5.0] — 2026-11-03
 
 ### Added
