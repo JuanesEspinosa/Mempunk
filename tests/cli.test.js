@@ -513,6 +513,31 @@ describe('mempunk daily list', () => {
   });
 });
 
+// ── Filtro de secretos ────────────────────────────────────────────────────────
+
+describe('filtro de secretos en resources y daily', () => {
+  const pass = 'hunter2hunter2';
+  const pathIn = (output) => output.match(/[^\s]+\.md/)[0];
+
+  it('resource add oculta título, url y contenido', () => {
+    const output = run(`resource add myproj "DB_PASSWORD=${pass}" --url "https://u:${pass}@example.com/x" --content "API_KEY=${pass} y contexto"`);
+    const saved = fs.readFileSync(pathIn(output), 'utf8');
+
+    expect(saved).not.toContain(pass);
+    expect(saved).toContain('https://u:[REDACTED]@example.com/x');
+    expect(saved).toContain('API_KEY=[REDACTED] y contexto');
+    expect(run('resource list myproj')).not.toContain(pass);
+  });
+
+  it('daily log oculta el valor y conserva el texto', () => {
+    const output = run(`daily log myproj "JWT_SECRET=${pass} rotado hoy"`);
+    const saved = fs.readFileSync(pathIn(output), 'utf8');
+
+    expect(saved).not.toContain(pass);
+    expect(saved).toContain('JWT_SECRET=[REDACTED] rotado hoy');
+  });
+});
+
 describe('mempunk search incluye resources y daily logs', () => {
   it('encuentra resultados de tipo resource por keyword', () => {
     const output = run('search "spec de JWT"');

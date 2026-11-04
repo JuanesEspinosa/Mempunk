@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { t } from '../lib/i18n.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 import { requireProject, requireText } from './project.js';
 
 /**
@@ -16,7 +17,7 @@ import { requireProject, requireText } from './project.js';
  */
 export function addDecision(store, { projectId, title, context = '', decision = '', consequences = '', tags = [] }) {
   const project   = requireProject(store, projectId);
-  const cleanTitle = requireText(title, 'title');
+  const cleanTitle = redactSecrets(requireText(title, 'title'));
   const cleanTags  = tags.map((tag) => tag.trim()).filter(Boolean);
   const now        = new Date().toISOString();
   // Sufijo aleatorio: dos sesiones MCP pueden guardar en el mismo milisegundo
@@ -33,9 +34,9 @@ export function addDecision(store, { projectId, title, context = '', decision = 
     '',
     `# ${cleanTitle}`,
     '',
-    ...section('Contexto', context),
-    ...section('Decisión', decision),
-    ...section('Consecuencias', consequences),
+    ...section('Contexto', redactSecrets(context)),
+    ...section('Decisión', redactSecrets(decision)),
+    ...section('Consecuencias', redactSecrets(consequences)),
   ].join('\n');
 
   const id = store.addDecision(projectId, cleanTitle, filePath, cleanTags, content);

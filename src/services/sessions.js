@@ -1,6 +1,7 @@
 // ── Servicio de sesiones ──────────────────────────────────────────────────────
 
 import { t } from '../lib/i18n.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 import { requireProject, requireText } from './project.js';
 
 /**
@@ -11,7 +12,7 @@ import { requireProject, requireText } from './project.js';
  */
 export function logSession(store, { projectId, summary, files = [] }) {
   requireProject(store, projectId);
-  const text  = requireText(summary, 'summary');
+  const text  = redactSecrets(requireText(summary, 'summary'));
   const clean = files.map((f) => f.trim()).filter(Boolean);
   return { id: store.logSession(projectId, text, clean) };
 }

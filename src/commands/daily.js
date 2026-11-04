@@ -2,6 +2,7 @@ import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail, printTable, printJson } from '../lib/output.js';
 import { requireVault, openStore } from '../lib/vault.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 
 // ── Handlers — Daily logs ─────────────────────────────────────────────────────
 
@@ -10,7 +11,7 @@ export function cmdDailyLog(projectId, content) {
   requireVault();
 
   const store = openStore();
-  const { filePath, appended } = store.addDailyLog(projectId, content);
+  const { filePath, appended } = store.addDailyLog(projectId, redactSecrets(content));
   if (appended) {
     console.log(t('daily.appended', { path: filePath }));
   } else {

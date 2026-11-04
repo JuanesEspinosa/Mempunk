@@ -2,6 +2,7 @@ import { opts } from '../lib/args.js';
 import { t } from '../lib/i18n.js';
 import { fail, printTable, printJson } from '../lib/output.js';
 import { requireVault, openStore } from '../lib/vault.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 
 // ── Handlers — Resources ──────────────────────────────────────────────────────
 
@@ -12,7 +13,7 @@ export function cmdResourceAdd(projectId, title) {
   requireVault();
 
   const store = openStore();
-  const { filePath } = store.addResource(projectId, title, opts.url ?? null, opts.content ?? '');
+  const { filePath } = store.addResource(projectId, redactSecrets(title), redactSecrets(opts.url ?? null), redactSecrets(opts.content ?? ''));
   console.log(t('resource.saved', { path: filePath }));
 }
 

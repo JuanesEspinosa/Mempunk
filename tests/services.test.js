@@ -29,6 +29,48 @@ afterAll(() => {
   fs.rmSync(TEMP_VAULT, { recursive: true, force: true });
 });
 
+// ── Filtro de secretos ────────────────────────────────────────────────────────
+
+describe('filtro de secretos en lo que escribe el agente', () => {
+  const text = 'usa DB_PASSWORD=hunter2hunter2 en staging';
+  const clean = 'usa DB_PASSWORD=[REDACTED] en staging';
+  const dbDump = () => JSON.stringify([
+    store.db.prepare('SELECT * FROM decisions').all(),
+    store.db.prepare('SELECT * FROM session_log').all(),
+    store.db.prepare('SELECT * FROM backlog').all(),
+  ]);
+
+  it('decisiones: título, cuerpo e índice de búsqueda', () => {
+    const { file_path } = addDecision(store, {
+      projectId: PROJ, title: text, context: text, decision: text, consequences: text,
+    });
+
+    const saved = fs.readFileSync(file_path, 'utf8');
+    expect(saved).not.toContain('hunter2');
+    expect(saved).toContain(clean);
+    expect(dbDump()).not.toContain('hunter2');
+    expect(query(store, { query: 'hunter2hunter2' })).toEqual([]);
+    expect(query(store, { query: 'staging' }).length).toBeGreaterThan(0);
+  });
+
+  it('registro de sesión', () => {
+    const { id } = logSession(store, { projectId: PROJ, summary: text });
+    const row = store.db.prepare('SELECT summary FROM session_log WHERE id = ?').get(id);
+    expect(row.summary).toBe(clean);
+  });
+
+  it('título del backlog', () => {
+    expect(addItem(store, { projectId: PROJ, title: text }).title).toBe(clean);
+  });
+
+  it('estado del proyecto', () => {
+    const { file_path } = updateState(store, { projectId: PROJ, markdown: `# Estado\n\n${text}` });
+    const saved = fs.readFileSync(file_path, 'utf8');
+    expect(saved).not.toContain('hunter2');
+    expect(saved).toContain(clean);
+  });
+});
+
 // ── Proyecto ──────────────────────────────────────────────────────────────────
 
 describe('services/project', () => {

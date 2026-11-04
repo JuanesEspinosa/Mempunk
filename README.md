@@ -403,7 +403,7 @@ It never runs git directly and never relays raw git stderr. With no remote confi
 The vault is a memory of your work, so in `full` mode (the default) hooks store commands and conversation excerpts, and the database travels with `mempunk push`.
 
 - **Secrets are hidden when captured.** Hooks replace the value and keep the context: `DB_PASSWORD=hunter2` is stored as `DB_PASSWORD=[REDACTED]`. This covers known API key formats, private keys, JWTs, URLs with credentials, authorization headers and `password=…`-style assignments.
-- **It is best effort.** A password with no name next to it is not detected, and what the agent writes on purpose (decisions, session logs) is not filtered. Text saved by earlier versions stays as it was, including in the git history.
+- **It is best effort.** A password with no name next to it is not detected,. Decisions, state, session logs, backlog, daily logs and resources are filtered too; skills and agents are not, because they are installed files. Text saved by earlier versions stays as it was, including in the git history.
 - **Use a private repository.** `mempunk remote set` warns you if the remote can be read without credentials.
 - **To store no conversation text at all,** run `mempunk auto-session minimal`.
 

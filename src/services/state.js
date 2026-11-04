@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { t } from '../lib/i18n.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 import { requireProject, requireText } from './project.js';
 import { HISTORY_HEADING_RE, MAX_STATE_CHARS, readState, stripStateHistory } from './context.js';
 
@@ -23,7 +24,7 @@ const MAX_HISTORY_LINE_CHARS = 200;
 export function updateState(store, { projectId, markdown, now = new Date() }) {
   const project = requireProject(store, projectId);
   // Un historial incluido por el modelo se descarta: el del archivo es la fuente
-  const body = stripStateHistory(requireText(markdown, 'markdown'));
+  const body = stripStateHistory(redactSecrets(requireText(markdown, 'markdown')));
   if (body.length > MAX_STATE_CHARS) {
     throw new Error(t('service.stateTooLong', { length: body.length, max: MAX_STATE_CHARS }));
   }
