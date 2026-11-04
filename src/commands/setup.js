@@ -173,5 +173,6 @@ export async function cmdSetup() {
     console.log(t('setup.migrateHint'));
     console.log(t('setup.migrateHintCmd'));
   }
+  console.log(t('setup.privacyHint'));
   console.log(`${line}\n`);
 }

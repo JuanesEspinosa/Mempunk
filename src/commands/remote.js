@@ -7,13 +7,13 @@ import { fail, printJson } from '../lib/output.js';
 import { VAULT_PATH, requireVault, openStore } from '../lib/vault.js';
 import {
   runGit, gitVersionAvailable, isGitRepo, conflictedFiles,
-  mergeInProgress, hasIndexLock, isValidBranchName, NETWORK_TIMEOUT,
+  mergeInProgress, hasIndexLock, isValidBranchName, isAnonymouslyReadable, NETWORK_TIMEOUT,
 } from '../lib/git.js';
 import { resolveDbConflict } from '../lib/db-conflict.js';
 import {
   REMOTE_CONFIG_PATH, DEFAULT_BRANCH, DB_REL_PATH, REQUIRED_IGNORES,
   readRemoteConfig, requireRemoteConfig, writeRemoteConfig,
-  readRemoteState, updateRemoteState, ensureGitignore, maskUrl, validateRemoteUrl,
+  readRemoteState, updateRemoteState, ensureGitignore, maskUrl, validateRemoteUrl, anonymousProbeUrl,
 } from '../lib/remote-config.js';
 import { createVerifiedBackup } from './vault.js';
 import { _writeProjectPathsFile } from './project.js';
@@ -117,7 +117,8 @@ export function cmdRemoteSet(rawUrl) {
   writeRemoteConfig({ url, branch, auto, created_at: existing?.created_at ?? new Date().toISOString() });
 
   console.log(t('remote.set', { url: maskUrl(url), branch, auto: auto.pull_on_start || auto.push_on_end ? 'on' : 'off' }));
-  console.log(t('remote.privateWarning'));
+  const probeUrl = anonymousProbeUrl(url);
+  console.log(t(probeUrl && isAnonymouslyReadable(probeUrl) ? 'remote.publicWarning' : 'remote.privateWarning'));
 }
 
 export function cmdRemoteShow() {
