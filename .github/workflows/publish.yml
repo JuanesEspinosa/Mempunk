@@ -1,7 +1,8 @@
 name: Publish to npm
 
 # Se dispara al publicar un GitHub Release (o manualmente desde Actions).
-# Requiere el secret NPM_TOKEN (npm access token con permiso de publish).
+# Usa trusted publishing (OIDC), sin NPM_TOKEN: el publisher se configura en npmjs.com
+# con este nombre de archivo, y la provenance se genera sola.
 on:
   release:
     types: [published]
@@ -12,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # provenance: vincula el paquete publicado a este workflow
+      id-token: write # OIDC: autentica el publish y genera la provenance
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,6 +24,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Trusted publishing exige npm >= 11.5.1; Node 22 trae npm 10.
+      - run: npm install -g npm@11
+      - run: npm publish --access public
