@@ -13,7 +13,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - **Filtro de secretos en la captura automática.** Los hooks ocultan el valor y conservan el contexto
   en prompts, respuestas y comandos: claves de API con formato conocido, claves privadas, JWT, URLs
   con credenciales, cabeceras de autorización y asignaciones tipo `password=…`. Se aplica antes de
-  truncar. Es de mejor esfuerzo; no toca lo ya guardado ni lo que el agente escribe a propósito.
+  truncar. Es de mejor esfuerzo y no toca lo ya guardado.
+- El mismo filtro cubre lo que escribe el agente: decisiones, estado, registros de sesión, backlog,
+  daily y resources. Skills y agentes quedan fuera: son archivos que se instalan.
 - `mempunk remote set` avisa si el remote se puede leer sin credenciales. `setup` y los README
   recomiendan un repositorio privado.
 

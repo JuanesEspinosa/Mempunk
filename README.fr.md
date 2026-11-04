@@ -363,7 +363,7 @@ Si le vault a besoin de `mempunk vault upgrade`, les outils renvoient cette erre
 Le vault est une mémoire de votre travail : en mode `full` (par défaut), les hooks stockent donc des commandes et des extraits de conversation, et la base de données voyage avec `mempunk push`.
 
 - **Les secrets sont masqués à la capture.** Les hooks remplacent la valeur et gardent le contexte : `DB_PASSWORD=hunter2` est stocké comme `DB_PASSWORD=[REDACTED]`. Cela couvre les formats connus de clés d'API, les clés privées, les JWT, les URL avec identifiants, les en-têtes d'autorisation et les affectations du type `password=…`.
-- **Ce filtrage n'est pas garanti.** Un mot de passe sans nom à côté n'est pas détecté, et ce que l'agent écrit volontairement (décisions, journaux de session) n'est pas filtré. Le texte enregistré par les versions précédentes reste inchangé, y compris dans l'historique git.
+- **Ce filtrage n'est pas garanti.** Un mot de passe sans nom à côté n'est pas détecté. Les décisions, l'état, les journaux de session, le backlog, les daily et les ressources sont aussi filtrés ; pas les skills ni les agents, qui sont des fichiers installés. Le texte enregistré par les versions précédentes reste inchangé, y compris dans l'historique git.
 - **Utilisez un dépôt privé.** `mempunk remote set` vous avertit si le remote est lisible sans identifiants.
 - **Pour ne stocker aucun texte de conversation,** lancez `mempunk auto-session minimal`.
 
