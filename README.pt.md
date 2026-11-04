@@ -358,6 +358,15 @@ Se o vault precisar de `mempunk vault upgrade`, as ferramentas retornam esse err
 | `mempunk statusline install` | Instala a statusline (`uninstall` remove; `--force` substitui outra) | `mempunk statusline install` |
 | `mempunk hooks uninstall` | Remover hooks do Mempunk | `mempunk hooks uninstall` |
 
+## Privacidade
+
+O vault é uma memória do seu trabalho, então no modo `full` (o padrão) os hooks guardam comandos e trechos de conversa, e o banco de dados viaja com `mempunk push`.
+
+- **Os segredos são ocultados na captura.** Os hooks trocam o valor e mantêm o contexto: `DB_PASSWORD=hunter2` é guardado como `DB_PASSWORD=[REDACTED]`. Isso cobre formatos conhecidos de chaves de API, chaves privadas, JWT, URLs com credenciais, cabeçalhos de autorização e atribuições do tipo `password=…`.
+- **É um melhor esforço.** Uma senha sem um nome ao lado não é detectada, e o que o agente escreve de propósito (decisões, registros de sessão) não é filtrado. O texto salvo por versões anteriores continua igual, inclusive no histórico do git.
+- **Use um repositório privado.** `mempunk remote set` avisa se o remote pode ser lido sem credenciais.
+- **Para não guardar nenhum texto de conversa,** execute `mempunk auto-session minimal`.
+
 ## Manutencao do Vault
 
 ```bash

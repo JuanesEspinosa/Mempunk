@@ -9,6 +9,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- **Filtro de secretos en la captura automática.** Los hooks ocultan el valor y conservan el contexto
+  en prompts, respuestas y comandos: claves de API con formato conocido, claves privadas, JWT, URLs
+  con credenciales, cabeceras de autorización y asignaciones tipo `password=…`. Se aplica antes de
+  truncar. Es de mejor esfuerzo; no toca lo ya guardado ni lo que el agente escribe a propósito.
+- `mempunk remote set` avisa si el remote se puede leer sin credenciales. `setup` y los README
+  recomiendan un repositorio privado.
+
 ### Fixed
 - `hooks install --check` con el plugin activo ya no marca ✗ en hooks, registros y agentes: informa
   de que los aporta el plugin. Si quedan restos manuales, los lista; el aviso de convivencia cuenta
