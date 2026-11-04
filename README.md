@@ -398,6 +398,15 @@ MEMPUNK_EOF
 
 It never runs git directly and never relays raw git stderr. With no remote configured it prints `MEMPUNK-SYNCER: no remote configured — run: mempunk remote set <url>`; on failure it prints `MEMPUNK-SYNCER ERROR: mempunk push failed (exit N) — run it manually in the terminal to see details`. With `--auto`, `on-start.js` pulls at `SessionStart` and `on-end.js` pushes at `SessionEnd`.
 
+## Privacy
+
+The vault is a memory of your work, so in `full` mode (the default) hooks store commands and conversation excerpts, and the database travels with `mempunk push`.
+
+- **Secrets are hidden when captured.** Hooks replace the value and keep the context: `DB_PASSWORD=hunter2` is stored as `DB_PASSWORD=[REDACTED]`. This covers known API key formats, private keys, JWTs, URLs with credentials, authorization headers and `password=…`-style assignments.
+- **It is best effort.** A password with no name next to it is not detected, and what the agent writes on purpose (decisions, session logs) is not filtered. Text saved by earlier versions stays as it was, including in the git history.
+- **Use a private repository.** `mempunk remote set` warns you if the remote can be read without credentials.
+- **To store no conversation text at all,** run `mempunk auto-session minimal`.
+
 ## Vault Maintenance
 
 ```bash

@@ -20,6 +20,7 @@ import {
   MAX_MESSAGES,
   MAX_MESSAGE_CHARS,
 } from '../hooks-lib/session-state.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 
 // Número de turnos entre checkpoints
 const INTERVAL = parseInt(process.env.MEMPUNK_CHECKPOINT_INTERVAL ?? '5', 10);
@@ -58,7 +59,7 @@ try {
       log(`session_id inválido: ${JSON.stringify(sessionId)} — sin acción`);
     } else {
       fs.mkdirSync(MEMPUNK_DIR, { recursive: true });
-      const text = truncate(message, MAX_MESSAGE_CHARS);
+      const text = truncate(redactSecrets(message), MAX_MESSAGE_CHARS);
       const state = updateSessionState(sessionId, (current) => ({
         ...current,
         recent_messages: text

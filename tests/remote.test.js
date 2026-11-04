@@ -403,6 +403,44 @@ describeGit('validación de rama y url', () => {
     expect(fx.git(['remote', 'get-url', 'origin'], fx.vault).trim()).toBe('ssh://git@example.com/r.git');
   });
 
+  it('remote set avisa si el remote se lee sin credenciales', () => {
+    // insteadOf: la URL https resuelve al bare local, sin red
+    fx.git(['config', '--global', 'url.' + fx.bare + '.insteadOf', 'https://example.test/publico.git'], fx.root);
+    try {
+      const output = fx.run(['remote', 'set', 'https://example.test/publico.git', '--branch', 'main']);
+      expect(output).toContain('sin credenciales');
+    } finally {
+      fx.git(['config', '--global', '--remove-section', 'url.' + fx.bare], fx.root);
+    }
+  });
+
+  it('remote set comprueba por https un remote ssh', () => {
+    fx.git(['config', '--global', 'url.' + fx.bare + '.insteadOf', 'https://example.test/publico.git'], fx.root);
+    try {
+      const output = fx.run(['remote', 'set', 'git@example.test:publico.git', '--branch', 'main']);
+      expect(output).toContain('sin credenciales');
+    } finally {
+      fx.git(['config', '--global', '--remove-section', 'url.' + fx.bare], fx.root);
+    }
+  });
+
+  it('remote set no avisa de público si la lectura sin credenciales falla', () => {
+    const missing = path.join(fx.root, 'no-existe.git');
+    fx.git(['config', '--global', 'url.' + missing + '.insteadOf', 'https://example.test/privado.git'], fx.root);
+    try {
+      const output = fx.run(['remote', 'set', 'https://example.test/privado.git', '--branch', 'main']);
+      expect(output).toContain('privado');
+      expect(output).not.toContain('sin credenciales');
+    } finally {
+      fx.git(['config', '--global', '--remove-section', 'url.' + missing], fx.root);
+    }
+  });
+
+  it('remote set no comprueba un remote local', () => {
+    const output = fx.run(['remote', 'set', fx.bare, '--branch', 'main']);
+    expect(output).not.toContain('sin credenciales');
+  });
+
   it('pull con una rama manipulada en remote.json falla con rama inválida', () => {
     fx.run(['remote', 'set', fx.bare, '--branch', 'main']);
     const cfg = readJson(fx.remoteJson());

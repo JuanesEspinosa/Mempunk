@@ -201,7 +201,8 @@ Maintenance:
     'remote.urlHasCredentials': 'The remote URL contains embedded credentials. Remove them and let a git credential helper (git config credential.helper) or an SSH key handle authentication.',
     'remote.invalidBranch': 'Invalid branch name: "{branch}". Use a plain git branch name (no leading dash, no whitespace).',
     'remote.invalidProject': 'Invalid --project value: "{project}". Use only letters, digits, dots, dashes and underscores.',
-    'remote.privateWarning': '⚠ The vault database contains session snapshots with conversation excerpts — use a private repository.',
+    'remote.privateWarning': '⚠ The vault database contains session snapshots with conversation excerpts. Secrets are hidden on a best-effort basis — use a private repository.',
+    'remote.publicWarning': '⚠ This remote can be read without credentials: anyone can download the vault, including conversation excerpts. Make the repository private before pushing.',
     'remote.mergeInProgress': 'A merge is in progress in the vault ({path}). Conflicted files:\n{files}\nResolve them, then run git add and git commit there (or git merge --abort), and retry.',
     'remote.indexLock': 'The vault ({path}) has a .git/index.lock file — another git process is running or one crashed. Wait for it to finish (or delete .git/index.lock if no git process is running), then retry.',
     'remote.notConfigured': 'No remote configured. Run: mempunk remote set <url>',
@@ -391,6 +392,7 @@ Maintenance:
     'setup.pluginRequiresAuto': '--plugin only works in auto mode, not with --setup-mode {mode}',
     'setup.migrateHint': '\nIf you migrate to Claude Code in the future:',
     'setup.migrateHintCmd': '  mempunk setup --setup-mode auto',
+    'setup.privacyHint': 'If you sync the vault, use a private repository: it stores conversation excerpts.',
   },
 
   es: {
@@ -586,7 +588,8 @@ Mantenimiento:
     'remote.urlHasCredentials': 'La URL del remote contiene credenciales embebidas. Quítalas y deja que un credential helper de git (git config credential.helper) o una clave SSH se encarguen de la autenticación.',
     'remote.invalidBranch': 'Rama inválida: "{branch}". Usa un nombre de rama válido para git (sin guion inicial ni espacios).',
     'remote.invalidProject': 'Valor de --project inválido: "{project}". Usa solo letras, dígitos, puntos, guiones y guiones bajos.',
-    'remote.privateWarning': '⚠ La base de datos del vault contiene snapshots de sesión con extractos de conversación — usa un repositorio privado.',
+    'remote.privateWarning': '⚠ La base de datos del vault contiene snapshots de sesión con extractos de conversación. Los secretos se ocultan como mejor esfuerzo — usa un repositorio privado.',
+    'remote.publicWarning': '⚠ Este remote se puede leer sin credenciales: cualquiera puede descargar el vault, con los extractos de conversación. Haz el repositorio privado antes de subir nada.',
     'remote.mergeInProgress': 'Hay un merge en curso en el vault ({path}). Archivos en conflicto:\n{files}\nResuélvelos, haz git add y git commit allí (o git merge --abort) y vuelve a intentar.',
     'remote.indexLock': 'El vault ({path}) tiene un archivo .git/index.lock — hay otro git corriendo o uno murió a medias. Espera a que termine (o borra .git/index.lock si no hay ningún git en ejecución) y vuelve a intentar.',
     'remote.notConfigured': 'No hay remote configurado. Ejecuta: mempunk remote set <url>',
@@ -776,6 +779,7 @@ Mantenimiento:
     'setup.pluginRequiresAuto': '--plugin solo funciona en modo auto, no con --setup-mode {mode}',
     'setup.migrateHint': '\nSi migras a Claude Code en el futuro:',
     'setup.migrateHintCmd': '  mempunk setup --setup-mode auto',
+    'setup.privacyHint': 'Si sincronizas el vault, usa un repositorio privado: guarda extractos de conversación.',
   },
 };
 

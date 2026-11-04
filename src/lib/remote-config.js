@@ -108,6 +108,18 @@ export function maskUrl(url) {
 }
 
 /**
+ * URL a probar sin credenciales, o null si es local. Un remote ssh siempre se
+ * autentica con la clave, así que se prueba su equivalente https.
+ */
+export function anonymousProbeUrl(url) {
+  if (/^(?:https?|git):\/\//i.test(url)) return url;
+  const scp = url.match(/^[\w.-]+@([\w.-]+):(.+)$/);
+  if (scp) return `https://${scp[1]}/${scp[2]}`;
+  const ssh = url.match(/^ssh:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i);
+  return ssh ? `https://${ssh[1]}/${ssh[2]}` : null;
+}
+
+/**
  * Acepta URLs con esquema (https/http/ssh/git/file), la forma scp
  * (user@host:path) y rutas locales absolutas. Rechaza valores que git
  * interpretaría como opción y URLs con credenciales embebidas.

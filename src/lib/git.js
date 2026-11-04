@@ -47,6 +47,15 @@ export function runGit(args, { cwd, timeout = DEFAULT_TIMEOUT } = {}) {
   };
 }
 
+/** Tope de la comprobación de lectura anónima: es solo un aviso, no debe frenar `remote set` */
+const ANONYMOUS_READ_TIMEOUT = 15_000;
+
+/** true si `url` responde a git sin ninguna credencial guardada (`credential.helper=` las anula). */
+export function isAnonymouslyReadable(url) {
+  const r = runGit(['-c', 'credential.helper=', 'ls-remote', '--heads', url], { timeout: ANONYMOUS_READ_TIMEOUT });
+  return r.status === 0;
+}
+
 /** true si git está en el PATH y responde */
 export function gitVersionAvailable() {
   return runGit(['--version']).status === 0;

@@ -88,6 +88,52 @@ function checkpointRows(sessionId) {
   return rows;
 }
 
+describe('filtro de secretos en la captura', () => {
+  const secret = 'hunter2hunter2hunter2';
+
+  it('en la BD quedan los mensajes y el contexto, pero no los valores', () => {
+    const prompt = `conecta con password=${secret} y revisa la tabla`;
+    const reply  = `listo, usé API_KEY=${secret} en el servicio`;
+    for (let turn = 0; turn < 5; turn++) {
+      runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: 'sess-secret', prompt }));
+      runHook('on-stop.js', fixture('stop', { session_id: 'sess-secret', last_assistant_message: reply }));
+    }
+
+    const [row] = checkpointRows('sess-secret');
+    expect(row.raw_turns).not.toContain('hunter2');
+    expect(row.raw_turns).toContain('revisa la tabla');
+    expect(row.raw_turns).toContain('API_KEY=[REDACTED]');
+    expect(readState('sess-secret').first_prompt).not.toContain('hunter2');
+  });
+
+  // Una clave de formato fijo cortada deja de coincidir: si se truncara antes de
+  // filtrar, sus primeros caracteres se guardarían
+  const token = 'gs' + 'k_' + 'aB3dE6gH9jK2mN5pQ8sT1vW4yZ7cF0iL3oR6uX9aB3dE6gH9jK2';
+
+  it.each([
+    ['on-prompt.js', 'user-prompt-submit', (text) => ({ prompt: text }), 2000],
+    ['on-stop.js', 'stop', (text) => ({ last_assistant_message: text }), 2000],
+    ['on-tool.js', 'post-tool-use-bash', (text) => ({ tool_input: { command: text } }), 200],
+  ])('%s filtra antes de truncar', (hook, name, input, limit) => {
+    const sessionId = `sess-order-${name}`;
+    const text = `${'x'.repeat(limit - 20)} ${token}`;
+
+    runHook(hook, fixture(name, { session_id: sessionId, ...input(text) }));
+
+    expect(fs.readFileSync(path.join(SESSIONS_DIR, `${sessionId}.json`), 'utf8')).not.toContain('gsk_');
+  });
+
+  it('oculta un secreto que cruza el tope de caracteres del mensaje', () => {
+    const prompt = `${'x '.repeat(992)}password=${secret}`;
+    expect(prompt.indexOf(secret)).toBeLessThan(2000);
+    expect(prompt.length).toBeGreaterThan(2000);
+
+    runHook('on-prompt.js', fixture('user-prompt-submit', { session_id: 'sess-secret-cut', prompt }));
+
+    expect(JSON.stringify(readState('sess-secret-cut'))).not.toContain('hunter');
+  });
+});
+
 describe('hooks sin transcript (criterio de salida de la Fase 3)', () => {
   it('ningún hook importa readline ni usa transcript_path', () => {
     const hooksDir = path.join(PROJECT_ROOT, 'src', 'hooks');
@@ -291,6 +337,19 @@ describe('on-tool.js (PostToolUse)', () => {
     }));
 
     expect(readState('sess-tool-ps').commands_run).toEqual(['npm test']);
+  });
+
+  it('oculta el secreto del comando, también si queda justo en el punto de corte', () => {
+    const secret = 'hunter2hunter2hunter2';
+    const command = `${'echo x; '.repeat(23)}DB_PASSWORD=${secret}`;
+    expect(command.indexOf(secret)).toBeLessThan(200);
+    expect(command.length).toBeGreaterThan(200);
+
+    runHook('on-tool.js', fixture('post-tool-use-bash', { session_id: 'sess-tool-secret', tool_input: { command } }));
+
+    const [stored] = readState('sess-tool-secret').commands_run;
+    expect(stored).toContain('DB_PASSWORD=');
+    expect(stored).not.toContain('hunt');
   });
 
   it('Write, MultiEdit y NotebookEdit también cuentan; fuera del cwd la ruta queda absoluta con /', () => {
