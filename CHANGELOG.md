@@ -9,6 +9,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `update_state` avisa si falta alguna de las 5 secciones del estado. Guarda igualmente.
+
 ---
 
 ## [2.6.1] — 2026-11-04

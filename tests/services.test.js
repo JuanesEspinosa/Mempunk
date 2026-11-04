@@ -71,6 +71,44 @@ describe('filtro de secretos en lo que escribe el agente', () => {
   });
 });
 
+// ── Secciones del estado ──────────────────────────────────────────────────────
+
+describe('secciones de wiki/state.md', () => {
+  const SECTIONS = [
+    '## Estado actual',
+    '## Que se esta construyendo ahora',
+    '## Decisiones vigentes clave',
+    '## Blockers / riesgos activos',
+    '## Proximos 3 pasos',
+  ];
+  const stateWith = (headings) => `# Estado\n\n${headings.map((h) => `${h}\n\nTexto.`).join('\n\n')}`;
+
+  it('sin aviso si están las cinco secciones', () => {
+    const result = updateState(store, { projectId: PROJ, markdown: stateWith(SECTIONS) });
+    expect(result.missing_sections).toEqual([]);
+    expect(result.warning).toBeUndefined();
+  });
+
+  it('acepta acentos, mayúsculas y espacios al final', () => {
+    const headings = ['## ESTADO ACTUAL', '## Qué se está construyendo ahora', '## Decisiones vigentes clave  ',
+      '## Blockers / riesgos activos', '## Próximos 3 pasos'];
+    expect(updateState(store, { projectId: PROJ, markdown: stateWith(headings) }).missing_sections).toEqual([]);
+  });
+
+  it('avisa de las que faltan y guarda igualmente', () => {
+    const result = updateState(store, { projectId: PROJ, markdown: stateWith(SECTIONS.slice(0, 3)) });
+
+    expect(result.missing_sections).toEqual(['Blockers / riesgos activos', 'Proximos 3 pasos']);
+    expect(result.warning).toContain('Blockers / riesgos activos');
+    expect(fs.readFileSync(result.file_path, 'utf8')).toContain('## Decisiones vigentes clave');
+  });
+
+  it('el nombre debe ser un encabezado, no una mención en el texto', () => {
+    const markdown = stateWith(SECTIONS.slice(1)) + '\n\nVer Estado actual en el plan.';
+    expect(updateState(store, { projectId: PROJ, markdown }).missing_sections).toEqual(['Estado actual']);
+  });
+});
+
 // ── Proyecto ──────────────────────────────────────────────────────────────────
 
 describe('services/project', () => {
