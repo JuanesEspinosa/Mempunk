@@ -1,6 +1,7 @@
 // ── Servicio de backlog ───────────────────────────────────────────────────────
 
 import { t } from '../lib/i18n.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 import { requireProject, requireText } from './project.js';
 
 // Los vaults reales usan también blocked/cancelled y prioridades hasta 5
@@ -16,7 +17,7 @@ const DEFAULT_PRIORITY        = 2;
  */
 export function addItem(store, { projectId, title, priority = DEFAULT_PRIORITY }) {
   requireProject(store, projectId);
-  const id = store.addBacklogItem(projectId, requireText(title, 'title'), checkPriority(priority));
+  const id = store.addBacklogItem(projectId, redactSecrets(requireText(title, 'title')), checkPriority(priority));
   return store.getBacklogItem(id);
 }
 
