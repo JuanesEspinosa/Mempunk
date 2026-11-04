@@ -258,7 +258,8 @@ Maintenance:
     'hooks.migratedInstallPlugin': 'Now install the plugin:\n  claude plugin marketplace add JuanesEspinosa/Mempunk\n  claude plugin install mempunk@mempunk',
     'hooks.checkPluginOn': 'Plugin mempunk@mempunk: active',
     'hooks.checkPluginOff': 'Plugin mempunk@mempunk: not active',
-    'hooks.checkCoexist': '! Manual hooks and the plugin coexist: the manual ones exit without running. Remove them with: mempunk hooks migrate',
+    'hooks.checkPluginProvides': 'Hooks and agents are provided by the plugin; nothing to install by hand.',
+    'hooks.checkCoexist': '! Manual leftovers (hooks or agents) coexist with the plugin; manual hooks exit without running. Remove them with: mempunk hooks migrate',
     'statusline.foreign': 'Another statusline is configured: {command}. Use --force to replace it',
     'statusline.noneFound': 'Mempunk statusline is not registered',
 
@@ -642,7 +643,8 @@ Mantenimiento:
     'hooks.migratedInstallPlugin': 'Ahora instala el plugin:\n  claude plugin marketplace add JuanesEspinosa/Mempunk\n  claude plugin install mempunk@mempunk',
     'hooks.checkPluginOn': 'Plugin mempunk@mempunk: activo',
     'hooks.checkPluginOff': 'Plugin mempunk@mempunk: no activo',
-    'hooks.checkCoexist': '! Conviven hooks manuales y plugin: los manuales salen sin ejecutarse. Retíralos con: mempunk hooks migrate',
+    'hooks.checkPluginProvides': 'Hooks y agentes los aporta el plugin; no hay nada que instalar a mano.',
+    'hooks.checkCoexist': '! Conviven restos manuales (hooks o agentes) y plugin; los hooks manuales salen sin ejecutarse. Retíralos con: mempunk hooks migrate',
     'statusline.foreign': 'Hay otra statusline configurada: {command}. Usa --force para reemplazarla',
     'statusline.noneFound': 'La statusline de Mempunk no está registrada',
 

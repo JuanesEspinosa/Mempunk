@@ -221,7 +221,7 @@ describe('mempunk hooks install --check', () => {
     const before = fs.readFileSync(SETTINGS, 'utf8');
     const r = cli(['hooks', 'install', '--check']);
     expect(r.out).toMatch(/Plugin mempunk@mempunk: activo/);
-    expect(r.out).toMatch(/Conviven hooks manuales y plugin/);
+    expect(r.out).toMatch(/Conviven restos manuales/);
     expect(installedHooks().length).toBe(6);
     expect(fs.readFileSync(SETTINGS, 'utf8')).toBe(before);
   });
@@ -230,7 +230,7 @@ describe('mempunk hooks install --check', () => {
     cli(['hooks', 'install']);
     fs.rmSync(HOOKS_DIR, { recursive: true, force: true });
     enablePlugin();
-    expect(cli(['hooks', 'install', '--check']).out).toMatch(/Conviven hooks manuales y plugin/);
+    expect(cli(['hooks', 'install', '--check']).out).toMatch(/Conviven restos manuales/);
   });
 
   it('plugin solo: sin aviso', () => {
@@ -238,6 +238,49 @@ describe('mempunk hooks install --check', () => {
     const r = cli(['hooks', 'install', '--check']);
     expect(r.out).toMatch(/Plugin mempunk@mempunk: activo/);
     expect(r.out).not.toMatch(/Conviven/);
+  });
+
+  it('plugin solo: no marca ✗ en hooks, registros ni agentes', () => {
+    enablePlugin();
+    const r = cli(['hooks', 'install', '--check']);
+    expect(r.status).toBe(0);
+    expect(r.out).toMatch(/Hooks y agentes los aporta el plugin/);
+    expect(r.out).not.toMatch(/✗ (on-|SessionStart|mempunk-)/);
+    expect(r.out).toMatch(/Statusline:/);
+  });
+
+  it('plugin + restos manuales: mantiene las listas para ver qué sobra', () => {
+    cli(['hooks', 'install']);
+    enablePlugin();
+    const r = cli(['hooks', 'install', '--check']);
+    expect(r.out).toMatch(/✓ on-start\.js/);
+    expect(r.out).toMatch(/✓ SessionStart → on-start\.js/);
+    expect(r.out).not.toMatch(/los aporta el plugin/);
+  });
+
+  it('plugin + solo agentes sobrantes: avisa de convivencia', () => {
+    enablePlugin();
+    fs.mkdirSync(AGENTS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(AGENTS_DIR, 'mempunk-saver.md'), '---\nname: mempunk-saver\n---\n# mempunk-agent\n');
+    const r = cli(['hooks', 'install', '--check']);
+    expect(r.out).toMatch(/✓ mempunk-saver\.md/);
+    expect(r.out).toMatch(/Conviven restos manuales/);
+  });
+
+  it('plugin + agente sin marcador: no avisa, porque migrate no lo retira', () => {
+    enablePlugin();
+    fs.mkdirSync(AGENTS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(AGENTS_DIR, 'mempunk-saver.md'), '---\nname: mempunk-saver\n---\n');
+    const r = cli(['hooks', 'install', '--check']);
+    expect(r.out).not.toMatch(/Conviven/);
+    expect(r.out).toMatch(/Hooks y agentes los aporta el plugin/);
+  });
+
+  it('sin plugin ni hooks: sigue marcando ✗', () => {
+    const r = cli(['hooks', 'install', '--check']);
+    expect(r.out).toMatch(/✗ on-start\.js/);
+    expect(r.out).toMatch(/✗ mempunk-saver\.md/);
+    expect(r.out).not.toMatch(/los aporta el plugin/);
   });
 });
 

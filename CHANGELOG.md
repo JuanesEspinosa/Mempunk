@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `hooks install --check` con el plugin activo ya no marca ✗ en hooks, registros y agentes: informa
+  de que los aporta el plugin. Si quedan restos manuales, los lista; el aviso de convivencia cuenta
+  también los agentes sobrantes.
+
 ---
 
 ## [2.6.0] — 2026-11-03

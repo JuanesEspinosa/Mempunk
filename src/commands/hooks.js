@@ -151,6 +151,58 @@ function _unregisterHooksFromSettings(hooksDir) {
   writeJsonFile(CLAUDE_SETTINGS_PATH, settings);
 }
 
+function _hasMarker(filePath, marker) {
+  try {
+    return fs.readFileSync(filePath, 'utf8').includes(marker);
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Informa de lo instalado sin modificar nada (`hooks install --check`). */
+function _printCheck(targetDir) {
+  const agentsDir = agentsTargetDir();
+  const hooksOk   = HOOK_FILES.filter((f) => fs.existsSync(path.join(targetDir, f)));
+  const agentsOk  = AGENT_FILES.filter((f) => fs.existsSync(path.join(agentsDir, f)));
+
+  // Un hook copiado pero no registrado en settings.json nunca corre:
+  // verificar ambas cosas para que --check refleje el estado real
+  const settings  = readJsonFile(CLAUDE_SETTINGS_PATH);
+  const targetFwd = targetDir.replace(/\\/g, '/');
+  const registeredFiles = Object.entries(HOOK_EVENT_MAP)
+    .filter(([file, event]) => Array.isArray(settings.hooks?.[event]) &&
+      settings.hooks[event].some((g) => g.hooks?.some(
+        (h) => h.type === 'command' && _referencesMempunkHook(h, file, [targetFwd])
+      )))
+    .map(([file]) => file);
+
+  // Solo cuenta lo que `hooks migrate` retiraría: avisar de lo demás no tendría remedio
+  const hasManual = registeredFiles.length > 0 ||
+    hooksOk.some((f) => _hasMarker(path.join(targetDir, f), HOOK_MARKER)) ||
+    agentsOk.some((f) => _hasMarker(path.join(agentsDir, f), AGENT_MARKER));
+  const pluginActive = isPluginEnabled();
+
+  // Con el plugin y nada manual, una lista de ✗ parecería una instalación rota
+  if (hasManual || !pluginActive) {
+    console.log(t('hooks.checkHooksHeader', { dir: targetDir }));
+    HOOK_FILES.forEach((f) => console.log(`  ${hooksOk.includes(f) ? '✓' : '✗'} ${f}`));
+
+    console.log(t('hooks.checkSettingsHeader', { path: CLAUDE_SETTINGS_PATH }));
+    Object.entries(HOOK_EVENT_MAP).forEach(([file, event]) => {
+      console.log(`  ${registeredFiles.includes(file) ? '✓' : '✗'} ${event} → ${file}`);
+    });
+
+    console.log(t('hooks.checkAgentsHeader', { dir: agentsDir }));
+    AGENT_FILES.forEach((f) => console.log(`  ${agentsOk.includes(f) ? '✓' : '✗'} ${f}`));
+  }
+
+  const statuslineOk = fs.existsSync(path.join(os.homedir(), '.mempunk', 'statusline.js'));
+  console.log(`Statusline: ${statuslineOk ? '✓' : '✗'}`);
+
+  console.log(t(pluginActive ? 'hooks.checkPluginOn' : 'hooks.checkPluginOff'));
+  if (pluginActive) console.log(t(hasManual ? 'hooks.checkCoexist' : 'hooks.checkPluginProvides'));
+}
+
 export function cmdHooksInstall() {
   // Los hooks instalables son los bundles autocontenidos de dist/hooks
   // (src/hooks importa de hooks-lib y no funciona copiado suelto)
@@ -166,36 +218,7 @@ export function cmdHooksInstall() {
 
   // Modo --check: solo informar si están instalados, sin modificar nada
   if (opts.check) {
-    const agentsDir    = agentsTargetDir();
-    const hooksOk      = HOOK_FILES.filter((f) => fs.existsSync(path.join(targetDir, f)));
-    const agentsOk     = AGENT_FILES.filter((f) => fs.existsSync(path.join(agentsDir, f)));
-
-    console.log(t('hooks.checkHooksHeader', { dir: targetDir }));
-    HOOK_FILES.forEach((f) => console.log(`  ${hooksOk.includes(f) ? '✓' : '✗'} ${f}`));
-
-    // Un hook copiado pero no registrado en settings.json nunca corre:
-    // verificar ambas cosas para que --check refleje el estado real
-    const settings   = readJsonFile(CLAUDE_SETTINGS_PATH);
-    const targetFwd  = targetDir.replace(/\\/g, '/');
-    console.log(t('hooks.checkSettingsHeader', { path: CLAUDE_SETTINGS_PATH }));
-    const registeredFiles = Object.entries(HOOK_EVENT_MAP).filter(([file, event]) => {
-      const registered = Array.isArray(settings.hooks?.[event]) &&
-        settings.hooks[event].some((g) => g.hooks?.some(
-          (h) => h.type === 'command' && _referencesMempunkHook(h, file, [targetFwd])
-        ));
-      console.log(`  ${registered ? '✓' : '✗'} ${event} → ${file}`);
-      return registered;
-    });
-
-    console.log(t('hooks.checkAgentsHeader', { dir: agentsDir }));
-    AGENT_FILES.forEach((f) => console.log(`  ${agentsOk.includes(f) ? '✓' : '✗'} ${f}`));
-
-    const statuslineOk = fs.existsSync(path.join(os.homedir(), '.mempunk', 'statusline.js'));
-    console.log(`Statusline: ${statuslineOk ? '✓' : '✗'}`);
-
-    const pluginActive = isPluginEnabled();
-    console.log(t(pluginActive ? 'hooks.checkPluginOn' : 'hooks.checkPluginOff'));
-    if (pluginActive && (hooksOk.length > 0 || registeredFiles.length > 0)) console.log(t('hooks.checkCoexist'));
+    _printCheck(targetDir);
     return;
   }
 
