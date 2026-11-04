@@ -322,12 +322,12 @@ describe('on-start.js (SessionStart auto-pull)', () => {
     const flag = path.join(MEMPUNK_DIR, 'auto-start.flag');
     fs.writeFileSync(flag, '');
     const r = runHook('on-start.js', { session_id: 's11', source: 'startup', cwd: PROJECT_ROOT },
-      // Con proyecto declarado, el CLI falso también hace fallar `context` → vuelve al loader
+      // Con proyecto declarado, el CLI falso también hace fallar `context` → aviso de /mempunk
       { FAKE_CLI_EXIT: '1', FAKE_CLI_STDERR: 'network down', CLAUDE_PROJECT_ID: 'remoteproj' });
     fs.rmSync(flag, { force: true });
     expect(r.status).toBe(0);
     const ctx = JSON.parse(r.stdout).hookSpecificOutput.additionalContext;
-    expect(ctx).toContain('@mempunk-loader');
+    expect(ctx).toContain('Could not load the Mempunk context');
     expect(ctx).toContain('mempunk pull');
   });
 

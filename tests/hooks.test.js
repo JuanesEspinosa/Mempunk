@@ -586,7 +586,7 @@ describe('on-start.js (CompactRestore)', () => {
       expect(ctx).not.toContain('@mempunk-loader');
     });
 
-    it('vuelve a la instrucción del loader si mempunk context falla', () => {
+    it('apunta a /mempunk si mempunk context falla, sin invocar al loader retirado', () => {
       const fakeCli = path.join(MEMPUNK_DIR, 'fake-cli-autostart.mjs');
       fs.writeFileSync(fakeCli, [
         "import { spawnSync } from 'node:child_process';",
@@ -598,7 +598,9 @@ describe('on-start.js (CompactRestore)', () => {
       const r = runHook('on-start.js', { session_id: 'sess-auto-fail', source: 'startup', cwd: repoDir },
         { MEMPUNK_CLI: `node ${fakeCli}` });
       const ctx = contextOf(r);
-      expect(ctx).toContain('@mempunk-loader');
+      expect(ctx).toContain('No se pudo cargar el contexto de Mempunk');
+      expect(ctx).toContain('/mempunk');
+      expect(ctx).not.toContain('mempunk-loader');
       expect(ctx).not.toContain('MEMPUNK CONTEXT');
     });
 
