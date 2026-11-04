@@ -1,0 +1,8 @@
+# Reglas por defecto de gitleaks. La única excepción son los tests del filtro de
+# secretos, que necesitan texto con forma de credencial para probarlo.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Credenciales inventadas de los tests del filtro de secretos"
+paths = ['''^tests/redact\.test\.js$''']
