@@ -768,7 +768,7 @@ describe('mempunk hooks', () => {
     run('hooks install');
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     const group = settings.hooks.PostToolUse.find((g) => g.hooks.some((h) => h.command.includes('on-tool.js')));
-    expect(group.matcher).toBe('Edit|Write|MultiEdit|NotebookEdit|Bash');
+    expect(group.matcher).toBe('Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell');
     const stopGroup = settings.hooks.Stop.find((g) => g.hooks.some((h) => h.command.includes('on-stop.js')));
     expect(stopGroup.matcher).toBe('');
   });

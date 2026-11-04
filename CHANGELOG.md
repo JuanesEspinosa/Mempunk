@@ -34,6 +34,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `hooks install --check` informa del plugin y avisa si conviven plugin y hooks manuales.
 - `doctor` y `auto-start on` ya no piden instalar hooks si el plugin está activo.
 
+### Fixed
+- `on-tool` registra también los comandos de la herramienta PowerShell. En Windows esos comandos no
+  llegaban a `commands_run`, así que faltaban en checkpoints y snapshots.
+
 ## [2.5.0] — 2026-11-03
 
 ### Added

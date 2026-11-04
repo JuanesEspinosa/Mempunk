@@ -33,7 +33,7 @@ export const HOOK_EVENT_MAP = {
 
 // Matcher de Claude Code por hook (lista de nombres exactos separados por |).
 // Sin entrada → '' (todos). on-tool solo necesita las herramientas que registra.
-export const HOOK_MATCHERS = { 'on-tool.js': 'Edit|Write|MultiEdit|NotebookEdit|Bash' };
+export const HOOK_MATCHERS = { 'on-tool.js': 'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell' };
 
 // Timeout (segundos, campo `timeout` de Claude Code) para los hooks que hacen
 // push/pull del vault: por encima del tope interno del hook (45 s / 50 s) para

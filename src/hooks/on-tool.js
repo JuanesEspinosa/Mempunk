@@ -1,7 +1,7 @@
 // # mempunk-hook
 
 // Evento: PostToolUse — después de cada herramienta que matchee el registro de
-// `hooks install` (Edit|Write|MultiEdit|NotebookEdit|Bash).
+// `hooks install` (Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell).
 // Registra en el estado de la sesión los archivos editados de verdad y los
 // comandos corridos, en vez de adivinarlos con una regex sobre el transcript.
 
@@ -20,6 +20,7 @@ import {
 } from '../hooks-lib/session-state.js';
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+const COMMAND_TOOLS = new Set(['Bash', 'PowerShell']);
 
 const log = createLogger('on-tool');
 exitIfPluginOwnsHooks(log);
@@ -47,7 +48,7 @@ function stateChange(toolName, toolInput, cwd) {
     const shown = displayPath(filePath, cwd);
     return (state) => ({ ...state, files_touched: appendUnique(state.files_touched, shown, MAX_FILES_TOUCHED) });
   }
-  if (toolName === 'Bash') {
+  if (COMMAND_TOOLS.has(toolName)) {
     const command = truncate(toolInput.command, MAX_COMMAND_CHARS).trim();
     if (!command) return null;
     return (state) => ({ ...state, commands_run: appendBounded(state.commands_run, command, MAX_COMMANDS_RUN) });
