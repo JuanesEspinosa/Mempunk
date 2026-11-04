@@ -18,6 +18,7 @@ import {
   MAX_COMMANDS_RUN,
   MAX_COMMAND_CHARS,
 } from '../hooks-lib/session-state.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const COMMAND_TOOLS = new Set(['Bash', 'PowerShell']);
@@ -49,7 +50,7 @@ function stateChange(toolName, toolInput, cwd) {
     return (state) => ({ ...state, files_touched: appendUnique(state.files_touched, shown, MAX_FILES_TOUCHED) });
   }
   if (COMMAND_TOOLS.has(toolName)) {
-    const command = truncate(toolInput.command, MAX_COMMAND_CHARS).trim();
+    const command = truncate(redactSecrets(toolInput.command), MAX_COMMAND_CHARS).trim();
     if (!command) return null;
     return (state) => ({ ...state, commands_run: appendBounded(state.commands_run, command, MAX_COMMANDS_RUN) });
   }

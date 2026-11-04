@@ -15,6 +15,7 @@ import {
   MAX_MESSAGES,
   MAX_MESSAGE_CHARS,
 } from '../hooks-lib/session-state.js';
+import { redactSecrets } from '../hooks-lib/redact.js';
 
 const log = createLogger('on-prompt');
 exitIfPluginOwnsHooks(log);
@@ -27,7 +28,7 @@ try {
       log(`session_id inválido: ${JSON.stringify(sessionId)} — sin acción`);
     } else {
       fs.mkdirSync(MEMPUNK_DIR, { recursive: true });
-      const text = truncate(prompt, MAX_MESSAGE_CHARS);
+      const text = truncate(redactSecrets(prompt), MAX_MESSAGE_CHARS);
       updateSessionState(sessionId, (state) => ({
         ...state,
         project_id: state.project_id ?? getProjectId(cwd),
