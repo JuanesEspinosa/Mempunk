@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [2.6.1] — 2026-11-04
+
 ### Security
 - **Filtro de secretos en la captura automática.** Los hooks ocultan el valor y conservan el contexto
   en prompts, respuestas y comandos: claves de API con formato conocido, claves privadas, JWT, URLs
