@@ -50,6 +50,10 @@ function runHook(hookFile, input, extraEnv = {}) {
       MEMPUNK_CLI: `node ${FAKE_CLI}`,
       FAKE_CLI_LOG: CALLS_LOG,
       CLAUDE_PROJECT_ID: '',
+      // Sin esto, un plugin instalado en la máquina desactiva estos hooks manuales
+      ...ISOLATED_ENV,
+      CLAUDE_CONFIG_DIR: '',
+      CLAUDE_PROJECT_DIR: '',
       ...extraEnv,
     },
   });
