@@ -21,3 +21,7 @@ dist/
 # Sensitive data (never commit)
 *.env
 credentials.*
+
+# Notas internas de trabajo (Praxis)
+specs/
+.praxis/
