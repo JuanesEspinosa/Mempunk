@@ -15,11 +15,21 @@ export const STATE_HISTORY_HEADING = '## Historial de estados anteriores';
 
 const MAX_HISTORY_LINE_CHARS = 200;
 
+// Las de templates/project/wiki/state.md. Solo se avisa: un estado incompleto
+// sigue valiendo más que perder lo que el modelo quería guardar
+export const STATE_SECTIONS = [
+  'Estado actual',
+  'Que se esta construyendo ahora',
+  'Decisiones vigentes clave',
+  'Blockers / riesgos activos',
+  'Proximos 3 pasos',
+];
+
 /**
  * Reemplaza wiki/state.md de un proyecto conservando su historial.
  * @param {import('../store/VaultStore.js').default} store
  * @param {{ projectId: string, markdown: string, now?: Date }} input
- * @returns {{ file_path: string }}
+ * @returns {{ file_path: string, missing_sections: string[], warning?: string }}
  */
 export function updateState(store, { projectId, markdown, now = new Date() }) {
   const project = requireProject(store, projectId);
@@ -40,7 +50,26 @@ export function updateState(store, { projectId, markdown, now = new Date() }) {
   const content = `${body}\n\n---\n\n${STATE_HISTORY_HEADING}\n${entries ? `\n${entries}\n` : ''}`;
   writeAtomic(file, content);
   store.trackFile(file);
-  return { file_path: file };
+
+  const missing = missingSections(body);
+  return {
+    file_path: file,
+    missing_sections: missing,
+    ...(missing.length > 0 && { warning: t('service.stateMissingSections', { sections: missing.join(', ') }) }),
+  };
+}
+
+/** Sin acentos, en minúsculas y con los espacios colapsados, para cotejar encabezados */
+function normalizeHeading(text) {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/** Secciones de STATE_SECTIONS sin encabezado `##` en el markdown */
+function missingSections(markdown) {
+  const headings = new Set(
+    markdown.split('\n').filter((line) => line.startsWith('## ')).map((line) => normalizeHeading(line.slice(3))),
+  );
+  return STATE_SECTIONS.filter((section) => !headings.has(normalizeHeading(section)));
 }
 
 /** Contenido existente bajo el encabezado de historial ('' si no hay) */

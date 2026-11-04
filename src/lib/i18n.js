@@ -372,6 +372,7 @@ Maintenance:
     'service.invalidPriority': 'Invalid priority "{priority}". Use an integer from {min} to {max}',
     'service.unknownBacklogItem': 'Backlog task "{id}" does not exist',
     'service.stateTooLong': 'The state has {length} characters; the limit is {max}. Summarize it.',
+    'service.stateMissingSections': 'State saved, but these sections are missing: {sections}. Include them the next time you rewrite it.',
 
     // Servidor MCP — descripciones de herramientas (dicen CUÁNDO usarlas, < 300 caracteres)
     'mcp.getContext': 'Load the compiled Mempunk context of a project: state, last session, pending backlog and recent decisions. Use it when starting work on a project or switching projects, before planning. Not needed if the context block is already in the conversation.',
@@ -759,6 +760,7 @@ Mantenimiento:
     'service.invalidPriority': 'Prioridad inválida "{priority}". Usa un entero de {min} a {max}',
     'service.unknownBacklogItem': 'La tarea "{id}" no existe en el backlog',
     'service.stateTooLong': 'El estado tiene {length} caracteres; el límite es {max}. Resúmelo.',
+    'service.stateMissingSections': 'Estado guardado, pero faltan estas secciones: {sections}. Inclúyelas la próxima vez que lo reescribas.',
 
     // Servidor MCP — descripciones de herramientas (dicen CUÁNDO usarlas, < 300 caracteres)
     'mcp.getContext': 'Carga el contexto compilado de un proyecto de Mempunk: estado, última sesión, backlog pendiente y decisiones recientes. Úsala al empezar a trabajar en un proyecto o al cambiar de proyecto, antes de planificar. No hace falta si el bloque ya está en la conversación.',
