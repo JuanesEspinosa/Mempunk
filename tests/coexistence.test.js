@@ -261,16 +261,16 @@ describe('mempunk hooks install --check', () => {
   it('plugin + solo agentes sobrantes: avisa de convivencia', () => {
     enablePlugin();
     fs.mkdirSync(AGENTS_DIR, { recursive: true });
-    fs.writeFileSync(path.join(AGENTS_DIR, 'mempunk-saver.md'), '---\nname: mempunk-saver\n---\n# mempunk-agent\n');
+    fs.writeFileSync(path.join(AGENTS_DIR, 'mempunk-recover.md'), '---\nname: mempunk-recover\n---\n# mempunk-agent\n');
     const r = cli(['hooks', 'install', '--check']);
-    expect(r.out).toMatch(/✓ mempunk-saver\.md/);
+    expect(r.out).toMatch(/✓ mempunk-recover\.md/);
     expect(r.out).toMatch(/Conviven restos manuales/);
   });
 
   it('plugin + agente sin marcador: no avisa, porque migrate no lo retira', () => {
     enablePlugin();
     fs.mkdirSync(AGENTS_DIR, { recursive: true });
-    fs.writeFileSync(path.join(AGENTS_DIR, 'mempunk-saver.md'), '---\nname: mempunk-saver\n---\n');
+    fs.writeFileSync(path.join(AGENTS_DIR, 'mempunk-recover.md'), '---\nname: mempunk-recover\n---\n');
     const r = cli(['hooks', 'install', '--check']);
     expect(r.out).not.toMatch(/Conviven/);
     expect(r.out).toMatch(/Hooks y agentes los aporta el plugin/);
@@ -279,7 +279,8 @@ describe('mempunk hooks install --check', () => {
   it('sin plugin ni hooks: sigue marcando ✗', () => {
     const r = cli(['hooks', 'install', '--check']);
     expect(r.out).toMatch(/✗ on-start\.js/);
-    expect(r.out).toMatch(/✗ mempunk-saver\.md/);
+    expect(r.out).toMatch(/✗ mempunk-recover\.md/);
+    expect(r.out).not.toMatch(/mempunk-saver\.md/);
     expect(r.out).not.toMatch(/los aporta el plugin/);
   });
 });

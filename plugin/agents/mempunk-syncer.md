@@ -32,7 +32,6 @@ If the command fails (vault not found, CLI not installed) or returns an empty JS
 - Never run raw `git` commands — the mempunk CLI handles backups, conflicts and integrity checks
 - Never read transcripts or guess what happened in the session — the summary comes from Claude
 - MEMPUNK_VAULT is already set in the environment — do not change it
-- If the mempunk command is not found, try: `node ~/.mempunk/cli.js` as fallback
 
 ## Sync instruction format
 

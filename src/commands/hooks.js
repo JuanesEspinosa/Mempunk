@@ -12,7 +12,9 @@ import { installStatusline, uninstallStatusline } from './statusline.js';
 
 // Archivos que Mempunk instala — el mismo orden se usa en install y uninstall
 const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js', 'on-tool.js', 'on-end.js'];
-const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md', 'mempunk-syncer.md'];
+const AGENT_FILES = ['mempunk-recover.md', 'mempunk-syncer.md'];
+// Agentes que versiones anteriores instalaban: se borran sus copias con marcador, nunca se instalan
+const RETIRED_AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md'];
 
 // Identificadores únicos para distinguir archivos de Mempunk de otros del usuario
 const HOOK_MARKER  = '# mempunk-hook';
@@ -179,7 +181,7 @@ function _printCheck(targetDir) {
   // Solo cuenta lo que `hooks migrate` retiraría: avisar de lo demás no tendría remedio
   const hasManual = registeredFiles.length > 0 ||
     hooksOk.some((f) => _hasMarker(path.join(targetDir, f), HOOK_MARKER)) ||
-    agentsOk.some((f) => _hasMarker(path.join(agentsDir, f), AGENT_MARKER));
+    [...AGENT_FILES, ...RETIRED_AGENT_FILES].some((f) => _hasMarker(path.join(agentsDir, f), AGENT_MARKER));
   const pluginActive = isPluginEnabled();
 
   // Con el plugin y nada manual, una lista de ✗ parecería una instalación rota
@@ -258,11 +260,27 @@ export function cmdHooksInstall() {
       if (!fs.existsSync(src)) continue;
       fs.copyFileSync(src, path.join(agentDestDir, file));
     }
+    _removeMarkedAgents(agentDestDir, RETIRED_AGENT_FILES);
     console.log(t('hooks.agentsInstalled', { dir: agentDestDir }));
   }
 
   console.log(t('hooks.installed', { dir: targetDir }));
   console.log(t('hooks.pluginHint'));
+}
+
+/** Borra de agentDir los agentes de la lista que llevan # mempunk-agent; los demás son del usuario.
+ *  Devuelve cuántos borró. */
+function _removeMarkedAgents(agentDir, files) {
+  let removed = 0;
+  for (const file of files) {
+    const filePath = path.join(agentDir, file);
+    if (!_hasMarker(filePath, AGENT_MARKER)) continue;
+    try {
+      fs.unlinkSync(filePath);
+      removed++;
+    } catch (_) {}
+  }
+  return removed;
 }
 
 /** Retira los hooks y agentes manuales: archivos con marcador y registros de settings.json.
@@ -305,19 +323,7 @@ function _removeManualHooks(targetDir, agentDir) {
     console.log(t('hooks.noneFound', { dir: targetDir }));
   }
 
-  // Eliminar agentes de Mempunk (solo los marcados con # mempunk-agent)
-  let agentsRemoved = 0;
-  for (const file of AGENT_FILES) {
-    const filePath = path.join(agentDir, file);
-    if (!fs.existsSync(filePath)) continue;
-    try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      if (content.includes(AGENT_MARKER)) {
-        fs.unlinkSync(filePath);
-        agentsRemoved++;
-      }
-    } catch (_) {}
-  }
+  const agentsRemoved = _removeMarkedAgents(agentDir, [...AGENT_FILES, ...RETIRED_AGENT_FILES]);
   if (agentsRemoved > 0) console.log(t('hooks.agentsRemoved', { dir: agentDir }));
 
   // Eliminar registros de settings.json — siempre, aunque el directorio no exista,

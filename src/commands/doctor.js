@@ -54,7 +54,7 @@ export function cmdDoctor() {
   }
 
   const HOOK_FILES_DOC  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js'];
-  const AGENT_FILES_DOC = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
+  const AGENT_FILES_DOC = ['mempunk-recover.md', 'mempunk-syncer.md'];
   const globalHooksDir  = path.join(os.homedir(), '.claude', 'hooks');
   const localHooksDir   = path.join(process.cwd(), '.claude', 'hooks');
   const globalAgentsDir = path.join(os.homedir(), '.claude', 'agents');
