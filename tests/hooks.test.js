@@ -285,6 +285,14 @@ describe('on-tool.js (PostToolUse)', () => {
     expect(state.commands_run).toEqual(['npm test']);
   });
 
+  it('registra el comando de PowerShell igual que el de Bash', () => {
+    runHook('on-tool.js', fixture('post-tool-use-bash', {
+      session_id: 'sess-tool-ps', tool_name: 'PowerShell', tool_input: { command: 'npm test' },
+    }));
+
+    expect(readState('sess-tool-ps').commands_run).toEqual(['npm test']);
+  });
+
   it('Write, MultiEdit y NotebookEdit también cuentan; fuera del cwd la ruta queda absoluta con /', () => {
     const outside = path.join(os.tmpdir(), 'otro', 'nota.md');
     runHook('on-tool.js', fixture('post-tool-use-edit', { session_id: 'sess-tool-kinds', tool_name: 'Write', tool_input: { file_path: outside } }));
