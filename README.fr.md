@@ -352,7 +352,7 @@ Si le vault a besoin de `mempunk vault upgrade`, les outils renvoient cette erre
 | `mempunk hooks install --local` | Installer les hooks dans `.claude/` du projet actuel | `mempunk hooks install --local` |
 | `mempunk hooks install --check` | Verifier hooks, agents et statusline installes | `mempunk hooks install --check` |
 | `mempunk hooks migrate` | Retire les hooks et agents manuels pour passer au plugin | `mempunk hooks migrate` |
-| `mempunk statusline install` | Installe la barre d'état (`uninstall` la retire ; `--force` en remplace une autre) | `mempunk statusline install` |
+| `mempunk statusline install` | Installe la barre d'état (`uninstall` la retire et restaure la précédente ; `--force` en remplace une autre) | `mempunk statusline install` |
 | `mempunk hooks uninstall` | Supprimer les hooks Mempunk | `mempunk hooks uninstall` |
 
 ## Confidentialité

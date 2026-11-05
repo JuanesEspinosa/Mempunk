@@ -356,7 +356,7 @@ If the vault needs `mempunk vault upgrade`, the tools return that error instead 
 | `mempunk hooks install --local` | Install hooks in `.claude/` of the current project | `mempunk hooks install --local` |
 | `mempunk hooks install --check` | Verify hooks, agents, and statusline are installed | `mempunk hooks install --check` |
 | `mempunk hooks migrate` | Remove manual hooks + agents to move to the plugin | `mempunk hooks migrate` |
-| `mempunk statusline install` | Install the status line (`uninstall` removes it; `--force` replaces another one) | `mempunk statusline install` |
+| `mempunk statusline install` | Install the status line (`uninstall` removes it and restores the one it replaced; `--force` replaces another one) | `mempunk statusline install` |
 | `mempunk hooks uninstall` | Remove Mempunk hooks | `mempunk hooks uninstall` |
 
 ### Sync between machines

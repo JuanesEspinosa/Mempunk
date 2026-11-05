@@ -80,6 +80,7 @@ Maintenance:
   hooks    install                  Install hooks globally in ~/.claude/hooks/
   hooks    install --local          Install hooks in the current project's .claude/hooks/
   hooks    install --check          Check whether the hooks are active
+  hooks    install --force          Replace another statusline without asking (restored on uninstall)
   hooks    uninstall                Remove Mempunk hooks (global by default)`,
 
     // output.js
@@ -263,6 +264,9 @@ Maintenance:
     'hooks.checkCoexist': '! Manual leftovers (hooks or agents) coexist with the plugin; manual hooks exit without running. Remove them with: mempunk hooks migrate',
     'statusline.foreign': 'Another statusline is configured: {command}. Use --force to replace it',
     'statusline.noneFound': 'Mempunk statusline is not registered',
+    'statusline.askReplace': "Another statusline is configured: {command}\nReplace it with Mempunk's? It is restored on uninstall [y/N] ",
+    'statusline.keptForeign': 'Statusline kept: {command}. To replace it: mempunk statusline install --force',
+    'statusline.restored': 'Previous statusline restored: {command}',
 
     // auto-start
     'autostart.status': 'Auto-start: {state}',
@@ -468,6 +472,7 @@ Mantenimiento:
   hooks    install                  Instala hooks globalmente en ~/.claude/hooks/
   hooks    install --local          Instala hooks en .claude/hooks/ del proyecto actual
   hooks    install --check          Verifica si los hooks están activos
+  hooks    install --force          Reemplaza otra statusline sin preguntar (se restaura al desinstalar)
   hooks    uninstall                Elimina hooks de Mempunk (global por defecto)`,
 
     // output.js
@@ -651,6 +656,9 @@ Mantenimiento:
     'hooks.checkCoexist': '! Conviven restos manuales (hooks o agentes) y plugin; los hooks manuales salen sin ejecutarse. Retíralos con: mempunk hooks migrate',
     'statusline.foreign': 'Hay otra statusline configurada: {command}. Usa --force para reemplazarla',
     'statusline.noneFound': 'La statusline de Mempunk no está registrada',
+    'statusline.askReplace': 'Hay otra statusline configurada: {command}\n¿Reemplazarla por la de Mempunk? Se restaura al desinstalar [s/N] ',
+    'statusline.keptForeign': 'Se conserva la statusline: {command}. Para reemplazarla: mempunk statusline install --force',
+    'statusline.restored': 'Statusline anterior restaurada: {command}',
 
     // auto-start
     'autostart.status': 'Auto-start: {state}',
