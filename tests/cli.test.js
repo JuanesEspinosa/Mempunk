@@ -695,7 +695,8 @@ describe('mempunk hooks', () => {
   const globalAgentsDir = path.join(TEMP_HOME, '.claude', 'agents');
   const settingsPath    = path.join(TEMP_HOME, '.claude', 'settings.json');
   const HOOK_FILES  = ['on-start.js', 'on-compact.js', 'on-stop.js', 'on-prompt.js', 'on-tool.js'];
-  const AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md', 'mempunk-recover.md'];
+  const AGENT_FILES = ['mempunk-recover.md', 'mempunk-syncer.md'];
+  const RETIRED_AGENT_FILES = ['mempunk-saver.md', 'mempunk-loader.md'];
   const HOOK_MARKER  = '# mempunk-hook';
   const AGENT_MARKER = '# mempunk-agent';
 
@@ -759,14 +760,41 @@ describe('mempunk hooks', () => {
   it('hooks install --check muestra estado de hooks, agentes y statusline', () => {
     const output = run('hooks install --check');
     expect(output).toContain('on-start.js');
-    expect(output).toContain('mempunk-saver.md');
-    expect(output).toContain('mempunk-loader.md');
-    expect(output).toContain('mempunk-recover.md');
     expect(output).toContain('Statusline');
     // Todos deben mostrar ✓ tras la instalación global anterior
-    expect(output).toContain('✓ mempunk-saver.md');
-    expect(output).toContain('✓ mempunk-loader.md');
     expect(output).toContain('✓ mempunk-recover.md');
+    expect(output).toContain('✓ mempunk-syncer.md');
+    for (const f of RETIRED_AGENT_FILES) expect(output).not.toContain(f);
+  });
+
+  it('hooks install no instala los agentes retirados y borra sus copias viejas con marcador', () => {
+    for (const f of RETIRED_AGENT_FILES) {
+      fs.writeFileSync(path.join(globalAgentsDir, f), `---\nname: ${f}\n---\n${AGENT_MARKER}\n`);
+    }
+    const foreign = path.join(globalAgentsDir, 'mempunk-saver-propio.md');
+    fs.writeFileSync(foreign, '---\nname: propio\n---\n');
+    run('hooks install');
+    for (const f of RETIRED_AGENT_FILES) {
+      expect(fs.existsSync(path.join(globalAgentsDir, f))).toBe(false);
+    }
+    expect(fs.existsSync(foreign)).toBe(true);
+    fs.unlinkSync(foreign);
+  });
+
+  it('hooks install conserva un agente retirado sin marcador: es del usuario', () => {
+    const own = path.join(globalAgentsDir, 'mempunk-saver.md');
+    fs.writeFileSync(own, '---\nname: mempunk-saver\n---\nversión propia\n');
+    run('hooks install');
+    expect(fs.existsSync(own)).toBe(true);
+    fs.unlinkSync(own);
+  });
+
+  it('hooks uninstall --local borra también las copias retiradas con marcador', () => {
+    fs.mkdirSync(localAgentsDir, { recursive: true });
+    const old = path.join(localAgentsDir, 'mempunk-loader.md');
+    fs.writeFileSync(old, `---\nname: mempunk-loader\n---\n${AGENT_MARKER}\n`);
+    run('hooks uninstall --local');
+    expect(fs.existsSync(old)).toBe(false);
   });
 
   it('hooks install --local instala agentes en .claude/agents/ del proyecto actual', () => {

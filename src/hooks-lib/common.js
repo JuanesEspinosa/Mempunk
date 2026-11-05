@@ -256,8 +256,7 @@ export function getProjectId(cwd) {
 
 const HOOK_MESSAGES = {
   en: {
-    'autostart.context': 'mempunk-auto-start: The user has auto-start enabled. Invoke {loader} ' +
-      'to load the vault context for the current project before responding.',
+    'autostart.failed': 'Could not load the Mempunk context automatically; use {loadCmd} to load it.',
     'autostart.unmapped': 'This directory is not linked to a Mempunk project; use {loadCmd} to choose or create one.',
     'restore.title': '⚠️ CONTEXT RESTORED AFTER COMPACTION ({date})',
     'restore.unknownDate': 'unknown date',
@@ -288,8 +287,7 @@ const HOOK_MESSAGES = {
     'autosession.reply': 'Last reply: {text}',
   },
   es: {
-    'autostart.context': 'mempunk-auto-start: El usuario tiene auto-start activado. Invoca {loader} ' +
-      'para cargar el contexto del vault del proyecto actual antes de responder.',
+    'autostart.failed': 'No se pudo cargar el contexto de Mempunk automáticamente; usa {loadCmd} para cargarlo.',
     'autostart.unmapped': 'Este directorio no está vinculado a un proyecto de Mempunk; usa {loadCmd} para elegir o crear uno.',
     'restore.title': '⚠️ CONTEXTO RESTAURADO TRAS COMPACTACION ({date})',
     'restore.unknownDate': 'fecha desconocida',
@@ -377,11 +375,9 @@ export function exitIfPluginOwnsHooks(log) {
   process.exit(0);
 }
 
-/** Nombres que Claude ve: en el plugin, agentes y skills llevan el prefijo "mempunk:" */
+/** Nombres que Claude ve: en el plugin, los skills llevan el prefijo "mempunk:" */
 export function assetNames() {
-  return isViaPlugin()
-    ? { loader: '@mempunk:mempunk-loader', loadCmd: '/mempunk:load' }
-    : { loader: '@mempunk-loader', loadCmd: '/mempunk' };
+  return { loadCmd: isViaPlugin() ? '/mempunk:load' : '/mempunk' };
 }
 
 /** Mensaje de UI del hook traducido, con placeholders {name}. Nunca lanza. */

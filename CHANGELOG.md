@@ -12,6 +12,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ### Added
 - `update_state` avisa si falta alguna de las 5 secciones del estado. Guarda igualmente.
 
+### Removed
+- Se retiran los agentes `mempunk-loader` y `mempunk-saver`. El contexto lo inyecta el hook de
+  inicio, `/mempunk:load` sirve para cambiar o crear proyecto, y los guardados usan las herramientas
+  MCP (`save_decision`, `log_session`, `backlog_update`, `update_state`). `hooks install`,
+  `uninstall` y `migrate` borran las copias viejas que llevan el marcador de Mempunk.
+- `mempunk-syncer` ya no recurre a `node ~/.mempunk/cli.js` si no encuentra el comando.
+
+### Changed
+- Si el hook de inicio no puede cargar el contexto, pide usar `/mempunk:load` (o `/mempunk`) en vez
+  de invocar al loader.
+
 ---
 
 ## [2.6.1] — 2026-11-04
