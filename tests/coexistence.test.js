@@ -350,10 +350,42 @@ describe('mempunk statusline', () => {
     expect(readSettings().statusLine).toEqual(FOREIGN);
   });
 
-  it('hooks install mantiene su comportamiento: reemplaza la statusline', () => {
+  it('hooks install sin terminal conserva una statusline ajena e instala los hooks', () => {
     mergeSettings({ statusLine: FOREIGN });
+    const r = cli(['hooks', 'install']);
+    expect(r.status).toBe(0);
+    expect(r.out).toMatch(/Se conserva la statusline: otra-statusline/);
+    expect(readSettings().statusLine).toEqual(FOREIGN);
+    expect(mempunkEntries().length).toBeGreaterThan(0);
+  });
+
+  it('hooks install sin statusline previa instala la de Mempunk', () => {
     cli(['hooks', 'install']);
     expect(readSettings().statusLine.command).toContain('.mempunk/statusline.js');
+  });
+
+  it('hooks install --force reemplaza la ajena y uninstall la restaura', () => {
+    mergeSettings({ statusLine: FOREIGN });
+    cli(['hooks', 'install', '--force']);
+    expect(readSettings().statusLine.command).toContain('.mempunk/statusline.js');
+    const r = cli(['hooks', 'uninstall']);
+    expect(r.out).toMatch(/Statusline anterior restaurada: otra-statusline/);
+    expect(readSettings().statusLine).toEqual(FOREIGN);
+  });
+
+  it('statusline install --force guarda la ajena y statusline uninstall la restaura una vez', () => {
+    mergeSettings({ statusLine: FOREIGN });
+    cli(['statusline', 'install', '--force']);
+    cli(['statusline', 'install']);
+    cli(['statusline', 'uninstall']);
+    expect(readSettings().statusLine).toEqual(FOREIGN);
+    expect(fs.existsSync(path.join(HOME, '.mempunk', 'statusline-previous.json'))).toBe(false);
+  });
+
+  it('sin statusline previa, uninstall quita la clave', () => {
+    cli(['statusline', 'install']);
+    cli(['statusline', 'uninstall']);
+    expect(readSettings().statusLine).toBeUndefined();
   });
 
   it('subcomando desconocido: error con las opciones válidas', () => {

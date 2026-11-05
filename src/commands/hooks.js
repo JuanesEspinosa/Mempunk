@@ -6,7 +6,7 @@ import { t } from '../lib/i18n.js';
 import { fail } from '../lib/output.js';
 import { VAULT_PATH, __cliDir } from '../lib/vault.js';
 import { CLAUDE_SETTINGS_PATH, isPluginEnabled, readJsonFile, writeJsonFile } from '../lib/config-files.js';
-import { installStatusline, uninstallStatusline } from './statusline.js';
+import { installStatuslineAsking, uninstallStatusline } from './statusline.js';
 
 // ── Handlers — Hooks ──────────────────────────────────────────────────────────
 
@@ -205,7 +205,7 @@ function _printCheck(targetDir) {
   if (pluginActive) console.log(t(hasManual ? 'hooks.checkCoexist' : 'hooks.checkPluginProvides'));
 }
 
-export function cmdHooksInstall() {
+export async function cmdHooksInstall() {
   // Los hooks instalables son los bundles autocontenidos de dist/hooks
   // (src/hooks importa de hooks-lib y no funciona copiado suelto)
   const sourceDir = path.join(__cliDir, '..', 'dist', 'hooks');
@@ -246,8 +246,8 @@ export function cmdHooksInstall() {
   // Registrar hooks en settings.json como command hooks
   _registerHooksInSettings(targetDir);
 
-  // Mantiene el comportamiento de siempre: `hooks install` reemplaza la statusline
-  installStatusline({ force: true });
+  // Una statusline ajena no se pisa sin preguntar (--force la reemplaza)
+  await installStatuslineAsking();
 
   // Instalar agentes: copiar src/agents/*.md a .claude/agents/ (local o global)
   const agentSrcDir  = path.join(__cliDir, 'agents');

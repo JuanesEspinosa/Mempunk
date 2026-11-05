@@ -133,7 +133,7 @@ export async function cmdSetup() {
   // ── Step 4: Instalar hooks+agentes o vault-skills ────────────────────────
   if (mode === 'auto') {
     if (opts.plugin) installPlugin();
-    cmdHooksInstall();
+    await cmdHooksInstall();
     cmdAutoStart('on');
   } else {
     try {

@@ -184,7 +184,7 @@ try {
 
     case 'hooks':
       switch (subcommand) {
-        case 'install':   cmdHooksInstall(); break;
+        case 'install':   await cmdHooksInstall(); break;
         case 'uninstall': cmdHooksUninstall(); break;
         case 'migrate':   cmdHooksMigrate(); break;
         default: fail(t('cli.unknownSubcommand', { command: 'hooks', sub: subcommand ?? '', valid: 'install | uninstall | migrate' }));

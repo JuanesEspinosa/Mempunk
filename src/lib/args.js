@@ -16,7 +16,7 @@ const { values: opts, positionals } = parseArgs({
     global:       { type: 'boolean' },  // hooks install/uninstall (deprecated alias — global es el default)
     local:        { type: 'boolean' },  // hooks install/uninstall --local → instala en .claude/ del proyecto actual
     check:        { type: 'boolean' },  // hooks install --check
-    force:        { type: 'boolean' },  // statusline install --force → reemplaza una statusline ajena
+    force:        { type: 'boolean' },  // statusline install / hooks install --force → reemplaza una statusline ajena
     yes:          { type: 'boolean' },  // remove / decision remove --yes
     path:         { type: 'string'  },  // project add --path <dir> → ruta del repo real
     here:         { type: 'boolean' },  // project activate --here → mapear cwd al proyecto
