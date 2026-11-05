@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [2.7.1] — 2026-11-04
+
 ### Fixed
 - Con hooks manuales (sin plugin), el aviso de auto-start ya no apunta a `/mempunk`, un skill que
   Mempunk no instala: da los comandos `mempunk project list --json` y `mempunk context <id>`.
@@ -16,6 +20,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   sin terminal, la conserva. `--force` la reemplaza sin preguntar.
 - Al desinstalar la statusline de Mempunk (`statusline uninstall` o `hooks uninstall`) se restaura
   la statusline que había reemplazado.
+- Si un checkpoint y un snapshot de compactación tienen el mismo `created_at`, gana el snapshot
+  (antes el desempate comparaba ids de dos tablas distintas).
 
 ---
 
