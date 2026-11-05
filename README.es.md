@@ -191,7 +191,10 @@ Cuando los hooks estan instalados (`mempunk hooks install`), Mempunk responde au
 | `on-tool.js` | Después de Edit, Write, MultiEdit, NotebookEdit y Bash | Registra en el estado de la sesión los archivos editados de verdad y los comandos corridos |
 | `on-stop.js` | Despues de cada respuesta | **AutoCheckpoint** — guarda un checkpoint incremental cada 5 turnos desde el estado de la sesión, sin leer el transcript |
 | `on-compact.js` | Antes de compactacion de contexto | **CompactGuard** — guarda el estado de la sesión (mensajes recientes, archivos editados, comandos) como snapshot antes de que Claude compacte |
-| `on-start.js` | Inicio de sesion | **CompactRestore** — restaura el contexto desde el ultimo snapshot tras una compactacion |
+| `on-start.js` | Inicio de sesion | **CompactRestore** — restaura el contexto desde el ultimo snapshot tras una compactacion; antes ejecuta `mempunk pull` (límite de 45 s) si `remote set --auto` está activo |
+| `on-end.js` | Fin de sesión | **AutoPush** — si `remote set --auto` está activo, lanza `mempunk push --background` desacoplado y vuelve al instante. El resultado queda en `.mempunk/last-push.json`; el siguiente inicio de sesión avisa una vez si falló. Es una red de seguridad: el push del agente (`@mempunk-syncer` o `mempunk push`) escribe el commit con un resumen real |
+
+Los dos hooks de sincronización se registran con `timeout: 90` en `settings.json`. Si `pull`/`push` falla, al contexto de Claude solo llega un mensaje fijo clasificado (red / autenticación / tiempo límite / conflicto); los detalles van a `.mempunk/hooks.log`.
 
 El intervalo de AutoCheckpoint se puede configurar con la variable de entorno `MEMPUNK_CHECKPOINT_INTERVAL` (por defecto: 5).
 
@@ -408,19 +411,21 @@ mempunk vault upgrade
 
 | | Mempunk | RAG / subida de archivos | Notas manuales | Engram |
 |---|:---:|:---:|:---:|:---:|
-| Persiste entre sesiones | ✔ | ✘ | ✔ | Parcial |
-| El conocimiento se acumula | ✔ | ✘ | Depende | ✘ |
+| Persiste entre sesiones | ✔ | ✘ | ✔ | ✔ |
+| El conocimiento se acumula | ✔ | ✘ | Depende | ✔ |
 | El LLM hace el mantenimiento | ✔ | ✔ | ✘ | ✔ |
-| Funciona offline, sin infraestructura | ✔ | ✘ | ✔ | ✘ |
-| Multi-CLI | ✔ | ✘ | ✔ | ✘ |
-| Guarda contexto durante la sesion | ✔ | ✘ | ✘ | ✘ |
-| Sobrevive compactaciones de contexto | ✔ | ✘ | ✘ | ✘ |
+| Funciona offline, sin infraestructura | ✔ | ✘ | ✔ | ✔ |
+| Multi-CLI | ✔ | ✘ | ✔ | ✔ |
+| Guarda contexto durante la sesion | ✔ | ✘ | ✘ | ✔ |
+| Sobrevive compactaciones de contexto | ✔ | ✘ | ✘ | ✔ |
+| Markdown legible (Obsidian) | ✔ | ✘ | ✔ | ✘ |
+| Sincronización por git entre máquinas | ✔ | ✘ | Depende | ✔ |
 
 **vs RAG / subida de archivos:** Herramientas como NotebookLM o la subida de archivos de ChatGPT recuperan desde documentos en crudo en el momento de la consulta. Nada se acumula. Haz la misma pregunta dos veces y el LLM hace el mismo trabajo dos veces. Mempunk compila contexto incrementalmente — cada sesion produce un snapshot mas rico y preciso.
 
 **vs notas manuales:** Un wiki que escribes tu mismo funciona — hasta que la carga de mantenimiento lo mata. Actualizar referencias cruzadas entre decenas de paginas es tedioso. La gente abandona los wikis porque el costo de mantenimiento crece mas rapido que el valor. Mempunk delega todo eso al LLM.
 
-**vs Engram:** Engram usa almacenamiento solo en SQLite sin capa legible por humanos. Mempunk mantiene markdown como la capa humana con SQLite como backend estructurado. El vault es portable, legible en cualquier editor de texto, y funciona como vault de Obsidian.
+**vs Engram:** Engram es un binario de Go con SQLite + FTS5, expuesto por MCP, CLI, API HTTP y una TUI. Funciona con cualquier agente MCP (Claude Code, OpenCode, Gemini CLI, Codex, Antigravity…), recupera el contexto tras una compactación y se sincroniza por git. La diferencia está en el almacenamiento: Engram guarda las memorias solo en SQLite, sin capa legible por humanos. Mempunk mantiene markdown como la capa humana — decisiones, backlog, logs de sesión y un `wiki/state.md` compilado — con SQLite como backend estructurado, así que el vault se lee en cualquier editor de texto y funciona como vault de Obsidian. Una contrapartida: el sync de Engram exporta fragmentos que solo se añaden, mientras que Mempunk versiona el archivo SQLite, de modo que un conflicto entre dos máquinas aparta la base de una de ellas a un backup.
 
 ## Idiomas
 

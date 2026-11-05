@@ -447,19 +447,21 @@ mempunk vault upgrade
 
 | | Mempunk | RAG / file uploads | Manual notes | Engram |
 |---|:---:|:---:|:---:|:---:|
-| Persists between sessions | ✔ | ✘ | ✔ | Partial |
-| Knowledge accumulates | ✔ | ✘ | Depends | ✘ |
+| Persists between sessions | ✔ | ✘ | ✔ | ✔ |
+| Knowledge accumulates | ✔ | ✘ | Depends | ✔ |
 | LLM does the maintenance | ✔ | ✔ | ✘ | ✔ |
-| Works offline, no infrastructure | ✔ | ✘ | ✔ | ✘ |
-| Cross-CLI | ✔ | ✘ | ✔ | ✘ |
-| Auto-saves during session | ✔ | ✘ | ✘ | ✘ |
-| Survives context compaction | ✔ | ✘ | ✘ | ✘ |
+| Works offline, no infrastructure | ✔ | ✘ | ✔ | ✔ |
+| Cross-CLI | ✔ | ✘ | ✔ | ✔ |
+| Auto-saves during session | ✔ | ✘ | ✘ | ✔ |
+| Survives context compaction | ✔ | ✘ | ✘ | ✔ |
+| Human-readable markdown (Obsidian) | ✔ | ✘ | ✔ | ✘ |
+| Git sync between machines | ✔ | ✘ | Depends | ✔ |
 
 **vs RAG / file uploads:** Tools like NotebookLM or ChatGPT file uploads retrieve from raw documents at query time. Nothing accumulates. Ask the same question twice and the LLM does the same work twice. Mempunk compiles context incrementally — each session produces a richer, more accurate snapshot.
 
 **vs manual notes:** A wiki you write yourself works — until the maintenance burden kills it. Updating cross-references across dozens of pages is tedious. People abandon wikis because the cost of maintenance grows faster than the value. Mempunk delegates all of that to the LLM.
 
-**vs Engram:** Engram uses SQLite-only storage with no human-readable layer. Mempunk keeps markdown as the human layer with SQLite as the structured backend. The vault is portable, readable in any text editor, and works as an Obsidian vault.
+**vs Engram:** Engram is a Go binary with SQLite + FTS5, exposed through MCP, a CLI, an HTTP API and a TUI. It works with any MCP agent (Claude Code, OpenCode, Gemini CLI, Codex, Antigravity…), recovers context after compaction and syncs through git. The difference is the storage layer: Engram keeps memories only in SQLite, with no human-readable layer. Mempunk keeps markdown as the human layer — decisions, backlog, session logs and a compiled `wiki/state.md` — with SQLite as the structured backend, so the vault is readable in any text editor and works as an Obsidian vault. One trade-off: Engram's git sync exports append-only chunks, while Mempunk versions the SQLite file, so a conflict between two machines sets one machine's database aside as a backup.
 
 ## Languages
 
