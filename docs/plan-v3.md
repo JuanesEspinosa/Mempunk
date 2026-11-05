@@ -324,7 +324,7 @@ SessionEnd tiene un presupuesto de ~1,5 s. El push no cabe ahí de forma fiable.
 
 Con el MCP y los hooks nuevos, `mempunk-saver` y `mempunk-loader` sobran: el contexto lo inyecta el hook y los guardados son llamadas directas a herramientas.
 
-**4.1 Auto-start sin subagente** — *adelantado a la Fase 0 (0.8); aquí solo queda cambiar el aviso a `/mempunk:load`*
+**4.1 Auto-start sin subagente** — *hecho: adelantado a la Fase 0 (0.8); el aviso cuando falla el CLI apunta a `/mempunk:load` desde el PR #28*
 
 - Hoy: con `auto-start.flag`, SessionStart inyecta "invoca @mempunk-loader", y el loader (Sonnet, hasta 15 turnos) lista proyectos y pregunta cuál usar.
 - Nuevo: SessionStart resuelve el proyecto con `getProjectId(cwd)` y, si existe, inyecta directamente `mempunk context <id>` como `additionalContext`.
@@ -341,13 +341,15 @@ Con el MCP y los hooks nuevos, `mempunk-saver` y `mempunk-loader` sobran: el con
 | `@mempunk-recover` | Se mantiene | Recuperación tras cierre manual; revisar si `get_context` + checkpoints lo cubren |
 | `@mempunk-syncer` | Se mantiene | Push/pull toca git y credenciales; aislarlo en un agente sigue teniendo sentido |
 
+*Hecho en el PR #28: loader y saver se borran; `hooks install`, `uninstall` y `migrate` eliminan sus copias viejas con marcador (lista de agentes retirados). `mempunk-recover` se mantiene (decisión del 04-11-2026) y `mempunk-syncer` ya no recurre a `~/.mempunk/cli.js`.*
+
 En el frontmatter de los skills, usar `description` y `when_to_use` claros y `disable-model-invocation: true` en `/mempunk:end` si solo debe ejecutarse a petición del usuario.
 
-**4.3 Adelgazar el CLAUDE.md del vault**
+**4.3 Quitar del CLAUDE.md del vault las menciones a los agentes retirados** — *alcance revisado el 04-11-2026*
 
-- `templates/CLAUDE.md` baja de 293 a menos de 60 líneas: qué es el vault, que existen las herramientas `mcp__…mempunk__*` y cuándo priorizarlas, y el enlace a `/mempunk:end`.
-- Los protocolos largos (inicio, guardados incrementales, cierre) se quedan en `vault-skills/` para Gemini y opencode, y como referencia.
-- Objetivo: menos contexto fijo por sesión y una sola fuente de verdad para "cuándo guardar" (las descripciones de las herramientas).
+- `templates/CLAUDE.md` nunca se instala en el vault, así que adelgazarlo no ahorra contexto: solo se quitan las menciones a loader y saver, y el guardado apunta a las herramientas MCP.
+- Lo mismo en los README, `vault-skills/session-start.md` y este plan.
+- Los protocolos largos (inicio, guardados incrementales, cierre) se quedan en `vault-skills/` para Antigravity CLI y opencode, y como referencia.
 
 **4.4 `wiki/state.md` como pieza central**
 
@@ -356,6 +358,8 @@ El estado compilado es el diferencial de Mempunk y ahora alimenta tres caminos: 
 - Plantilla fija con secciones (`Objetivo actual`, `Hecho`, `En curso`, `Siguiente`, `Decisiones vigentes`, `Riesgos`) para que el modelo la reescriba con forma estable.
 - `update_state` valida que el markdown tenga esas secciones y que no supere ~4.000 caracteres; si no, devuelve error explicativo.
 - Guardar la versión anterior en `wiki/log.md` (append) antes de sobrescribir.
+
+*Revisado el 04-11-2026 (PR #27): `update_state` avisa si falta alguna de las 5 secciones del `state.md` en vez de rechazar, guarda igualmente y sigue reemplazando el archivo entero.*
 
 **Criterio de salida:** una sesión nueva en un repo vinculado arranca con el bloque de contexto ya cargado sin ninguna llamada a subagente; `mempunk-saver.md` y `mempunk-loader.md` ya no se instalan.
 
@@ -477,18 +481,18 @@ con la evidencia (test, comando o archivo). No arregles nada todavía.
 **Orden de subtareas**
 
 - [ ] 0.6 CLAUDE.md de desarrollo
-- [ ] 0.1 Empaquetar `vault-skills/` + test de `npm pack`
-- [ ] 0.5 Limpiar la raíz del repo
-- [ ] 0.4 Timeouts de SessionEnd
-- [ ] 0.7 `vault upgrade --help` no migra
-- [ ] 0.3 `mempunk context` + restauración con `state.md`
-- [ ] 0.8 Auto-start determinista
-- [ ] 0.2 Quitar el cálculo de % de `on-prompt.js` (simplificado)
-- [ ] 1.1 Capa de servicios (empezar por decisiones y sesiones)
-- [ ] 1.2–1.5 `mempunk mcp` con `get_context`, `save_decision`, `log_session`, `search`
-- [ ] Resto de herramientas MCP
-- [ ] 2.x Plugin y `hooks migrate`
-- [ ] 3.x Hooks incrementales y registro automático
+- [x] 0.1 Empaquetar `vault-skills/` + test de `npm pack`
+- [x] 0.5 Limpiar la raíz del repo
+- [x] 0.4 Timeouts de SessionEnd
+- [x] 0.7 `vault upgrade --help` no migra
+- [x] 0.3 `mempunk context` + restauración con `state.md`
+- [x] 0.8 Auto-start determinista
+- [x] 0.2 Quitar el cálculo de % de `on-prompt.js` (simplificado)
+- [x] 1.1 Capa de servicios (empezar por decisiones y sesiones)
+- [x] 1.2–1.5 `mempunk mcp` con `get_context`, `save_decision`, `log_session`, `search`
+- [x] Resto de herramientas MCP
+- [x] 2.x Plugin y `hooks migrate`
+- [x] 3.x Hooks incrementales y registro automático
 - [ ] 4.x Skills, auto-start determinista, retiro de saver/loader
 - [ ] 5.x `memory link` y MCP en Gemini/opencode
 
@@ -507,9 +511,9 @@ con la evidencia (test, comando o archivo). No arregles nada todavía.
 
 **Decisiones abiertas** (preguntar al usuario antes de decidir)
 
-- [ ] ¿El plugin vive en `plugin/` dentro de este repo o en un repo aparte? Recomendación: mismo repo, para versionar juntos.
-- [ ] ¿Se mantiene `@mempunk-recover` o lo cubre `get_context` + checkpoints?
-- [ ] ¿`update_state` reemplaza el archivo entero o acepta parches por sección?
+- [x] ¿El plugin vive en `plugin/` dentro de este repo o en un repo aparte? Decidido: mismo repo.
+- [x] ¿Se mantiene `@mempunk-recover` o lo cubre `get_context` + checkpoints? Decidido el 04-11-2026: se mantiene.
+- [x] ¿`update_state` reemplaza el archivo entero o acepta parches por sección? Decidido el 04-11-2026: reemplaza el archivo entero y avisa si faltan secciones.
 - [ ] ¿Los avisos de % de contexto siguen teniendo valor ahora que Claude Code compacta solo y re-adjunta skills? Medir tras la Fase 3 antes de invertir más.
 - [ ] ¿Se exponen push/pull como herramientas MCP en el futuro, con confirmación explícita?
 - [ ] ¿Se hace la Fase 3 antes que la 2? Ya prevé `.mempunk/sessions/` sin plugin, y así la Fase 2 solo empaqueta.

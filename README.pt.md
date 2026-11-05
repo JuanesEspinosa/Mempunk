@@ -144,9 +144,9 @@ Se uma sessão fechar inesperadamente, `mempunk session recover api` mostra o ú
 
 ### Inicio de sessao
 
-**Com agentes (Claude Code, modo automatico):** invoque `@mempunk-loader`. Lista seus projetos, pergunta com qual trabalhar, ativa e retorna um resumo compacto de contexto. Se voce ativou `auto-start` e o diretorio esta vinculado a um projeto (`project activate <id> --here`), a sessao abre com o bloco `mempunk context` desse projeto ja carregado, sem agente nem perguntas.
+**Claude Code (modo automatico):** se voce ativou `auto-start` e o diretorio esta vinculado a um projeto (`project activate <id> --here`), a sessao abre com o bloco `mempunk context` desse projeto ja carregado, sem agente nem perguntas. Para trocar ou criar um projeto, use `/mempunk:load` (plugin); sem o plugin, siga o protocolo manual abaixo.
 
-**Sem agentes (modo manual / Antigravity CLI / opencode):** siga `vault-skills/session-start.md`. O assistente:
+**Manual (sem plugin / Antigravity CLI / opencode):** siga `vault-skills/session-start.md`. O assistente:
 
 1. Executa `mempunk project activate <id>` para definir o projeto ativo
 2. Executa `mempunk session last <project_id>` para saber o que a sessao anterior fez
@@ -216,18 +216,12 @@ Tres sub-agentes sao instalados junto com os hooks:
 
 | Agente | Modelo | Proposito |
 |--------|--------|-----------|
-| `@mempunk-loader` | Sonnet | Carrega o contexto do projeto no inicio da sessao — lista projetos, ativa um, retorna resumo compacto |
-| `@mempunk-saver` | Haiku (background) | Salva decisoes, session logs e atualizacoes de backlog durante a sessao sem interromper o fluxo |
 | `@mempunk-recover` | Sonnet | Recupera o contexto de uma sessao fechada ou interrompida manualmente |
+| `@mempunk-syncer` | Haiku (background) | Envia ou baixa o vault do seu remote git com `mempunk push` / `mempunk pull`; o resumo vai por stdin, nunca pela linha de comando |
 
-`@mempunk-loader` substitui o protocolo manual de inicio de sessao. Com `auto-start` ativado (`mempunk auto-start on`), o SessionStart injeta `mempunk context` do projeto vinculado ao diretorio atual; um diretorio nao vinculado recebe um aviso de uma linha para usar `/mempunk`, e o loader so e invocado como reserva se o CLI falhar.
+Com `auto-start` ativado (`mempunk auto-start on`), o SessionStart injeta `mempunk context` do projeto vinculado ao diretorio atual; um diretorio nao vinculado, ou uma falha do CLI, recebe um aviso de uma linha para usar `/mempunk:load`. Os salvamentos usam as ferramentas MCP (`save_decision`, `log_session`, `backlog_update`, `update_state`).
 
-`@mempunk-saver` e ativado quando voce escreve comandos de salvamento estruturados:
-
-```
-SAVE decision: project=<id> title="Usar JWT para auth"
-SAVE session: project=<id> summary="Implementei endpoint de login"
-```
+Desde a 2.7.0, `@mempunk-loader` e `@mempunk-saver` foram retirados: `mempunk hooks install`, `uninstall` e `migrate` apagam as copias antigas que levam o marcador do Mempunk.
 
 ## Servidor MCP
 
@@ -402,7 +396,7 @@ mempunk vault upgrade
 | Wiki (`state.md`) | ✔ | ✔ | ✔ |
 | Hooks do ciclo de vida (AutoCheckpoint, CompactGuard) | ✔ | ✘ | ✘ |
 | Statusline (barra de uso de contexto) | ✔ | ✘ | ✘ |
-| Agentes (`@mempunk-loader`, `@mempunk-saver`) | ✔ | ✘ | ✘ |
+| Agentes (`@mempunk-recover`, `@mempunk-syncer`) | ✔ | ✘ | ✘ |
 | Multi-CLI simultaneo | ✔ | ✔ | ✔ |
 | Servidor MCP (`mempunk mcp`) | ✔ | ✔ | ✔ |
 
