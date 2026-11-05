@@ -191,7 +191,10 @@ Quando os hooks estao instalados (`mempunk hooks install`), o Mempunk responde a
 | `on-tool.js` | Após Edit, Write, MultiEdit, NotebookEdit e Bash | Registra no estado da sessão os arquivos realmente editados e os comandos executados |
 | `on-stop.js` | Apos cada resposta | **AutoCheckpoint** — salva um checkpoint incremental a cada 5 turnos a partir do estado da sessão, sem ler o transcript |
 | `on-compact.js` | Antes da compactacao de contexto | **CompactGuard** — salva o estado da sessão (mensagens recentes, arquivos editados, comandos) como snapshot antes que o Claude compacte |
-| `on-start.js` | Inicio de sessao | **CompactRestore** — restaura o contexto do ultimo snapshot apos uma compactacao |
+| `on-start.js` | Inicio de sessao | **CompactRestore** — restaura o contexto do ultimo snapshot apos uma compactacao; antes executa `mempunk pull` (limite de 45 s) se `remote set --auto` estiver ativo |
+| `on-end.js` | Fim de sessão | **AutoPush** — se `remote set --auto` estiver ativo, lança `mempunk push --background` desacoplado e retorna na hora. O resultado vai para `.mempunk/last-push.json`; o próximo início de sessão avisa uma vez se falhou. É uma rede de segurança: o push do agente (`@mempunk-syncer` ou `mempunk push`) escreve o commit com um resumo real |
+
+Os dois hooks de sincronização são registrados com `timeout: 90` em `settings.json`. Se `pull`/`push` falhar, só uma mensagem fixa classificada (rede / autenticação / tempo limite / conflito) chega ao contexto do Claude; os detalhes vão para `.mempunk/hooks.log`.
 
 O intervalo do AutoCheckpoint pode ser configurado com a variavel de ambiente `MEMPUNK_CHECKPOINT_INTERVAL` (padrao: 5).
 
@@ -408,19 +411,21 @@ mempunk vault upgrade
 
 | | Mempunk | RAG / upload de arquivos | Notas manuais | Engram |
 |---|:---:|:---:|:---:|:---:|
-| Persiste entre sessoes | ✔ | ✘ | ✔ | Parcial |
-| Conhecimento acumula | ✔ | ✘ | Depende | ✘ |
+| Persiste entre sessoes | ✔ | ✘ | ✔ | ✔ |
+| Conhecimento acumula | ✔ | ✘ | Depende | ✔ |
 | LLM faz a manutencao | ✔ | ✔ | ✘ | ✔ |
-| Funciona offline, sem infraestrutura | ✔ | ✘ | ✔ | ✘ |
-| Multi-CLI | ✔ | ✘ | ✔ | ✘ |
-| Salva contexto durante a sessao | ✔ | ✘ | ✘ | ✘ |
-| Sobrevive compactacoes de contexto | ✔ | ✘ | ✘ | ✘ |
+| Funciona offline, sem infraestrutura | ✔ | ✘ | ✔ | ✔ |
+| Multi-CLI | ✔ | ✘ | ✔ | ✔ |
+| Salva contexto durante a sessao | ✔ | ✘ | ✘ | ✔ |
+| Sobrevive compactacoes de contexto | ✔ | ✘ | ✘ | ✔ |
+| Markdown legível (Obsidian) | ✔ | ✘ | ✔ | ✘ |
+| Sincronização via git entre máquinas | ✔ | ✘ | Depende | ✔ |
 
 **vs RAG / upload de arquivos:** Ferramentas como NotebookLM ou upload de arquivos do ChatGPT recuperam de documentos brutos no momento da consulta. Nada acumula. Faca a mesma pergunta duas vezes e o LLM faz o mesmo trabalho duas vezes. Mempunk compila contexto incrementalmente — cada sessao produz um snapshot mais rico e preciso.
 
 **vs notas manuais:** Um wiki que voce escreve funciona — ate que o fardo de manutencao o mate. Atualizar referencias cruzadas entre dezenas de paginas e tedioso. As pessoas abandonam wikis porque o custo de manutencao cresce mais rapido que o valor. Mempunk delega tudo isso ao LLM.
 
-**vs Engram:** Engram usa armazenamento somente em SQLite sem camada legivel por humanos. Mempunk mantem markdown como a camada humana com SQLite como backend estruturado. O vault e portavel, legivel em qualquer editor de texto, e funciona como vault do Obsidian.
+**vs Engram:** Engram é um binário Go com SQLite + FTS5, exposto via MCP, CLI, API HTTP e uma TUI. Funciona com qualquer agente MCP (Claude Code, OpenCode, Gemini CLI, Codex, Antigravity…), recupera o contexto após uma compactação e sincroniza via git. A diferença está no armazenamento: Engram guarda as memórias somente em SQLite, sem camada legível por humanos. Mempunk mantém markdown como a camada humana — decisões, backlog, logs de sessão e um `wiki/state.md` compilado — com SQLite como backend estruturado, então o vault é legível em qualquer editor de texto e funciona como vault do Obsidian. Uma contrapartida: o sync do Engram exporta fragmentos que só são acrescentados, enquanto o Mempunk versiona o arquivo SQLite, de modo que um conflito entre duas máquinas separa o banco de uma delas em um backup.
 
 ## Idiomas
 
