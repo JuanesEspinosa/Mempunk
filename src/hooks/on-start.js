@@ -8,7 +8,7 @@
 //   materialize de skills/agentes del vault a ~/.claude y a los repos de esta máquina.
 // - Si auto-start.flag existe y source !== "compact": inyecta `mempunk context <id>` del
 //   proyecto vinculado al cwd (o CLAUDE_PROJECT_ID); sin vínculo, un aviso de una línea;
-//   si el CLI falla, un aviso de usar /mempunk:load (o /mempunk).
+//   si el CLI falla, un aviso de usar /mempunk:load (o, sin plugin, los comandos del CLI).
 // - Si source === "compact": inyecta el bloque de `mempunk context <id> --with-snapshot`
 //   (estado compilado + sesión + backlog + decisiones + snapshot); si el CLI falla,
 //   cae al formato anterior basado solo en el último compact_snapshot.
@@ -148,12 +148,12 @@ function buildAdditionalContext(snapshot, projectId) {
 function buildAutoStartContext(cwd) {
   const projectId = getMappedProjectId(cwd);
   if (!projectId) {
-    log('auto-start: cwd sin proyecto vinculado — aviso de /mempunk');
+    log('auto-start: cwd sin proyecto vinculado — aviso de carga');
     return hookT('autostart.unmapped', assetNames());
   }
   const block = fetchContextBlock(projectId, { withSnapshot: false });
   if (!block) {
-    log(`auto-start: context falló para ${projectId} — aviso de /mempunk`);
+    log(`auto-start: context falló para ${projectId} — aviso de carga`);
     return hookT('autostart.failed', assetNames());
   }
   log(`auto-start: inyectando ${block.length} chars de contexto para ${projectId}`);

@@ -1334,7 +1334,7 @@ class VaultStore {
          SELECT 'compact' AS source, id, session_id, NULL AS turn_count,
                 compact_type, message_count, files_found, created_at
          FROM compact_snapshots WHERE project_id = ?
-         ORDER BY created_at DESC, id DESC
+         ORDER BY created_at DESC, source DESC, id DESC
          LIMIT 50`
       )
       .all(projectId, projectId);
@@ -1390,6 +1390,7 @@ class VaultStore {
   /**
    * Retorna el snapshot más reciente entre session_checkpoints y compact_snapshots.
    * Útil para mostrar el último estado guardado independientemente de su origen.
+   * Con el mismo created_at (precisión de ms) gana el compact: los id de dos tablas no se comparan.
    *
    * @param {string} projectId
    * @returns {{ source: 'checkpoint'|'compact', ...rest }|undefined}
@@ -1406,7 +1407,7 @@ class VaultStore {
                 NULL AS turn_count, compact_type, message_count,
                 raw_turns, files_found, commands_run, created_at
          FROM compact_snapshots WHERE project_id = ?
-         ORDER BY created_at DESC, id DESC
+         ORDER BY created_at DESC, source DESC, id DESC
          LIMIT 1`
       )
       .get(projectId, projectId);

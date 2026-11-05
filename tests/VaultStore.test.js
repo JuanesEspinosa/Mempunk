@@ -896,6 +896,20 @@ describe('Compact Snapshots', () => {
     expect(last.source).toBe('compact');
   });
 
+  it('getLastCompactSnapshot() con el mismo created_at prefiere el compact aunque el checkpoint tenga un id mayor', () => {
+    const TIE_PROJ = 'tie-proj';
+    const TIE      = '2030-01-01 00:00:00.000';
+    store.addCompactSnapshot(TIE_PROJ, 'tie-compact', 'manual', 1, TURNS, [], []);
+    for (let i = 0; i < 5; i++) store.addCheckpoint(TIE_PROJ, `tie-checkpoint-${i}`, i, TURNS, []);
+    store.db.prepare('UPDATE compact_snapshots SET created_at = ? WHERE project_id = ?').run(TIE, TIE_PROJ);
+    store.db.prepare('UPDATE session_checkpoints SET created_at = ? WHERE project_id = ?').run(TIE, TIE_PROJ);
+
+    const last = store.getLastCompactSnapshot(TIE_PROJ);
+    expect(last.source).toBe('compact');
+    expect(last.session_id).toBe('tie-compact');
+    expect(store.listCheckpoints(TIE_PROJ)[0].source).toBe('compact');
+  });
+
   it('listCheckpoints() retorna entradas de ambas tablas ordenadas por fecha', () => {
     const rows = store.listCheckpoints(PROJ);
     expect(Array.isArray(rows)).toBe(true);

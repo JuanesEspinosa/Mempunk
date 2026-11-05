@@ -258,6 +258,7 @@ const HOOK_MESSAGES = {
   en: {
     'autostart.failed': 'Could not load the Mempunk context automatically; use {loadCmd} to load it.',
     'autostart.unmapped': 'This directory is not linked to a Mempunk project; use {loadCmd} to choose or create one.',
+    'autostart.loadCli': '`mempunk project list --json`, then `mempunk context <id>`',
     'restore.title': '⚠️ CONTEXT RESTORED AFTER COMPACTION ({date})',
     'restore.unknownDate': 'unknown date',
     'restore.files': 'Files you were editing:',
@@ -289,6 +290,7 @@ const HOOK_MESSAGES = {
   es: {
     'autostart.failed': 'No se pudo cargar el contexto de Mempunk automáticamente; usa {loadCmd} para cargarlo.',
     'autostart.unmapped': 'Este directorio no está vinculado a un proyecto de Mempunk; usa {loadCmd} para elegir o crear uno.',
+    'autostart.loadCli': '`mempunk project list --json` y luego `mempunk context <id>`',
     'restore.title': '⚠️ CONTEXTO RESTAURADO TRAS COMPACTACION ({date})',
     'restore.unknownDate': 'fecha desconocida',
     'restore.files': 'Archivos que estabas editando:',
@@ -375,9 +377,10 @@ export function exitIfPluginOwnsHooks(log) {
   process.exit(0);
 }
 
-/** Nombres que Claude ve: en el plugin, los skills llevan el prefijo "mempunk:" */
+/** Cómo cargar el contexto: el plugin trae el skill /mempunk:load; con hooks manuales no hay
+ *  skill de carga instalado, así que el aviso da los comandos del CLI. */
 export function assetNames() {
-  return { loadCmd: isViaPlugin() ? '/mempunk:load' : '/mempunk' };
+  return { loadCmd: isViaPlugin() ? '/mempunk:load' : hookT('autostart.loadCli') };
 }
 
 /** Mensaje de UI del hook traducido, con placeholders {name}. Nunca lanza. */
