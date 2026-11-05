@@ -97,21 +97,15 @@ Full command reference: run `mempunk` or see the README.
 
 ## Session start protocol
 
-> **First: check whether the agents are installed.**
-> Run `mempunk hooks install --check` or look for `@mempunk-loader` among your agents.
-
-### Path A — With agents (Claude Code, automatic mode)
-
-If the `@mempunk-loader` agent is available, **invoke it directly**.
-The agent handles project selection, activation, and full context loading.
-Do not follow the manual protocol — it would be redundant.
+### Path A — Context already loaded (Claude Code, automatic mode)
 
 If `auto-start` is configured and this directory is linked to a project
 (`mempunk project activate <id> --here`), the session already opened with a
-`MEMPUNK CONTEXT — <id>` block: do not invoke the loader, just continue. If the
-directory is not linked, the session opened with a one-line notice — use /mempunk.
+`MEMPUNK CONTEXT — <id>` block: just continue. If the session opened with a
+one-line notice instead, use `/mempunk:load` (plugin) to choose, switch or create
+a project; without the plugin, follow Path B.
 
-### Path B — Without agents (manual mode, Antigravity CLI, opencode)
+### Path B — Manual (no plugin, Antigravity CLI, opencode)
 
 **At the start of any session, Claude MUST:**
 
@@ -136,8 +130,8 @@ directory is not linked, the session opened with a one-line notice — use /memp
 
 ## Session close protocol
 
-> If `@mempunk-saver` is available, you can use it for saving.
-> Otherwise, follow the manual protocol.
+> If the Mempunk MCP tools are available (`save_decision`, `log_session`,
+> `backlog_update`, `update_state`), use them for saving. Otherwise, follow the manual protocol.
 > If `@mempunk-syncer` is available and the vault has a remote (`mempunk remote show`),
 > invoke it last with `SYNC push: project=<id> summary="<summary>"`.
 

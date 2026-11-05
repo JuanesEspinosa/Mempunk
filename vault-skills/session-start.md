@@ -1,6 +1,6 @@
 # Session start
 
-If the hooks are installed (`mempunk hooks install`), the start and close steps run automatically. Check with `mempunk hooks install --check` whether they are active. If the `@mempunk-loader` agent already loaded the context this session, do not repeat these steps — just confirm the active project.
+If the hooks are installed (`mempunk hooks install`), the start and close steps run automatically. Check with `mempunk hooks install --check` whether they are active. If the context was already loaded this session (a `MEMPUNK CONTEXT` block from the start hook, or `/mempunk:load`), do not repeat these steps — just confirm the active project.
 
 Run these commands in order before writing a single line of code or answering the user. Use `--json` on every read command and parse the JSON output — never scrape table output.
 
